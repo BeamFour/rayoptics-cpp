@@ -380,3 +380,39 @@ TEST(lists_slice) {
     CHECK_THROWS(util::Lists::slice(v, std::nullopt, std::nullopt, 0),
                  IllegalArgumentException);
 }
+
+TEST(lists_zip_longest_pads_with_null) {
+    // The shape SequentialModel's path walk depends on: ifcs has one more entry
+    // than gaps (the image surface has no gap after it), so the final pair has
+    // a real interface and a null gap, and the caller's `if (g != null)` has to
+    // see the difference.
+    auto s0 = std::make_shared<elem::surface::Surface>("S0", seq::InteractMode::TRANSMIT);
+    auto s1 = std::make_shared<elem::surface::Surface>("S1", seq::InteractMode::TRANSMIT);
+    auto s2 = std::make_shared<elem::surface::Surface>("Img", seq::InteractMode::DUMMY);
+    auto g0 = std::make_shared<seq::Gap>(1.0, seq::Air::INSTANCE());
+    auto g1 = std::make_shared<seq::Gap>(2.0, seq::Air::INSTANCE());
+
+    std::vector<std::shared_ptr<elem::surface::Surface>> ifcs = {s0, s1, s2};
+    std::vector<std::shared_ptr<seq::Gap>> gaps = {g0, g1};
+
+    auto zipped = util::Lists::zip_longest(ifcs, gaps);
+    CHECK_EQ(static_cast<int>(zipped.size()), 3);
+    CHECK(zipped[0].first == s0);
+    CHECK(zipped[0].second == g0);
+    CHECK(zipped[1].first == s1);
+    CHECK(zipped[1].second == g1);
+    CHECK(zipped[2].first == s2);
+    CHECK(zipped[2].second == nullptr); // the padded entry must read as absent
+
+    // Raw pointers pad the same way.
+    std::vector<seq::Gap *> raw = {g0.get()};
+    std::vector<elem::surface::Surface *> rawIfcs = {s0.get(), s1.get()};
+    auto zipped2 = util::Lists::zip_longest(rawIfcs, raw);
+    CHECK_EQ(static_cast<int>(zipped2.size()), 2);
+    CHECK(zipped2[1].second == nullptr);
+
+    // A value type would pad with a default-constructed object that reads as
+    // present, so it is a compile error rather than a silent wrong answer:
+    //   std::vector<double> a{1.0}, b{};
+    //   util::Lists::zip_longest(a, b);   // static_assert fires
+}

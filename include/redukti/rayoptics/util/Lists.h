@@ -6,7 +6,9 @@
 #include "redukti/rayoptics/util/Tuples.h"
 
 #include <algorithm>
+#include <memory>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 namespace redukti::rayoptics::util {
@@ -81,13 +83,27 @@ template <typename E> void set(std::vector<E> &inputList, int i, const E &e) {
 }
 
 /**
- * Java pads the shorter list with null. There is no null for an arbitrary C++
- * value type, so the padded entries are value-initialised instead; every call
- * site in the codebase pairs lists of equal length.
+ * Only types with a genuine "absent" state may be zipped. Java pads the short
+ * list with null and callers test for it -- SequentialModel's path walk does
+ * `if (g != null)` on the gap, because `ifcs` always has one more entry than
+ * `gaps` (the image surface has no gap after it). Value-initialising a value
+ * type would produce a default-constructed object that reads as present, which
+ * compiles and is silently wrong, so those instantiations are rejected here
+ * instead.
  */
+template <typename T> struct is_nullable : std::false_type {};
+template <typename T> struct is_nullable<T *> : std::true_type {};
+template <typename T> struct is_nullable<std::shared_ptr<T>> : std::true_type {};
+template <typename T> struct is_nullable<std::optional<T>> : std::true_type {};
+
+/** Java pads the shorter list with null; here that is a null pointer or nullopt. */
 template <typename T1, typename T2>
 std::vector<Pair<T1, T2>> zip_longest(const std::vector<T1> &list1,
                                       const std::vector<T2> &list2) {
+    static_assert(is_nullable<T1>::value && is_nullable<T2>::value,
+                  "zip_longest pads the shorter list with null; instantiate it with "
+                  "pointer, shared_ptr or optional elements so the padding is "
+                  "distinguishable from a real value");
     std::vector<Pair<T1, T2>> list;
     std::size_t n = std::max(list1.size(), list2.size());
     for (std::size_t i = 0; i < n; i++) {
