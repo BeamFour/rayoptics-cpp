@@ -40,6 +40,8 @@ add_library(rayoptics
     src/mathlib/Derivatives.cpp
     src/mathlib/LMLSolver.cpp
     src/mathlib/MinPack.cpp
+    src/mathlib/fftpack/ComplexDoubleFFT_Mixed.cpp
+    src/mathlib/fftpack/ComplexDoubleFFT.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -58,6 +60,8 @@ add_executable(mathlib_tests
     tests/MinPackTest.cpp
     tests/MinPackHybrdBatteryTest.cpp
     tests/MinPackLmderBatteryTest.cpp
+    tests/FftTest.cpp
+    tests/TrigProbeTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)

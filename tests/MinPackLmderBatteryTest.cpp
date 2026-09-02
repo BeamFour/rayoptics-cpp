@@ -49,7 +49,8 @@ struct TestLmdir2 : Lmder_Function {
     };
     void lmderTest() {
 
-        int iii,i,ic,k,m,n,nread,ntries,nwrite;
+        // nread/nwrite were Fortran unit numbers; unused here.
+        int iii,i,ic,k,m,n,ntries;
 
         int info;
 
