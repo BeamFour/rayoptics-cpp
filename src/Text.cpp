@@ -5,6 +5,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 
 namespace redukti {
@@ -71,6 +73,44 @@ std::string doubleToString(double d) {
         out.push_back('E');
         out += std::to_string(exponent);
     }
+    return out;
+}
+
+
+std::string formatG(double value, int width, int precision) {
+    std::string out;
+    if (std::isnan(value)) {
+        out = "NaN";
+    } else if (std::isinf(value)) {
+        out = value < 0 ? "-Infinity" : "Infinity";
+    } else if (value == 0.0) {
+        // Java renders zero in decimal form with precision-1 fraction digits.
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.*f", precision - 1, value);
+        out = buf;
+    } else {
+        // Decide the form from the magnitude AFTER rounding to `precision`
+        // significant digits: 9.99999e-5 rounds up to 1.000e-4 and is then
+        // rendered in decimal form.
+        char sci[64];
+        std::snprintf(sci, sizeof(sci), "%.*e", precision - 1, value);
+        const double rounded = std::strtod(sci, nullptr);
+        const double m = std::abs(rounded);
+        const double upper = std::pow(10.0, static_cast<double>(precision));
+        if (m >= 1e-4 && m < upper) {
+            const int exp10 = static_cast<int>(std::floor(std::log10(m)));
+            int frac = precision - 1 - exp10;
+            if (frac < 0)
+                frac = 0;
+            char buf[512];
+            std::snprintf(buf, sizeof(buf), "%.*f", frac, value);
+            out = buf;
+        } else {
+            out = sci;
+        }
+    }
+    if (static_cast<int>(out.size()) < width)
+        out.insert(out.begin(), static_cast<std::size_t>(width) - out.size(), ' ');
     return out;
 }
 

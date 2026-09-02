@@ -11,8 +11,8 @@ RootResult SecantSolver::find_root(ScalarObjectiveFunction &f, double x0, int ma
     double p0 = x0;
     double p1 = x0 * (1 + eps);
     p1 += (p1 >= 0 ? eps : -eps);
-    double q0 = f.eval(p0);
-    double q1 = f.eval(p1);
+    double q0 = f.eval(p0).value();
+    double q1 = f.eval(p1).value();
     if (std::abs(q1) < std::abs(q0)) {
         double tmp = p0;
         p0 = p1;
@@ -38,7 +38,7 @@ RootResult SecantSolver::find_root(ScalarObjectiveFunction &f, double x0, int ma
         p0 = p1;
         q0 = q1;
         p1 = p;
-        q1 = f.eval(p1);
+        q1 = f.eval(p1).value();
     }
     return RootResult(p, false, maxiter);
 }

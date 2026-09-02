@@ -28,6 +28,21 @@ std::string doubleToString(double d);
 /** Reproduces java.lang.Integer.toString(int) -- provided for symmetry. */
 std::string intToString(int i);
 
+/**
+ * Reproduces Java's String.format("%<width>.<precision>g", value).
+ *
+ * This is NOT C's %g. Java keeps trailing zeros out to the stated number of
+ * significant digits, where C strips them: at precision 4, Java renders 100.0
+ * as "100.0" and 0.001 as "0.001000", while C gives "100" and "0.001". The
+ * first-order and third-order reports are formatted entirely with %12.4g, so
+ * using C's %g would quietly change every number in them.
+ *
+ * Java switches to scientific notation when the value, after rounding to
+ * `precision` significant digits, falls outside [1e-4, 10^precision).
+ * `width` right-aligns with spaces; pass 0 for no padding.
+ */
+std::string formatG(double value, int width, int precision);
+
 } // namespace redukti
 
 #endif // REDUKTI_TEXT_H

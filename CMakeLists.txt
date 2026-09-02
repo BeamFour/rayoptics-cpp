@@ -46,6 +46,25 @@ add_library(rayoptics
     src/rayoptics/seq/Seq.cpp
     src/rayoptics/seq/Glass.cpp
     src/rayoptics/seq/GlassCatalog.cpp
+    src/rayoptics/seq/SequentialModel.cpp
+    src/rayoptics/specs/Field.cpp
+    src/rayoptics/specs/SpecTypes.cpp
+    src/rayoptics/specs/WvlSpec.cpp
+    src/rayoptics/specs/PupilSpec.cpp
+    src/rayoptics/specs/FieldSpec.cpp
+    src/rayoptics/specs/OpticalSpecs.cpp
+    src/rayoptics/parax/ParaxTypes.cpp
+    src/rayoptics/parax/FirstOrder.cpp
+    src/rayoptics/parax/ParaxModel.cpp
+    src/rayoptics/optical/OpticalModel.cpp
+    src/rayoptics/elem/transform/Transform.cpp
+    src/rayoptics/raytr/RayTypes.cpp
+    src/rayoptics/raytr/RayTrace.cpp
+    src/rayoptics/raytr/WaveAbr.cpp
+    src/rayoptics/raytr/ExitPupilAiming.cpp
+    src/rayoptics/raytr/Trace.cpp
+    src/rayoptics/raytr/Wideangle.cpp
+    src/rayoptics/raytr/VigCalc.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -67,6 +86,7 @@ add_executable(mathlib_tests
     tests/FftTest.cpp
     tests/TrigProbeTest.cpp
     tests/SeqTest.cpp
+    tests/RaytrTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)

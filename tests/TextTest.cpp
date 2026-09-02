@@ -58,3 +58,41 @@ TEST(doubleToString_subnormal_diverges_from_jdk) {
     CHECK_STR_EQ(doubleToString(std::numeric_limits<double>::denorm_min()),
                  "5.0E-324");
 }
+
+// ---------------------------------------------------------------------------
+// Java's %g, which the first-order and third-order reports are built from.
+// Expectations dumped from String.format("%12.4g", ...) on JDK 25.
+// ---------------------------------------------------------------------------
+TEST(formatG_matches_java) {
+    struct Row { double v; const char *want; };
+    static const Row rows[] = {
+        {0.0, "       0.000"},
+        {1.0, "       1.000"},
+        {100.0, "       100.0"},
+        {100.5, "       100.5"},
+        {1234.5678, "        1235"},
+        {0.001, "    0.001000"},
+        {1e-4, "   0.0001000"},
+        {1e-5, "   1.000e-05"},
+        {1e7, "   1.000e+07"},
+        {1.23456789e8, "   1.235e+08"},
+        {-50.0, "      -50.00"},
+        {1e10, "   1.000e+10"},
+        {1e-10, "   1.000e-10"},
+        {0.5, "      0.5000"},
+        {587.5618, "       587.6"},
+        {1e100, "  1.000e+100"},
+        {-1e-100, " -1.000e-100"},
+        {2.0 / 3.0, "      0.6667"},
+        // Rounds up to 1.000e-4, which is inside the decimal range.
+        {9.99999e-5, "   0.0001000"},
+        {123456.0, "   1.235e+05"},
+    };
+    for (const Row &r : rows)
+        CHECK_STR_EQ(redukti::formatG(r.v, 12, 4), r.want);
+
+    CHECK_STR_EQ(redukti::formatG(std::numeric_limits<double>::quiet_NaN(), 12, 4),
+                 "         NaN");
+    CHECK_STR_EQ(redukti::formatG(std::numeric_limits<double>::infinity(), 12, 4),
+                 "    Infinity");
+}

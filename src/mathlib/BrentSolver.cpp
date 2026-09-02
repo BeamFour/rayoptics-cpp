@@ -17,10 +17,10 @@ RootResult BrentSolver::find_root(double a, double b, ScalarObjectiveFunction &f
     double c, d = 0, e = 0, min1, min2;
     double fc, p, q, r, s, toler, xm, fa, fb;
     c = b;
-    fa = fn.eval(a);
+    fa = fn.eval(a).value();
     if (fa == 0.)
         return RootResult(a, true, 0);
-    fb = fn.eval(b);
+    fb = fn.eval(b).value();
     if (fb == 0.)
         return RootResult(b, true, 0);
     if (fa * fb > 0)
@@ -78,7 +78,7 @@ RootResult BrentSolver::find_root(double a, double b, ScalarObjectiveFunction &f
             b += d;
         else
             b += (xm > 0.0) ? std::abs(toler) : -std::abs(toler);
-        fb = fn.eval(b);
+        fb = fn.eval(b).value();
     }
     return RootResult(b, false, MAXIT); // SNH
 }

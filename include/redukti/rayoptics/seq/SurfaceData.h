@@ -69,20 +69,26 @@ public:
 };
 
 /**
- * One step along the sequential path. `ifc` and `gap` are borrowed views into
- * the SequentialModel's lists, not owned, so they are raw pointers.
+ * One step along the sequential path.
+ *
+ * SequentialModel holds its interfaces and gaps as shared_ptr (they are
+ * polymorphic and get sliced into new lists by path()/reverse_path()), so a
+ * PathSeg shares them rather than borrowing. Every field is nullable: the
+ * five-argument zip_longest that builds these pads the short lists with null.
  */
 class PathSeg {
 public:
-    Interface *ifc;
-    Gap *gap;
+    std::shared_ptr<Interface> ifc;
+    std::shared_ptr<Gap> gap;
     std::optional<math::Tfm3d> Tfrm;
     std::optional<double> Indx;
     std::optional<util::ZDir> Zdir;
 
-    PathSeg(Interface *ifc_, Gap *gap_, std::optional<math::Tfm3d> Tfrm_,
-            std::optional<double> Indx_, std::optional<util::ZDir> Zdir_)
-        : ifc(ifc_), gap(gap_), Tfrm(std::move(Tfrm_)), Indx(Indx_), Zdir(Zdir_) {}
+    PathSeg(std::shared_ptr<Interface> ifc_, std::shared_ptr<Gap> gap_,
+            std::optional<math::Tfm3d> Tfrm_, std::optional<double> Indx_,
+            std::optional<util::ZDir> Zdir_)
+        : ifc(std::move(ifc_)), gap(std::move(gap_)), Tfrm(std::move(Tfrm_)),
+          Indx(Indx_), Zdir(Zdir_) {}
 };
 
 class NewSurfaceSpec {

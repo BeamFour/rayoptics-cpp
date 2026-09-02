@@ -9,6 +9,7 @@
 #include "redukti/mathlib/SecantSolver.h"
 
 #include <cmath>
+#include <optional>
 #include <vector>
 
 using namespace redukti::mathlib;
@@ -18,22 +19,22 @@ namespace {
 // f(x) = x^3 - 2x - 5, the classic Brent test; root near 2.0945514815423265.
 struct Cubic : ScalarObjectiveFunction {
     int calls = 0;
-    double eval(double x) override {
+    std::optional<double> eval(double x) override {
         calls++;
         return x * x * x - 2.0 * x - 5.0;
     }
 };
 
 struct Cosine : ScalarObjectiveFunction {
-    double eval(double x) override { return std::cos(x) - x; }
+    std::optional<double> eval(double x) override { return std::cos(x) - x; }
 };
 
 struct Quadratic : ScalarObjectiveFunction {
-    double eval(double x) override { return x * x - 4.0; }
+    std::optional<double> eval(double x) override { return x * x - 4.0; }
 };
 
 struct NoRoot : ScalarObjectiveFunction {
-    double eval(double x) override { return x * x + 1.0; }
+    std::optional<double> eval(double x) override { return x * x + 1.0; }
 };
 
 } // namespace
