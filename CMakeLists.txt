@@ -34,6 +34,12 @@ add_library(rayoptics
     src/mathlib/Matrix3.cpp
     src/mathlib/Quaternion.cpp
     src/mathlib/Transform3.cpp
+    src/mathlib/RootResult.cpp
+    src/mathlib/BrentSolver.cpp
+    src/mathlib/SecantSolver.cpp
+    src/mathlib/Derivatives.cpp
+    src/mathlib/LMLSolver.cpp
+    src/mathlib/MinPack.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -48,6 +54,10 @@ add_executable(mathlib_tests
     tests/VectorTest.cpp
     tests/TextTest.cpp
     tests/MatrixTest.cpp
+    tests/SolverTest.cpp
+    tests/MinPackTest.cpp
+    tests/MinPackHybrdBatteryTest.cpp
+    tests/MinPackLmderBatteryTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)

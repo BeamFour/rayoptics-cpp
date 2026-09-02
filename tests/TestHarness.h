@@ -6,6 +6,8 @@
 #ifndef REDUKTI_TESTHARNESS_H
 #define REDUKTI_TESTHARNESS_H
 
+#include "redukti/Text.h"
+
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -71,7 +73,9 @@ struct Registrar {
         if (!(std::abs(_a - _e) <= (tol)))                                               \
             ::redukti::test::reportFailure(                                              \
                 __FILE__, __LINE__,                                                      \
-                "got " + std::to_string(_a) + " want " + std::to_string(_e));            \
+                "got " + ::redukti::doubleToString(_a) + " want " +                      \
+                    ::redukti::doubleToString(_e) + " (delta " +                         \
+                    ::redukti::doubleToString(_a - _e) + ")");                           \
     } while (0)
 
 #define CHECK_THROWS(expr, exceptionType)                                                \
