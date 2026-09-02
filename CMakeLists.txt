@@ -31,6 +31,9 @@ add_library(rayoptics
     src/mathlib/M.cpp
     src/mathlib/Vector2.cpp
     src/mathlib/Vector3.cpp
+    src/mathlib/Matrix3.cpp
+    src/mathlib/Quaternion.cpp
+    src/mathlib/Transform3.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -44,6 +47,7 @@ add_executable(mathlib_tests
     tests/TestMain.cpp
     tests/VectorTest.cpp
     tests/TextTest.cpp
+    tests/MatrixTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)

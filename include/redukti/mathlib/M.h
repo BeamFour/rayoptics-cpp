@@ -48,9 +48,14 @@ inline int trunc(double value) {
     return static_cast<int>(value < 0 ? std::ceil(value) : std::floor(value));
 }
 
-/** Java's Math.toRadians / Math.toDegrees. */
-inline double toRadians(double deg) { return deg * (3.14159265358979323846 / 180.0); }
-inline double toDegrees(double rad) { return rad * (180.0 / 3.14159265358979323846); }
+/**
+ * Java's Math.toRadians / Math.toDegrees. The operation order matters and is
+ * reproduced exactly: the JDK computes `angdeg / 180.0 * PI`, which does not
+ * round identically to multiplying by a precomputed PI/180 constant.
+ */
+inline constexpr double PI = 3.14159265358979323846;
+inline double toRadians(double angdeg) { return angdeg / 180.0 * PI; }
+inline double toDegrees(double angrad) { return angrad * 180.0 / PI; }
 
 double cosd(double deg);
 double sind(double deg);
