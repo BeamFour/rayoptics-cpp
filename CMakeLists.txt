@@ -42,6 +42,10 @@ add_library(rayoptics
     src/mathlib/MinPack.cpp
     src/mathlib/fftpack/ComplexDoubleFFT_Mixed.cpp
     src/mathlib/fftpack/ComplexDoubleFFT.cpp
+    src/rayoptics/elem/profiles/Profiles.cpp
+    src/rayoptics/seq/Seq.cpp
+    src/rayoptics/seq/Glass.cpp
+    src/rayoptics/seq/GlassCatalog.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -62,6 +66,7 @@ add_executable(mathlib_tests
     tests/MinPackLmderBatteryTest.cpp
     tests/FftTest.cpp
     tests/TrigProbeTest.cpp
+    tests/SeqTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)
