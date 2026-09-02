@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.20)
+project(rayoptics_cpp LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+if (MSVC)
+    add_compile_options(/W3 /permissive- /EHsc)
+else()
+    add_compile_options(-Wall -Wextra)
+endif()
+
+# ---------------------------------------------------------------------------
+# Ryu (Apache-2.0 / Boost-1.0) supplies shortest round-tripping decimal digits.
+# Vendored rather than using std::to_chars: floating-point to_chars landed very
+# late in libc++, so Apple Clang on macOS cannot be relied on to have it.
+# ---------------------------------------------------------------------------
+add_library(ryu STATIC third_party/ryu/d2s.c)
+target_include_directories(ryu PUBLIC third_party)
+if (NOT MSVC)
+    target_compile_options(ryu PRIVATE -w)
+endif()
+
+# ---------------------------------------------------------------------------
+# The library. Small value types (Vector2/3, pairs, ...) are header-only so the
+# arithmetic inlines; anything larger gets a .h/.cpp split.
+# ---------------------------------------------------------------------------
+add_library(rayoptics
+    src/Text.cpp
+    src/mathlib/M.cpp
+    src/mathlib/Vector2.cpp
+    src/mathlib/Vector3.cpp
+)
+target_include_directories(rayoptics PUBLIC include)
+target_link_libraries(rayoptics PRIVATE ryu)
+
+# ---------------------------------------------------------------------------
+# Tests. Zero dependencies: tests/TestHarness.h self-registers each TEST().
+# ---------------------------------------------------------------------------
+enable_testing()
+
+add_executable(mathlib_tests
+    tests/TestMain.cpp
+    tests/VectorTest.cpp
+    tests/TextTest.cpp
+)
+target_link_libraries(mathlib_tests PRIVATE rayoptics)
+add_test(NAME mathlib COMMAND mathlib_tests)
