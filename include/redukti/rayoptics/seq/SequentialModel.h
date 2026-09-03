@@ -234,17 +234,19 @@ public:
         return result;
     }
 
-    /** Five-list zip; every field of the resulting PathSeg is nullable. */
-    static std::vector<PathSeg> zip_longest(
-        const std::vector<std::shared_ptr<Interface>> &ifcs_,
-        const std::vector<std::shared_ptr<Gap>> &gaps_,
-        const std::vector<math::Tfm3d> &lcl_tfrms_, const std::vector<double> &rndx_,
-        const std::vector<util::ZDir> &z_dir_);
+    /**
+     * Five-list zip; every field of the resulting PathSeg is nullable, and
+     * every one borrows. The pointers must outlive the returned path.
+     */
+    static std::vector<PathSeg> zip_longest(const std::vector<Interface *> &ifcs_,
+                                            const std::vector<Gap *> &gaps_,
+                                            const std::vector<const math::Tfm3d *> &lcl_tfrms_,
+                                            const std::vector<double> &rndx_,
+                                            const std::vector<util::ZDir> &z_dir_);
 
-    static std::vector<PathSeg> zip_longest(
-        const std::vector<std::shared_ptr<Interface>> &ifcs_,
-        const std::vector<std::shared_ptr<Gap>> &gaps_,
-        const std::vector<util::ZDir> &z_dir_);
+    static std::vector<PathSeg> zip_longest(const std::vector<Interface *> &ifcs_,
+                                            const std::vector<Gap *> &gaps_,
+                                            const std::vector<util::ZDir> &z_dir_);
 
     NewSurfaceSpec create_surface_and_gap(SurfaceData &surf_data, bool radius_mode,
                                           std::shared_ptr<Medium> prev_medium,
@@ -252,6 +254,17 @@ public:
 
 private:
     void initialize_arrays();
+
+    /**
+     * Storage for the transforms reverse_path() computes on the fly.
+     *
+     * PathSeg borrows its transform, so the vector it points into has to
+     * outlive the returned path; a local would dangle the moment reverse_path
+     * returned. Parking it here means a second reverse_path() invalidates the
+     * first path's transforms -- acceptable because its one caller consumes the
+     * path immediately, and noted here so that stays true.
+     */
+    std::vector<math::Tfm3d> reverse_path_tfrms_;
 };
 
 } // namespace redukti::rayoptics::seq

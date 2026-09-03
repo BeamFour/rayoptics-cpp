@@ -13,15 +13,17 @@ int main(int argc, char **argv) {
         args.push_back(argv[i]);
     auto arguments = redukti::util::Args::parseArguments(args);
     if (!arguments.specfile.has_value()) {
+        // The trailing backslash-newline pairs mirror the Java usage text,
+        // which wraps the synopsis the way a shell continuation would.
         std::cerr
             << "Usage: --specfile inputfile [--scenario num] [--dump-system] "
-               "[--only-d-line] [-o outfilename] [--dont-use-glass-types] \\n";
+               "[--only-d-line] [-o outfilename] [--dont-use-glass-types] \\\n";
         std::cerr << "       [--output-ray-aberration-plots] [--output-wavelength-mtfs] "
-                     "[--auto-size-spot-diagrams] [--do-wideangle-layout] \\n";
+                     "[--auto-size-spot-diagrams] [--do-wideangle-layout] \\\n";
         std::cerr << "       [--use-spot-pattern "
                   << redukti::util::Args::spot_pattern_names() << "] [--vig-type "
                   << redukti::util::Args::vig_type_names()
-                  << "] [--wide-angle|--no-wide-angle] \\n";
+                  << "] [--wide-angle|--no-wide-angle] \\\n";
         std::cerr << "       [--mtf freq,freq,...]\n";
         std::cerr << "       --scenario defaults to 0\n";
         std::cerr << "       --mtf takes spatial frequencies in cycles/mm and defaults "
