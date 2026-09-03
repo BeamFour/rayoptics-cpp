@@ -1,6 +1,11 @@
 // C++ port of org.redukti.rayoptics.seq.SequentialModel
 #include "redukti/rayoptics/seq/SequentialModel.h"
 
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
+
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
 #include "redukti/mathlib/Matrix3.h"
@@ -18,6 +23,67 @@
 #include <cmath>
 
 namespace redukti::rayoptics::seq {
+
+namespace {
+
+using PathClock = std::chrono::steady_clock;
+
+std::atomic<std::uint64_t> path_call_count{0};
+std::atomic<std::uint64_t> path_elapsed_ns{0};
+
+void report_path_profile() {
+    const auto calls = path_call_count.load(std::memory_order_relaxed);
+    const auto elapsed = path_elapsed_ns.load(std::memory_order_relaxed);
+    std::cerr << "SequentialModel::path profile: calls=" << calls
+              << " cumulative_ms=" << (static_cast<double>(elapsed) / 1.0e6)
+              << " average_us="
+              << (calls == 0 ? 0.0 : static_cast<double>(elapsed) / calls / 1.0e3)
+              << '\n';
+}
+
+bool path_profiling_enabled() {
+    static const bool enabled = [] {
+#ifdef _WIN32
+        char *value = nullptr;
+        std::size_t value_size = 0;
+        _dupenv_s(&value, &value_size, "RAYOPTICS_PROFILE_PATH");
+        const bool on = value != nullptr && value[0] != '\0' && value[0] != '0';
+        std::free(value);
+#else
+        const char *value = std::getenv("RAYOPTICS_PROFILE_PATH");
+        const bool on = value != nullptr && value[0] != '\0' && value[0] != '0';
+#endif
+        if (on)
+            std::atexit(report_path_profile);
+        return on;
+    }();
+    return enabled;
+}
+
+class PathTimer {
+public:
+    PathTimer() : enabled_(path_profiling_enabled()) {
+        if (enabled_)
+            start_ = PathClock::now();
+    }
+
+    ~PathTimer() {
+        if (!enabled_)
+            return;
+        const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            PathClock::now() - start_)
+                            .count();
+        path_elapsed_ns.fetch_add(static_cast<std::uint64_t>(ns),
+                                  std::memory_order_relaxed);
+        path_call_count.fetch_add(1, std::memory_order_relaxed);
+    }
+
+private:
+    bool enabled_;
+    PathClock::time_point start_{};
+};
+
+} // namespace
 
 using elem::surface::Surface;
 using math::Tfm3d;
@@ -49,6 +115,7 @@ std::vector<PathSeg> SequentialModel::path(std::optional<double> wl,
                                            std::optional<int> start,
                                            std::optional<int> stop,
                                            std::optional<int> step_) {
+    PathTimer timer;
     double wlv = wl.has_value() ? *wl : central_wavelength();
     int step = step_.has_value() ? *step_ : 1;
     std::optional<int> gap_start;
@@ -60,6 +127,7 @@ std::vector<PathSeg> SequentialModel::path(std::optional<double> wl,
     // extract the refractive index for given wavelength and list of surfaces
     auto rndx_list = util::Lists::slice(rndx, start, stop, step_);
     std::vector<double> rndx_sel;
+    rndx_sel.reserve(rndx_list.size());
     for (auto &narr : rndx_list) {
         rndx_sel.push_back(narr[static_cast<std::size_t>(wl_idx)]);
     }
@@ -353,6 +421,7 @@ std::vector<PathSeg> SequentialModel::zip_longest(
     std::size_t maxSize =
         std::max({ifcs_.size(), gaps_.size(), lcl_tfrms_.size(), rndx_.size(),
                   z_dir_.size()});
+    list.reserve(maxSize);
     for (std::size_t i = 0; i < maxSize; i++) {
         auto ifc = i < ifcs_.size() ? ifcs_[i] : nullptr;
         auto gap = i < gaps_.size() ? gaps_[i] : nullptr;
@@ -375,6 +444,7 @@ std::vector<PathSeg> SequentialModel::zip_longest(
     const std::vector<std::shared_ptr<Gap>> &gaps_, const std::vector<ZDir> &z_dir_) {
     std::vector<PathSeg> list;
     std::size_t maxSize = std::max({ifcs_.size(), gaps_.size(), z_dir_.size()});
+    list.reserve(maxSize);
     for (std::size_t i = 0; i < maxSize; i++) {
         auto ifc = i < ifcs_.size() ? ifcs_[i] : nullptr;
         auto gap = i < gaps_.size() ? gaps_[i] : nullptr;

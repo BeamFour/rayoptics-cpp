@@ -24,6 +24,10 @@ template <typename E>
 std::vector<E> slice(const std::vector<E> &inputList, std::optional<int> start_,
                      std::optional<int> stop_, std::optional<int> step_) {
     std::vector<E> newList;
+    // A slice can never contain more elements than its source. Reserving the
+    // upper bound avoids repeatedly copying value types and incrementing
+    // shared_ptr reference counts while the vector grows.
+    newList.reserve(inputList.size());
     int step = step_.has_value() ? *step_ : 1;
     int length = static_cast<int>(inputList.size());
     int start, stop;

@@ -1,11 +1,10 @@
 # Performance: C++ port vs the Java original
 
 First measurement of the ported tool against the Java it was ported from,
-taken 2026-09-03. **The C++ is currently about 1.5x slower than the Java.**
+taken 2026-09-03. **The initial C++ baseline was about 1.5x slower than the Java.**
 
-This file records what was measured and the leading explanation. Nothing here
-has been acted on — no optimisation work has been done, and the numbers below
-are the baseline to beat if it ever is.
+This file records what was measured, the leading explanation, and the first
+optimisation experiment. The original numbers below remain the baseline.
 
 ## Method
 
@@ -48,23 +47,58 @@ Temporary instrumentation, since reverted:
 | `sizeof(Tfm3d)` | **104 bytes** |
 | `TraceException` constructions | **117,857** |
 
+## First optimisation experiment: reserve vector capacity
+
+`SequentialModel::path()` creates five sliced vectors, a selected refractive-index
+vector, and the final `PathSeg` vector. None reserved capacity, so vector growth
+repeatedly copied transforms and `PathSeg` values and repeatedly adjusted
+`shared_ptr` reference counts.
+
+Capacity is now reserved for these vectors. On the same machine and prescription,
+one before/after pair measured:
+
+| | wall clock |
+|---|---:|
+| Before | 64.17 s |
+| After, profiling disabled | 45.08 s |
+| After, path profiling enabled | 45.58 s |
+
+This is a **29.7% reduction** for the unprofiled pair. It is one pair rather than
+a full benchmark series, so the exact percentage should not be over-interpreted,
+but the size of the change confirms that path materialisation was a major cost.
+
+With the opt-in path timer enabled, the post-change run reported:
+
+| | |
+|---|---:|
+| `SequentialModel::path()` calls | 3,026,267 |
+| Cumulative time in `path()` | 17.149 s |
+| Average time per call | 5.667 us |
+
+Set `RAYOPTICS_PROFILE_PATH` to a non-empty value other than `0` when running an
+executable to enable this timing. The result is written to standard error at
+normal process exit. Timing is disabled by default.
+
 ## Assessment
 
-**Exceptions are not the problem.** The port uses exceptions as control flow, so
-they were the first suspect. At a pessimistic 50 microseconds per throw on
-Windows x64, 118k throws is about 6 seconds — at most a tenth of the 20 second
-gap, and probably far less. Ruled out.
+**Exceptions are unlikely to explain the entire gap, but remain unmeasured.**
+The port uses exceptions as control flow, so they were the first suspect. At an
+assumed 50 microseconds per throw on Windows x64, 118k throws would be about 6
+seconds. That estimate is not a substitute for measuring exception-heavy and
+exception-free workloads separately.
 
-**Copying the ray path is the leading candidate.** Every ray trace rebuilds the
+**Copying the ray path is a confirmed major cost.** Every ray trace rebuilds the
 whole path:
 
 - ~37 interfaces, so each `path()` call builds a ~37-element `vector<PathSeg>`,
   about 6 KB
 - two `shared_ptr` atomic increments per element, 74 per call
-- over 3.03M calls: roughly **19 GB of construction and copying, and ~450M
-  atomic refcount operations**
+- over 3.03M calls: at least roughly **19 GB of final `PathSeg` construction and
+  ~450M atomic refcount operations**
 
-All of it rebuilding an identical, immutable path for each ray.
+The original implementation did still more work during vector growth; the first
+optimisation experiment above removed that portion. Most calls nevertheless
+continue to rebuild an identical, immutable path for each ray.
 
 The root cause is a direct consequence of the faithful port. In Java,
 `PathSeg.Tfrm` is a *reference* — 8 bytes copied. Here it became an inline
@@ -75,15 +109,16 @@ that is the shape of the gap.
 Java also gets whole-program inlining from the JIT at runtime, which this build
 does not have.
 
-## Candidate fixes, in rough order of expected value
+## Further candidate fixes, in rough order of expected value
 
-**None of these have been measured.** They are sized by inspection only.
+**None of these further changes have been measured.** They are sized by
+inspection only.
 
 1. **Cache the path instead of rebuilding it per ray.** `RayTrace::trace` calls
    `seq_model->path(...)` on every trace. The path is immutable between model
    updates, so it can be computed once per (wavelength, model version). Likely
-   the single biggest win and semantically transparent, though it departs from
-   the Java call structure.
+   the single biggest win. It requires reliable invalidation whenever model
+   geometry or refractive-index data changes.
 2. **Hold `const Tfm3d *` in `PathSeg`** rather than a 104-byte copy, pointing
    into the `SequentialModel`'s `lcl_tfrms`. Restores Java's reference semantics
    for the field that dominates the struct.
