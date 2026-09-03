@@ -69,6 +69,13 @@ public:
 
     void invalidate() { _invalid = true; }
 
+    /**
+     * Re-point at the owning data set after that set has been copied or moved.
+     * The constructor is handed `this` of the enclosing DiscreteSet, so a copy
+     * would otherwise keep interpolating over the original.
+     */
+    void rebind(InterpolatableDataSet *dataSet) { _data_set = dataSet; }
+
     void set_interpolation(Interpolation i);
 
     double interpolate(double x) { return interpolate(x, 0); }

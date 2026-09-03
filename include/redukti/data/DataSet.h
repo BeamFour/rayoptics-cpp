@@ -127,6 +127,40 @@ class DiscreteSet : public DiscreteSetBase {
 public:
     DiscreteSet() : _interpolated_1d(this) {}
 
+    /**
+     * Copy and move have to re-point the interpolator: it holds a bare pointer
+     * to the DiscreteSet that owns it, so the compiler-generated versions would
+     * leave the new object interpolating over the old one. Plot borrows its
+     * data sets, so they do get stored and passed around.
+     */
+    DiscreteSet(const DiscreteSet &o)
+        : DiscreteSetBase(o), _interpolated_1d(o._interpolated_1d) {
+        _interpolated_1d.rebind(this);
+    }
+
+    DiscreteSet(DiscreteSet &&o) noexcept
+        : DiscreteSetBase(std::move(o)), _interpolated_1d(std::move(o._interpolated_1d)) {
+        _interpolated_1d.rebind(this);
+    }
+
+    DiscreteSet &operator=(const DiscreteSet &o) {
+        if (this != &o) {
+            DiscreteSetBase::operator=(o);
+            _interpolated_1d = o._interpolated_1d;
+            _interpolated_1d.rebind(this);
+        }
+        return *this;
+    }
+
+    DiscreteSet &operator=(DiscreteSet &&o) noexcept {
+        if (this != &o) {
+            DiscreteSetBase::operator=(std::move(o));
+            _interpolated_1d = std::move(o._interpolated_1d);
+            _interpolated_1d.rebind(this);
+        }
+        return *this;
+    }
+
     double interpolate(double x) override { return _interpolated_1d.interpolate(x); }
 
     double interpolate(double x, int deriv) override {

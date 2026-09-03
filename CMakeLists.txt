@@ -66,6 +66,9 @@ add_library(rayoptics
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
+    src/plotter/Plotter.cpp
+    src/rayoptics/layout/ElementModel.cpp
+    src/rayoptics/layout/Layout2D.cpp
     src/importers/OpticalBenchDataImporter.cpp
     src/spec/SurfaceType.cpp
     src/spec/Prescription.cpp
@@ -108,6 +111,7 @@ add_executable(mathlib_tests
     tests/DecimalFormatTest.cpp
     tests/RenderTest.cpp
     tests/SpecTest.cpp
+    tests/LayoutPlotterTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp
