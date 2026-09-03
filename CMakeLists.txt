@@ -66,6 +66,8 @@ add_library(rayoptics
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
+    src/util/Args.cpp
+    src/tools/LensTool2.cpp
     src/exporters/ZemaxExporter.cpp
     src/plotter/Plotter.cpp
     src/rayoptics/layout/ElementModel.cpp
@@ -115,6 +117,7 @@ add_executable(mathlib_tests
     tests/LayoutPlotterTest.cpp
     tests/ZemaxExporterTest.cpp
     tests/FormatFTest.cpp
+    tests/LensTool2Test.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp
@@ -130,6 +133,14 @@ add_executable(mathlib_tests
 # path is baked in here rather than hardcoded in the test so a clone anywhere
 # still finds them.
 target_compile_definitions(mathlib_tests PRIVATE
-    REDUKTI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Examples/jfotoptix/")
+    REDUKTI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Examples/jfotoptix/"
+    REDUKTI_TEST_TMPDIR="${CMAKE_CURRENT_BINARY_DIR}/testtmp/")
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)
+
+# ---------------------------------------------------------------------------
+# The LensTool2 command-line tool: reads an OpticalBench prescription and
+# writes the report artifacts that live under Examples/.
+# ---------------------------------------------------------------------------
+add_executable(lenstool2 src/tools/lenstool2_main.cpp)
+target_link_libraries(lenstool2 PRIVATE rayoptics)
