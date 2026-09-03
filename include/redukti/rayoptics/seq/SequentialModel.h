@@ -66,9 +66,19 @@ public:
 
     int get_num_surfaces() const { return static_cast<int>(ifcs.size()); }
 
-    std::vector<PathSeg> path(std::optional<double> wl, std::optional<int> start,
-                              std::optional<int> stop, std::optional<int> step);
-    std::vector<PathSeg> path() {
+    /**
+     * The path for the given wavelength and surface range.
+     *
+     * Returns a reference into a bounded cache owned by this model, so the
+     * common case of tracing millions of rays through an unchanging model does
+     * not rebuild an identical vector every time. The reference stays valid
+     * until either the model changes (see invalidate_path_cache) or enough
+     * distinct keys are requested to evict this one from the ring; callers hold
+     * it only for the duration of a trace.
+     */
+    const std::vector<PathSeg> &path(std::optional<double> wl, std::optional<int> start,
+                                     std::optional<int> stop, std::optional<int> step);
+    const std::vector<PathSeg> &path() {
         return path(std::nullopt, std::nullopt, std::nullopt, std::nullopt);
     }
 
@@ -252,6 +262,52 @@ public:
 
 private:
     void initialize_arrays();
+
+    /**
+     * Bounded cache of computed paths, as a ring: on a miss the oldest entry is
+     * overwritten.
+     *
+     * A PathSeg copies the transform, the refractive index and the z direction
+     * out of the model, so a cached entry goes stale whenever lcl_tfrms, rndx,
+     * z_dir or wvlns is rewritten, or whenever the interface and gap lists are
+     * spliced. It does *not* go stale when an Interface or Gap object is edited
+     * in place, because the entry holds shared_ptrs to those same objects.
+     *
+     * Every writer of the four copied arrays therefore has to call
+     * invalidate_path_cache(): initialize_arrays(), insert(), and
+     * update_model() are the only ones -- nothing outside this class mutates
+     * them.
+     */
+    struct PathCacheKey {
+        std::optional<double> wl;
+        std::optional<int> start;
+        std::optional<int> stop;
+        std::optional<int> step;
+
+        bool operator==(const PathCacheKey &o) const {
+            return wl == o.wl && start == o.start && stop == o.stop && step == o.step;
+        }
+    };
+
+    struct PathCacheEntry {
+        PathCacheKey key;
+        std::vector<PathSeg> segs;
+    };
+
+    /**
+     * Sized to comfortably exceed the number of distinct keys in flight: the
+     * ray trace asks for one shape per wavelength, and a wavelength-resolved
+     * MTF run uses the most wavelengths of anything in the tool.
+     */
+    static constexpr std::size_t PATH_CACHE_CAPACITY = 16;
+
+    std::vector<PathCacheEntry> path_cache_;
+    std::size_t path_cache_next_ = 0;
+
+    void invalidate_path_cache() {
+        path_cache_.clear();
+        path_cache_next_ = 0;
+    }
 };
 
 } // namespace redukti::rayoptics::seq

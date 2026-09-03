@@ -30,15 +30,23 @@ using PathClock = std::chrono::steady_clock;
 
 std::atomic<std::uint64_t> path_call_count{0};
 std::atomic<std::uint64_t> path_elapsed_ns{0};
+std::atomic<std::uint64_t> path_cache_hits{0};
+std::atomic<std::uint64_t> path_cache_misses{0};
 
 void report_path_profile() {
     const auto calls = path_call_count.load(std::memory_order_relaxed);
     const auto elapsed = path_elapsed_ns.load(std::memory_order_relaxed);
+    const auto hits = path_cache_hits.load(std::memory_order_relaxed);
+    const auto misses = path_cache_misses.load(std::memory_order_relaxed);
+    const auto lookups = hits + misses;
     std::cerr << "SequentialModel::path profile: calls=" << calls
               << " cumulative_ms=" << (static_cast<double>(elapsed) / 1.0e6)
               << " average_us="
               << (calls == 0 ? 0.0 : static_cast<double>(elapsed) / calls / 1.0e3)
-              << '\n';
+              << " cache_hits=" << hits << " cache_misses=" << misses
+              << " hit_rate="
+              << (lookups == 0 ? 0.0 : static_cast<double>(hits) * 100.0 / lookups)
+              << "%\n";
 }
 
 bool path_profiling_enabled() {
@@ -109,13 +117,26 @@ void SequentialModel::initialize_arrays() {
     ifcs.push_back(std::make_shared<Surface>("Img", InteractMode::DUMMY));
     gbl_tfrms.push_back(tfrm);
     lcl_tfrms.push_back(tfrm);
+    invalidate_path_cache();
 }
 
-std::vector<PathSeg> SequentialModel::path(std::optional<double> wl,
-                                           std::optional<int> start,
-                                           std::optional<int> stop,
-                                           std::optional<int> step_) {
+const std::vector<PathSeg> &SequentialModel::path(std::optional<double> wl,
+                                                  std::optional<int> start,
+                                                  std::optional<int> stop,
+                                                  std::optional<int> step_) {
     PathTimer timer;
+    // Keyed on the arguments as given rather than on their normalised forms.
+    // Equivalent spellings (a null step and an explicit 1, say) then occupy
+    // separate slots, which costs a slot and never returns a wrong answer.
+    const PathCacheKey key{wl, start, stop, step_};
+    for (auto &entry : path_cache_) {
+        if (entry.key == key) {
+            path_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            return entry.segs;
+        }
+    }
+    path_cache_misses.fetch_add(1, std::memory_order_relaxed);
+
     double wlv = wl.has_value() ? *wl : central_wavelength();
     int step = step_.has_value() ? *step_ : 1;
     std::optional<int> gap_start;
@@ -131,10 +152,25 @@ std::vector<PathSeg> SequentialModel::path(std::optional<double> wl,
     for (auto &narr : rndx_list) {
         rndx_sel.push_back(narr[static_cast<std::size_t>(wl_idx)]);
     }
-    return zip_longest(util::Lists::slice(ifcs, start, stop, step_),
-                       util::Lists::slice(gaps, gap_start, stop, step_),
-                       util::Lists::slice(lcl_tfrms, start, stop, step_), rndx_sel,
-                       util::Lists::slice(z_dir, start, stop, step_));
+    auto segs = zip_longest(util::Lists::slice(ifcs, start, stop, step_),
+                            util::Lists::slice(gaps, gap_start, stop, step_),
+                            util::Lists::slice(lcl_tfrms, start, stop, step_), rndx_sel,
+                            util::Lists::slice(z_dir, start, stop, step_));
+
+    // Ring insert: grow until full, then overwrite the oldest entry in turn.
+    // The reserve matters for correctness, not speed -- growing the cache must
+    // never reallocate, or a reference handed out earlier would dangle.
+    if (path_cache_.capacity() < PATH_CACHE_CAPACITY)
+        path_cache_.reserve(PATH_CACHE_CAPACITY);
+    if (path_cache_.size() < PATH_CACHE_CAPACITY) {
+        path_cache_.push_back(PathCacheEntry{key, std::move(segs)});
+        return path_cache_.back().segs;
+    }
+    auto &slot = path_cache_[path_cache_next_];
+    slot.key = key;
+    slot.segs = std::move(segs);
+    path_cache_next_ = (path_cache_next_ + 1) % PATH_CACHE_CAPACITY;
+    return slot.segs;
 }
 
 std::vector<PathSeg> SequentialModel::reverse_path(std::optional<double> wl,
@@ -264,6 +300,7 @@ void SequentialModel::insert(std::shared_ptr<Interface> ifc, std::shared_ptr<Gap
     for (std::size_t i = 0; i < wvls.size(); i++)
         rindex[i] = gap->medium->rindex(wvls[i]);
     rndx.insert(rndx.begin() + idx, rindex);
+    invalidate_path_cache();
 }
 
 void SequentialModel::add_surface(SurfaceData &surf_data) {
@@ -321,6 +358,9 @@ void SequentialModel::update_model(std::optional<int> start_) {
     }
     this->gbl_tfrms = this->compute_global_coords();
     this->lcl_tfrms = this->compute_local_transforms();
+    // Last, so that anything reached during the update above cannot leave a
+    // stale entry behind.
+    invalidate_path_cache();
 }
 
 void SequentialModel::update_optical_properties() {

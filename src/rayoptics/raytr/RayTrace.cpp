@@ -49,7 +49,10 @@ double RayTrace::eic_distance_from_axis(const Vector3 &p, const Vector3 &d, ZDir
 std::shared_ptr<const RayPkg> RayTrace::trace(seq::SequentialModel *seq_model,
                                               const Vector3 &pt0, const Vector3 &dir0,
                                               double wvl, RayTraceOptions &options) {
-    auto path = seq_model->path(wvl, std::nullopt, std::nullopt, 1);
+    // Bind by reference: path() now returns a reference into the model's path
+    // cache, and copying it here would give back the per-trace vector copy the
+    // cache exists to remove.
+    const auto &path = seq_model->path(wvl, std::nullopt, std::nullopt, 1);
     if (!options.first_surf.has_value())
         options.first_surf = 1;
     if (!options.last_surf.has_value())
