@@ -66,6 +66,10 @@ add_library(rayoptics
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
+    src/importers/OpticalBenchDataImporter.cpp
+    src/spec/SurfaceType.cpp
+    src/spec/Prescription.cpp
+    src/spec/RayOpticsModelBuilder.cpp
     src/render/Renderer.cpp
     src/render/RendererSvg.cpp
     src/render/Plot.cpp
@@ -103,6 +107,7 @@ add_executable(mathlib_tests
     tests/DataTest.cpp
     tests/DecimalFormatTest.cpp
     tests/RenderTest.cpp
+    tests/SpecTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp
@@ -114,5 +119,10 @@ add_executable(mathlib_tests
     tests/upstream/US004123144Example08PUpstreamTest.cpp
     tests/upstream/US004717245Example02PUpstreamTest.cpp
 )
+# SpecTest reads real prescriptions from the repository's Examples tree; the
+# path is baked in here rather than hardcoded in the test so a clone anywhere
+# still finds them.
+target_compile_definitions(mathlib_tests PRIVATE
+    REDUKTI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Examples/jfotoptix/")
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)
