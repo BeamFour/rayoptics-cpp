@@ -65,6 +65,12 @@ add_library(rayoptics
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
+    src/rayoptics/analysis/SpotIntercepts.cpp
+    src/rayoptics/analysis/Histogram.cpp
+    src/rayoptics/analysis/MTF.cpp
+    src/rayoptics/analysis/SpotAnalysis.cpp
+    src/rayoptics/analysis/RayAberrations.cpp
+    src/rayoptics/analysis/ContrastAnalysis.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -87,6 +93,7 @@ add_executable(mathlib_tests
     tests/TrigProbeTest.cpp
     tests/SeqTest.cpp
     tests/RaytrTest.cpp
+    tests/AnalysisTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)

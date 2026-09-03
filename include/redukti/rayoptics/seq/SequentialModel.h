@@ -6,9 +6,16 @@
 #define REDUKTI_RAYOPTICS_SEQ_SEQUENTIALMODEL_H
 
 #include "redukti/rayoptics/math/Tfm3d.h"
+// The trace_* drivers below are the glue between the analysis package and
+// raytr::Trace, and trace_contrast is a template, so its body has to be here.
+#include "redukti/rayoptics/optical/OpticalModel.h"
+#include "redukti/rayoptics/raytr/ExitPupilAiming.h"
+#include "redukti/rayoptics/raytr/RayTypes.h"
+#include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/seq/Gap.h"
 #include "redukti/rayoptics/seq/Interface.h"
 #include "redukti/rayoptics/seq/SurfaceData.h"
+#include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/util/Tuples.h"
 #include "redukti/rayoptics/util/ZDir.h"
 
@@ -130,6 +137,102 @@ public:
 
     void list_surfaces(std::string &sb) const;
     void list_gaps(std::string &sb) const;
+
+    // ---------------------------------------------------------------------
+    // Trace drivers. Each sets up the chief ray and reference sphere for the
+    // field, then walks the spectral region calling into raytr::Trace once per
+    // wavelength. `fct` may be empty, in which case the raw grid comes back.
+    // ---------------------------------------------------------------------
+
+    /** xy determines whether x (=0) or y (=1) fan. */
+    raytr::TraceFanResult trace_fan(const raytr::RayFanCallback &fct, int fi, int xy,
+                                    int num_rays, bool append_if_none,
+                                    const raytr::TraceOptions &trace_options);
+
+    std::vector<raytr::TraceGridByWvl> trace_grid(
+        const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rays,
+        bool append_if_none, const raytr::TraceOptions &trace_options);
+
+    std::vector<raytr::TraceGridByWvl> trace_rings(
+        const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl,
+        std::optional<int> num_rings, bool append_if_none,
+        const raytr::TraceOptions &trace_options);
+
+    std::vector<raytr::TraceGridByWvl> trace_gaussian_quadrature(
+        const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rings,
+        std::optional<int> num_spokes, bool append_if_none,
+        const raytr::TraceOptions &trace_options);
+
+    std::vector<raytr::TraceGridByWvl> trace_gaussian_quadrature(
+        const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rings,
+        std::optional<int> num_spokes, double innerPupilRadius, bool append_if_none,
+        const raytr::TraceOptions &trace_options);
+
+    /**
+     * Trace contrast-optimization ray triplets and apply the analysis callback
+     * while the wavelength-specific chief ray and reference sphere are active.
+     */
+    template <typename T>
+    std::vector<raytr::ContrastTraceByWvl<T>> trace_contrast(
+        const raytr::ContrastTraceCallback<T> &callback, int fi, std::optional<int> wl,
+        int num_rings, std::optional<int> num_spokes,
+        const mathlib::Vector2 &sagittal_shift, const mathlib::Vector2 &tangential_shift,
+        const raytr::TraceOptions &trace_options) {
+        return trace_contrast<T>(callback, fi, wl, num_rings, num_spokes, sagittal_shift,
+                                 tangential_shift, 0.0, trace_options, false);
+    }
+
+    template <typename T>
+    std::vector<raytr::ContrastTraceByWvl<T>> trace_contrast(
+        const raytr::ContrastTraceCallback<T> &callback, int fi, std::optional<int> wl,
+        int num_rings, std::optional<int> num_spokes,
+        const mathlib::Vector2 &sagittal_shift, const mathlib::Vector2 &tangential_shift,
+        double spatial_frequency, const raytr::TraceOptions &trace_options,
+        bool aim_exit_pupil) {
+        auto osp = opt_model->optical_spec.get();
+        const auto &wavelengths = osp->wvls->wavelengths;
+        std::vector<double> wavelengthList;
+        if (!wl.has_value())
+            wavelengthList = wavelengths;
+        else
+            wavelengthList = {wavelengths[static_cast<std::size_t>(*wl)]};
+        specs::Field &field = *osp->fov->fields[static_cast<std::size_t>(fi)];
+        auto focus = osp->defocus()->get_focus();
+        auto referenceWavelength = central_wavelength();
+        auto referenceCoordinates = raytr::Trace::setup_pupil_coords(
+            opt_model, field, referenceWavelength, focus, std::nullopt, std::nullopt);
+        auto referenceImagePoint = referenceCoordinates.ref_sphere->image_pt.project_xy();
+
+        std::vector<raytr::ContrastTraceByWvl<T>> result;
+        raytr::TraceRingsDef definition;
+        definition.num_rings = num_rings;
+        for (double wavelength : wavelengthList) {
+            auto coordinates = raytr::Trace::setup_pupil_coords(
+                opt_model, field, wavelength, focus, referenceImagePoint, std::nullopt);
+            field.chief_ray =
+                std::const_pointer_cast<raytr::ChiefRayPkg>(coordinates.chief_ray_pkg);
+            field.ref_sphere =
+                std::const_pointer_cast<raytr::ReferenceSphere>(coordinates.ref_sphere);
+            std::optional<mathlib::Vector2> sagittalExitShift;
+            std::optional<mathlib::Vector2> tangentialExitShift;
+            if (aim_exit_pupil) {
+                double physicalShift = raytr::ExitPupilAiming::referenceSphereShift(
+                    opt_model, field, wavelength, spatial_frequency);
+                sagittalExitShift = mathlib::Vector2(physicalShift, 0.0);
+                tangentialExitShift = mathlib::Vector2(0.0, physicalShift);
+            }
+            auto rays = raytr::Trace::trace_contrast(
+                opt_model, definition, num_spokes, sagittal_shift, tangential_shift,
+                sagittalExitShift, tangentialExitShift, field, wavelength, trace_options,
+                aim_exit_pupil);
+            std::vector<T> samples;
+            samples.reserve(rays.size());
+            for (const auto &ray : rays)
+                samples.push_back(callback(ray, field, wavelength, focus));
+            result.push_back(raytr::ContrastTraceByWvl<T>(wavelength, std::move(samples)));
+        }
+        return result;
+    }
 
     /** Five-list zip; every field of the resulting PathSeg is nullable. */
     static std::vector<PathSeg> zip_longest(

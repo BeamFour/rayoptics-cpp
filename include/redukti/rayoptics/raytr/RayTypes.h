@@ -15,10 +15,15 @@
 #include "redukti/rayoptics/seq/Interface.h"
 #include "redukti/rayoptics/specs/Field.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
+
+namespace redukti::rayoptics::optical {
+class OpticalModel;
+}
 
 namespace redukti::rayoptics::raytr {
 
@@ -335,12 +340,77 @@ public:
         : wavelength(wavelength_), samples(std::move(samples_)) {}
 };
 
-/** Java's `interface ImageFilter`. */
+/**
+ * Java's `interface ImageFilter`.
+ *
+ * The return is nullable on purpose. Trace::trace_grid, trace_rings and
+ * trace_gaussian_quadrature call the filter with a null `pkg` for a ray that
+ * failed or fell outside the pupil, and the analysis callbacks answer null
+ * there rather than fabricating a grid point. The empty optional is what makes
+ * `append_if_none` mean anything, so callers must test it.
+ */
 class ImageFilter {
 public:
     virtual ~ImageFilter() = default;
-    virtual GridItem apply(const mathlib::Vector2 &pupil,
-                           const std::shared_ptr<const RayPkg> &pkg) = 0;
+    virtual std::optional<GridItem> apply(const mathlib::Vector2 &pupil,
+                                          const std::shared_ptr<const RayPkg> &pkg) = 0;
+};
+
+/**
+ * Java's `interface TraceGridCallback`. Null (an empty optional) means the ray
+ * did not produce a grid point -- see the note on ImageFilter.
+ */
+using TraceGridCallback = std::function<std::optional<GridItem>(
+    const mathlib::Vector2 &p, int wi, const std::shared_ptr<const RayPkg> &ray_pkg,
+    specs::Field &fld, double wvl, double foc)>;
+
+/** Java's `interface RayFanCallback`. Null means "no value at this pupil point". */
+using RayFanCallback = std::function<std::optional<double>(
+    optical::OpticalModel *opt_model, const mathlib::Vector2 &p, int wi,
+    const std::shared_ptr<const RayPkg> &ray_pkg, specs::Field &fld, double wvl,
+    double foc)>;
+
+/** Java's `interface ContrastTraceCallback<T>`. */
+template <typename T>
+using ContrastTraceCallback = std::function<T(
+    const ContrastRayTriplet &rays, specs::Field &field, double wavelength, double focus)>;
+
+/** Java's `class TraceFanPoints`. */
+class TraceFanPoints {
+public:
+    double wvl;
+    std::vector<double> fan_x;
+    /** Nullable: a traced ray whose callback returned null contributes a null. */
+    std::vector<std::optional<double>> fan_y;
+    std::vector<GridItem> fan;
+
+    TraceFanPoints(double wvl_, std::vector<double> fan_x_,
+                   std::vector<std::optional<double>> fan_y_, std::vector<GridItem> fan_)
+        : wvl(wvl_), fan_x(std::move(fan_x_)), fan_y(std::move(fan_y_)),
+          fan(std::move(fan_)) {}
+};
+
+/** Java's `class TraceFanResult`. */
+class TraceFanResult {
+public:
+    /** Left unset until setFanType; Java leaves the field null. */
+    std::optional<RayFanType> type;
+    specs::Field *fld;
+    int fi;
+    int xy;
+    std::vector<TraceFanPoints> fans;
+    double max_rho_val;
+    double max_y_val;
+
+    TraceFanResult(specs::Field *fld_, int fi_, int xy_, std::vector<TraceFanPoints> fans_,
+                   double max_rho_val_, double max_y_val_)
+        : fld(fld_), fi(fi_), xy(xy_), fans(std::move(fans_)),
+          max_rho_val(max_rho_val_), max_y_val(max_y_val_) {}
+
+    TraceFanResult &setFanType(RayFanType type_) {
+        this->type = type_;
+        return *this;
+    }
 };
 
 } // namespace redukti::rayoptics::raytr

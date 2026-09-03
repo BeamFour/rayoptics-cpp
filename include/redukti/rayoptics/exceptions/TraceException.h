@@ -55,6 +55,13 @@ public:
 
     TraceException() = default;
     explicit TraceException(std::string message) : RuntimeException(std::move(message)) {}
+
+    /**
+     * Java's `getClass().getSimpleName()`, which ContrastAnalysis records in
+     * its failure reports. Spelled out per subclass so the strings stay stable
+     * regardless of what typeid() names look like on a given compiler.
+     */
+    virtual std::string simple_name() const { return "TraceException"; }
 };
 
 class TraceMissedSurfaceException : public TraceException {
@@ -62,11 +69,15 @@ public:
     TraceMissedSurfaceException() = default;
     explicit TraceMissedSurfaceException(std::string message)
         : TraceException(std::move(message)) {}
+
+    std::string simple_name() const override { return "TraceMissedSurfaceException"; }
 };
 
 class TraceRayBlockedException : public TraceException {
 public:
     TraceRayBlockedException(const mathlib::Vector3 &int_pt_) { int_pt = int_pt_; }
+
+    std::string simple_name() const override { return "TraceRayBlockedException"; }
 };
 
 class TraceTIRException : public TraceException {
@@ -77,6 +88,8 @@ public:
      * in RayTrace fills the payload fields in directly afterwards.
      */
     TraceTIRException() = default;
+
+    std::string simple_name() const override { return "TraceTIRException"; }
 };
 
 } // namespace redukti::rayoptics::exceptions

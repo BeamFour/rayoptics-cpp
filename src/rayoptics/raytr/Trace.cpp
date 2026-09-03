@@ -477,7 +477,10 @@ std::vector<GridItem> Trace::trace_fan(optical::OpticalModel *opt_model,
         auto ray_result = trace_safe(opt_model, pupil, fld, wvl, trace_options);
         if (ray_result.pkg != nullptr) {
             if (img_filter != nullptr) {
-                fan.push_back(img_filter->apply(pupil, ray_result.pkg));
+                // pkg is non-null on this path, and every filter answers a
+                // value for a ray that traced, so this never throws. Java
+                // would add a null here and NPE in the first consumer.
+                fan.push_back(img_filter->apply(pupil, ray_result.pkg).value());
             } else {
                 fan.push_back(GridItem(pupil, ray_result.pkg));
             }
@@ -508,14 +511,20 @@ std::vector<GridItem> Trace::trace_grid(optical::OpticalModel *opt_model,
             auto ray_result = trace_safe(opt_model, pupil, fld, wvl, trace_options);
             if (ray_result.pkg != nullptr) {
                 if (img_filter != nullptr) {
-                    grid.push_back(img_filter->apply(pupil, ray_result.pkg));
+                    grid.push_back(img_filter->apply(pupil, ray_result.pkg).value());
                 } else {
                     grid.push_back(GridItem(pupil, ray_result.pkg));
                 }
             } else {
                 if (img_filter != nullptr) {
                     auto item = img_filter->apply(pupil, nullptr);
-                    grid.push_back(item);
+                    if (item.has_value())
+                        grid.push_back(*item);
+                    else if (append_if_none)
+                        // Java adds the null itself, which NPEs in the first
+                        // consumer; a failed marker is what the equivalent
+                        // branch of trace_gaussian_quadrature adds.
+                        grid.push_back(GridItem::failed(pupil));
                 } else {
                     if (append_if_none)
                         grid.push_back(GridItem(pupil, nullptr));
@@ -552,14 +561,18 @@ std::vector<GridItem> Trace::trace_rings(optical::OpticalModel *opt_model,
         auto ray_result = trace_safe(opt_model, pupil, fld, wvl, trace_options);
         if (ray_result.pkg != nullptr) {
             if (img_filter != nullptr) {
-                grid.push_back(img_filter->apply(pupil, ray_result.pkg));
+                grid.push_back(img_filter->apply(pupil, ray_result.pkg).value());
             } else {
                 grid.push_back(GridItem(pupil, ray_result.pkg));
             }
         } else {
             if (img_filter != nullptr) {
                 auto item = img_filter->apply(pupil, nullptr);
-                grid.push_back(item);
+                if (item.has_value())
+                    grid.push_back(*item);
+                else if (append_if_none)
+                    // See the note in trace_grid.
+                    grid.push_back(GridItem::failed(pupil));
             } else {
                 if (append_if_none)
                     grid.push_back(GridItem(pupil, nullptr));
@@ -855,12 +868,15 @@ std::vector<GridItem> Trace::trace_gaussian_quadrature(
         auto ray_result = trace_safe(opt_model, pupil, fld, wvl, trace_options);
         if (ray_result.pkg != nullptr) {
             GridItem item = img_filter != nullptr
-                                ? img_filter->apply(pupil, ray_result.pkg)
+                                ? img_filter->apply(pupil, ray_result.pkg).value()
                                 : GridItem(pupil, ray_result.pkg);
             grid.push_back(item.withWeight(point.weight));
         } else if (img_filter != nullptr) {
             auto item = img_filter->apply(pupil, nullptr);
-            grid.push_back(item.withWeight(point.weight));
+            if (item.has_value())
+                grid.push_back(item->withWeight(point.weight));
+            else if (append_if_none)
+                grid.push_back(GridItem::failed(pupil).withWeight(point.weight));
         } else if (append_if_none) {
             grid.push_back(GridItem::failed(pupil).withWeight(point.weight));
         }

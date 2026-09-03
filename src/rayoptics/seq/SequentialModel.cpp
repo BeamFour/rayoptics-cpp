@@ -443,4 +443,237 @@ NewSurfaceSpec SequentialModel::create_surface_and_gap(
     return NewSurfaceSpec(s, g, rndx_v, tfrm, z_dir_);
 }
 
+// ---------------------------------------------------------------------------
+// Trace drivers. These are the glue between the analysis package and
+// raytr::Trace: each sets up the chief ray and reference sphere for the field,
+// then walks the spectral region calling into Trace once per wavelength.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+using mathlib::Vector2;
+using raytr::GridItem;
+using raytr::ImageFilter;
+using raytr::RayPkg;
+
+/** The Java SequentialModel.ImgFilterImp. */
+class ImgFilterImp : public ImageFilter {
+public:
+    int wi;
+    specs::Field &fld;
+    double wvl;
+    double foc;
+    const raytr::TraceGridCallback &fct;
+
+    ImgFilterImp(int wi_, specs::Field &fld_, double wvl_, double foc_,
+                 const raytr::TraceGridCallback &fct_)
+        : wi(wi_), fld(fld_), wvl(wvl_), foc(foc_), fct(fct_) {}
+
+    std::optional<GridItem> apply(const Vector2 &p,
+                                  const std::shared_ptr<const RayPkg> &pkg) override {
+        if (fct)
+            return fct(p, wi, pkg, fld, wvl, foc);
+        return GridItem(p, pkg);
+    }
+};
+
+/**
+ * The Java SequentialModel.FanFilter. Note that trace_fan passes xy into the
+ * wi slot, so a fan callback receives the orientation where a grid callback
+ * receives a wavelength index.
+ */
+class FanFilter : public ImageFilter {
+public:
+    optical::OpticalModel *opt_model;
+    int wi;
+    specs::Field &fld;
+    double wvl;
+    double foc;
+    const raytr::RayFanCallback &fct;
+
+    FanFilter(optical::OpticalModel *opt_model_, int wi_, specs::Field &fld_, double wvl_,
+              double foc_, const raytr::RayFanCallback &fct_)
+        : opt_model(opt_model_), wi(wi_), fld(fld_), wvl(wvl_), foc(foc_), fct(fct_) {}
+
+    std::optional<GridItem> apply(const Vector2 &p,
+                                  const std::shared_ptr<const RayPkg> &pkg) override {
+        std::optional<double> result =
+            !fct ? std::nullopt : fct(opt_model, p, wi, pkg, fld, wvl, foc);
+        if (result.has_value())
+            return GridItem(p, pkg, *result);
+        else
+            return GridItem(p, pkg);
+    }
+};
+
+} // namespace
+
+raytr::TraceFanResult SequentialModel::trace_fan(
+    const raytr::RayFanCallback &fct, int fi, int xy, int num_rays, bool append_if_none,
+    const raytr::TraceOptions &trace_options) {
+    auto osp = opt_model->optical_spec.get();
+    specs::Field &fld = *osp->fov->fields[static_cast<std::size_t>(fi)];
+    auto foc = osp->defocus()->get_focus();
+
+    Vector2 ref_img_pt = Vector2::vector2_0;
+    {
+        auto wvl = central_wavelength();
+        auto coords = raytr::Trace::setup_pupil_coords(opt_model, fld, wvl, foc,
+                                                       std::nullopt, std::nullopt);
+        auto rs_pkg = coords.ref_sphere;
+        auto cr_pkg = coords.chief_ray_pkg;
+
+        fld.chief_ray = std::const_pointer_cast<raytr::ChiefRayPkg>(cr_pkg);
+        fld.ref_sphere = std::const_pointer_cast<raytr::ReferenceSphere>(rs_pkg);
+        ref_img_pt = rs_pkg->image_pt.project_xy();
+    }
+    // Use the central wavelength reference image point for the wavefront error
+    // calculations
+    auto wvls = osp->spectral_region();
+    std::vector<raytr::TraceFanPoints> fans;
+    auto fan_start = Vector2::vector2_0;
+    auto fan_stop = Vector2::vector2_0;
+    fan_start = fan_start.set(xy, -1.0);
+    fan_stop = fan_stop.set(xy, 1.0);
+    raytr::TraceFanDef fan_def(fan_start, fan_stop, num_rays);
+    double max_rho_val = 0.0;
+    double max_y_val = 0.0;
+    for (std::size_t wi = 0; wi < wvls->wavelengths.size(); wi++) {
+        double wvl = wvls->wavelengths[wi];
+        auto coords = raytr::Trace::setup_pupil_coords(opt_model, fld, wvl, foc,
+                                                       ref_img_pt, std::nullopt);
+        auto rs_pkg = coords.ref_sphere;
+        auto cr_pkg = coords.chief_ray_pkg;
+        fld.chief_ray = std::const_pointer_cast<raytr::ChiefRayPkg>(cr_pkg);
+        fld.ref_sphere = std::const_pointer_cast<raytr::ReferenceSphere>(rs_pkg);
+        FanFilter filter(opt_model, xy, fld, wvl, foc, fct);
+        auto fan = raytr::Trace::trace_fan(opt_model, fan_def, fld, wvl, foc,
+                                           append_if_none, &filter, trace_options);
+        std::vector<double> f_x;
+        std::vector<std::optional<double>> f_y;
+        for (std::size_t i = 0; i < fan.size(); i++) {
+            auto p = fan[i].pupil;
+            auto y_val = fan[i].result;
+            f_x.push_back(p.v(xy));
+            f_y.push_back(y_val);
+            if (std::abs(p.v(xy)) > max_rho_val)
+                max_rho_val = std::abs(p.v(xy));
+            if (y_val.has_value() && std::abs(*y_val) > max_y_val)
+                max_y_val = std::abs(*y_val);
+        }
+        fans.push_back(
+            raytr::TraceFanPoints(wvl, std::move(f_x), std::move(f_y), std::move(fan)));
+    }
+    return raytr::TraceFanResult(&fld, fi, xy, std::move(fans), max_rho_val, max_y_val);
+}
+
+std::vector<raytr::TraceGridByWvl> SequentialModel::trace_grid(
+    const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rays,
+    bool append_if_none, const raytr::TraceOptions &trace_options) {
+    // fct is applied to the raw grid and returned as a grid
+    auto osp = opt_model->optical_spec.get();
+    auto wvls = osp->wvls.get();
+    auto wvl = central_wavelength();
+    std::vector<double> wv_list;
+    if (!wl.has_value())
+        wv_list = wvls->wavelengths;
+    else
+        wv_list = {wvl};
+    specs::Field &fld = *osp->fov->fields[static_cast<std::size_t>(fi)];
+    auto foc = osp->defocus()->get_focus();
+
+    auto pc = raytr::Trace::setup_pupil_coords(opt_model, fld, wvl, foc, std::nullopt,
+                                               std::nullopt);
+    fld.chief_ray = std::const_pointer_cast<raytr::ChiefRayPkg>(pc.chief_ray_pkg);
+    fld.ref_sphere = std::const_pointer_cast<raytr::ReferenceSphere>(pc.ref_sphere);
+
+    std::vector<raytr::TraceGridByWvl> grids;
+    Vector2 grid_start(-1.0, -1.0);
+    Vector2 grid_stop(1.0, 1.0);
+    raytr::TraceGridDef grid_def(grid_start, grid_stop, num_rays);
+    for (std::size_t wi = 0; wi < wv_list.size(); wi++) {
+        wvl = wv_list[wi];
+        ImgFilterImp filter(static_cast<int>(wi), fld, wvl, foc, fct);
+        auto grid = raytr::Trace::trace_grid(opt_model, grid_def, fld, wvl, foc, &filter,
+                                             append_if_none, trace_options);
+        grids.push_back(raytr::TraceGridByWvl(wvl, std::move(grid)));
+    }
+    return grids;
+}
+
+std::vector<raytr::TraceGridByWvl> SequentialModel::trace_rings(
+    const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl,
+    std::optional<int> num_rings, bool append_if_none,
+    const raytr::TraceOptions &trace_options) {
+    // fct is applied to the raw grid and returned as a grid
+    auto osp = opt_model->optical_spec.get();
+    auto wvls = osp->wvls.get();
+    auto wvl = central_wavelength();
+    std::vector<double> wv_list;
+    if (!wl.has_value())
+        wv_list = wvls->wavelengths;
+    else
+        wv_list = {wvl};
+    specs::Field &fld = *osp->fov->fields[static_cast<std::size_t>(fi)];
+    auto foc = osp->defocus()->get_focus();
+    auto pc = raytr::Trace::setup_pupil_coords(opt_model, fld, wvl, foc, std::nullopt,
+                                               std::nullopt);
+    fld.chief_ray = std::const_pointer_cast<raytr::ChiefRayPkg>(pc.chief_ray_pkg);
+    fld.ref_sphere = std::const_pointer_cast<raytr::ReferenceSphere>(pc.ref_sphere);
+    if (!num_rings.has_value())
+        num_rings = 21;
+
+    std::vector<raytr::TraceGridByWvl> grids;
+    raytr::TraceRingsDef grid_def;
+    grid_def.num_rings = *num_rings;
+    for (std::size_t wi = 0; wi < wv_list.size(); wi++) {
+        wvl = wv_list[wi];
+        ImgFilterImp filter(static_cast<int>(wi), fld, wvl, foc, fct);
+        auto grid = raytr::Trace::trace_rings(opt_model, grid_def, fld, wvl, foc, &filter,
+                                              append_if_none, trace_options);
+        grids.push_back(raytr::TraceGridByWvl(wvl, std::move(grid)));
+    }
+    return grids;
+}
+
+std::vector<raytr::TraceGridByWvl> SequentialModel::trace_gaussian_quadrature(
+    const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rings,
+    std::optional<int> num_spokes, bool append_if_none,
+    const raytr::TraceOptions &trace_options) {
+    return trace_gaussian_quadrature(fct, fi, wl, num_rings, num_spokes, 0.0,
+                                     append_if_none, trace_options);
+}
+
+std::vector<raytr::TraceGridByWvl> SequentialModel::trace_gaussian_quadrature(
+    const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rings,
+    std::optional<int> num_spokes, double innerPupilRadius, bool append_if_none,
+    const raytr::TraceOptions &trace_options) {
+    auto osp = opt_model->optical_spec.get();
+    auto wvls = osp->wvls.get();
+    auto wvl = central_wavelength();
+    std::vector<double> wv_list =
+        !wl.has_value() ? wvls->wavelengths : std::vector<double>{wvl};
+    specs::Field &fld = *osp->fov->fields[static_cast<std::size_t>(fi)];
+    auto foc = osp->defocus()->get_focus();
+    auto pc = raytr::Trace::setup_pupil_coords(opt_model, fld, wvl, foc, std::nullopt,
+                                               std::nullopt);
+
+    fld.chief_ray = std::const_pointer_cast<raytr::ChiefRayPkg>(pc.chief_ray_pkg);
+    fld.ref_sphere = std::const_pointer_cast<raytr::ReferenceSphere>(pc.ref_sphere);
+
+    std::vector<raytr::TraceGridByWvl> grids;
+    raytr::TraceRingsDef grid_def;
+    grid_def.num_rings = num_rings;
+    grid_def.min_radius = innerPupilRadius;
+    for (std::size_t wi = 0; wi < wv_list.size(); wi++) {
+        wvl = wv_list[wi];
+        ImgFilterImp filter(static_cast<int>(wi), fld, wvl, foc, fct);
+        auto grid = raytr::Trace::trace_gaussian_quadrature(
+            opt_model, grid_def, num_spokes, fld, wvl, foc, &filter, append_if_none,
+            trace_options);
+        grids.push_back(raytr::TraceGridByWvl(wvl, std::move(grid)));
+    }
+    return grids;
+}
+
 } // namespace redukti::rayoptics::seq
