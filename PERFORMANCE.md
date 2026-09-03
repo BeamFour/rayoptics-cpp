@@ -194,6 +194,57 @@ The full test suite passes unchanged in Release and Debug -- 168 tests -- and
 that includes the end-to-end `LensTool2` run comparing all 29 artifacts against
 the committed Examples.
 
+### Cache implementation caveats
+
+The cache is designed for the current single-threaded use of a
+`SequentialModel`. It is not thread-safe: concurrent cache misses, invalidation,
+or tracing while the model changes would race and could invalidate a returned
+reference. Keep a model confined to one thread unless the cache is later given
+explicit synchronization and reference-lifetime rules.
+
+The arrays from which a path is copied are currently public. No code in this
+repository writes them outside `SequentialModel`, but the type system does not
+enforce that rule. Any future direct mutation of `lcl_tfrms`, `rndx`, `z_dir`,
+`wvlns`, `ifcs`, or `gaps` must also invalidate the cache.
+
+The hit and miss counters currently perform a relaxed atomic increment on every
+lookup even when path profiling is disabled. This makes the reported hit rate
+available, but leaves a small profiling cost in normal execution. Gating those
+counters behind `RAYOPTICS_PROFILE_PATH` is a separate experiment so it is not
+mixed into other measurements.
+
+## Third optimisation experiment: reserve traced-ray capacity
+
+`RayTrace::trace_raw()` builds a fresh `std::vector<RaySeg>` for every ray. A
+completed trace emits at most one segment per path entry, while blocked,
+filtered, missed-surface and total-internal-reflection paths emit fewer. The
+implementation now reserves `path.size()` entries before tracing, which is a
+safe upper bound and prevents repeated vector growth in the normal case.
+
+This experiment deliberately changes only the fundamental ray vector. Other
+known opportunities are being kept separate so their effects remain
+attributable:
+
+- the three exception handlers copy the traced segment vector into `RayPkg`,
+  even though the local vector is not used after the exception is rethrown;
+- fan results can reserve `num_rays`;
+- rectangular-grid results can reserve `num_rays * num_rays`;
+- ring-grid and contrast results can reserve their generated point count;
+- the hexapolar and ordinary ring point generators can reserve their exact or
+  upper-bound output sizes.
+
+One pre-change run and two post-change runs, taken in the same session, measured:
+
+| | run 1 | run 2 |
+|---|---:|---:|
+| Before | 35.06 s | -- |
+| After reserving `RaySeg` capacity | 23.31 s | 23.41 s |
+
+Against the mean post-change time of 23.36 s, this is a **33.4% reduction**.
+Only one pre-change run was captured, so a longer interleaved series would be
+needed for a precise percentage. The two post-change runs agree closely and the
+effect is much larger than the short-term run-to-run variation observed here.
+
 ## Further candidate fixes, in rough order of expected value
 
 **None of these further changes have been measured.** They are sized by

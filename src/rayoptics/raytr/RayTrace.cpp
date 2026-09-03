@@ -103,6 +103,10 @@ std::shared_ptr<const RayPkg> RayTrace::trace_raw(const std::vector<PathSeg> &pa
     int first_surf = options.first_surf.has_value() ? *options.first_surf : 0;
     std::optional<int> last_surf = options.last_surf;
     std::vector<RaySeg> ray;
+    // A trace emits at most one segment per path entry. Reserve that upper
+    // bound so the per-ray vector does not repeatedly reallocate and move the
+    // segments already traced; blocked and filtered rays simply use less.
+    ray.reserve(path.size());
     std::size_t it = 0;
     // trace object surface
     const PathSeg *obj = &path[it++];
