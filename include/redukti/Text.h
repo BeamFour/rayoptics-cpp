@@ -44,6 +44,14 @@ std::string intToString(int i);
 std::string formatG(double value, int width, int precision);
 
 /**
+ * Java's `String.format("%.<precision>f", value)`.
+ *
+ * Java rounds HALF_UP here, where C printf rounds half to even, so this is not
+ * a thin wrapper around snprintf. See the note in the implementation.
+ */
+std::string formatF(double value, int precision);
+
+/**
  * The subset of java.text.DecimalFormat that M::decimal_format configures:
  * minimum 1 integer digit, at most `maxFractionDigits` fraction digits,
  * minimum 0 fraction digits, no grouping, decimal separator only when needed.

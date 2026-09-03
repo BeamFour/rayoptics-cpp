@@ -202,4 +202,88 @@ std::string DecimalFormat::format(double value) const {
     return out;
 }
 
+std::string formatF(double value, int precision) {
+    if (std::isnan(value))
+        return "NaN";
+    if (std::isinf(value))
+        return value < 0 ? "-Infinity" : "Infinity";
+
+    // Java's %f rounds the *shortest round-tripping decimal* HALF_UP, which is
+    // neither what printf does nor what java.text.DecimalFormat does:
+    //
+    //   printf        rounds the exact binary value, half to even
+    //   DecimalFormat rounds the exact binary value, HALF_EVEN tie-break
+    //   Formatter %f  rounds the shortest repr,      HALF_UP
+    //
+    // 9034293.408705935 is the case that separates the first two from the
+    // third: its exact expansion is ...93488..., so rounding the exact value to
+    // eight places gives ...93, while Java answers ...94 because the shortest
+    // repr ends in a 5 there. FormatFTest covers 3177 such cases.
+    std::string out;
+    if (std::signbit(value))
+        out.push_back('-');
+
+    std::string digits;
+    int decimalAt;
+    if (value == 0.0) {
+        digits = "0";
+        decimalAt = 1;
+    } else {
+        ShortestDecimal sd = shortestDecimal(std::abs(value));
+        digits = sd.digits;
+        decimalAt = sd.decimalAt;
+        const int keep = decimalAt + precision;
+        if (keep < static_cast<int>(digits.size())) {
+            bool round_up = keep >= 0 && digits[static_cast<std::size_t>(keep)] >= '5';
+            // Everything at or above half rounds away from zero under HALF_UP,
+            // so nothing below the first dropped digit matters.
+            if (keep <= 0) {
+                // The whole number rounds away; a leading 5 promotes it to one
+                // digit at the next power of ten.
+                bool promote = keep == 0 && digits[0] >= '5';
+                digits = promote ? "1" : "0";
+                decimalAt = promote ? decimalAt + 1 : 1;
+            } else {
+                digits.resize(static_cast<std::size_t>(keep));
+                if (round_up) {
+                    int i = keep - 1;
+                    for (; i >= 0; i--) {
+                        auto ui = static_cast<std::size_t>(i);
+                        if (digits[ui] != '9') {
+                            digits[ui] = static_cast<char>(digits[ui] + 1);
+                            break;
+                        }
+                        digits[ui] = '0';
+                    }
+                    if (i < 0) {
+                        digits = "1";
+                        decimalAt++;
+                    }
+                }
+            }
+        }
+    }
+
+    const int len = static_cast<int>(digits.size());
+    if (decimalAt <= 0) {
+        out.push_back('0');
+    } else if (decimalAt >= len) {
+        out += digits;
+        out.append(static_cast<std::size_t>(decimalAt - len), '0');
+    } else {
+        out += digits.substr(0, static_cast<std::size_t>(decimalAt));
+    }
+    if (precision > 0) {
+        out.push_back('.');
+        for (int k = 0; k < precision; k++) {
+            int idx = decimalAt + k;
+            if (idx < 0 || idx >= len)
+                out.push_back('0');
+            else
+                out.push_back(digits[static_cast<std::size_t>(idx)]);
+        }
+    }
+    return out;
+}
+
 } // namespace redukti
