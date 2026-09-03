@@ -86,16 +86,16 @@ std::vector<Tfm3d> Transform::compute_global_coords(seq::SequentialModel *seq_mo
     if (glo > 0) {
         int step = -1;
         seq = seq::SequentialModel::zip_longest(
-            util::Lists::slice_ptrs(seq_model->ifcs, glo, std::nullopt, step),
-            util::Lists::slice_ptrs(seq_model->gaps, glo - 1, std::nullopt, step),
+            util::Lists::slice(seq_model->ifcs, glo, std::nullopt, step),
+            util::Lists::slice(seq_model->gaps, glo - 1, std::nullopt, step),
             util::Lists::slice(seq_model->z_dir, glo - 1, std::nullopt, step));
         accumulate_transforms(seq, 1, seq[0], &Transform::reverse_transform,
                               tfrm_origin, -1, tfrms);
         tfrms = util::Lists::slice(tfrms, std::nullopt, std::nullopt, -1); // reverse
     }
     seq = seq::SequentialModel::zip_longest(
-        util::Lists::slice_ptrs(seq_model->ifcs, glo, std::nullopt, std::nullopt),
-        util::Lists::slice_ptrs(seq_model->gaps, glo, std::nullopt, std::nullopt),
+        util::Lists::from(seq_model->ifcs, glo),
+        util::Lists::from(seq_model->gaps, glo),
         util::Lists::from(seq_model->z_dir, glo));
     accumulate_transforms(seq, 1, seq[0], &Transform::forward_transform, tfrm_origin, 1,
                           tfrms);

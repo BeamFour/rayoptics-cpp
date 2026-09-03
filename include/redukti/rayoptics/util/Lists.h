@@ -20,42 +20,6 @@ namespace redukti::rayoptics::util {
  */
 namespace Lists {
 
-/**
- * The indices a Python-style slice visits, resolved against a length.
- *
- * Factored out so the value, pointer and address variants below cannot drift
- * apart: they differ only in what they collect, never in which elements.
- */
-class SliceWalk {
-public:
-    int begin, end, step;
-
-    SliceWalk(int length, std::optional<int> start_, std::optional<int> stop_,
-              std::optional<int> step_) {
-        step = step_.has_value() ? *step_ : 1;
-        int start, stop;
-        if (!start_.has_value())
-            start = (step < 0) ? length - 1 : 0;
-        else
-            start = (*start_ < 0) ? *start_ + length : *start_;
-        if (!stop_.has_value())
-            stop = (step < 0) ? -1 : length;
-        else
-            stop = (*stop_ < 0) ? *stop_ + length : *stop_;
-        if (step < 0) {
-            begin = std::min(start, length - 1);
-            end = std::max(stop, 0);
-        } else if (step > 0) {
-            begin = std::max(0, start);
-            end = std::min(stop, length);
-        } else {
-            throw IllegalArgumentException();
-        }
-    }
-
-    bool done(int i) const { return step < 0 ? i < end : i >= end; }
-};
-
 template <typename E>
 std::vector<E> slice(const std::vector<E> &inputList, std::optional<int> start_,
                      std::optional<int> stop_, std::optional<int> step_) {
@@ -64,40 +28,30 @@ std::vector<E> slice(const std::vector<E> &inputList, std::optional<int> start_,
     // upper bound avoids repeatedly copying value types and incrementing
     // shared_ptr reference counts while the vector grows.
     newList.reserve(inputList.size());
-    SliceWalk walk(static_cast<int>(inputList.size()), start_, stop_, step_);
-    for (int i = walk.begin; !walk.done(i); i += walk.step)
-        newList.push_back(inputList[static_cast<std::size_t>(i)]);
-    return newList;
-}
-
-/**
- * slice(), but collecting borrowed raw pointers instead of copying the
- * shared_ptrs. The SequentialModel owns the elements and outlives every path
- * built from them, so the reference counting a shared_ptr slice would do buys
- * nothing and costs two atomics per element.
- */
-template <typename E>
-std::vector<E *> slice_ptrs(const std::vector<std::shared_ptr<E>> &inputList,
-                            std::optional<int> start_, std::optional<int> stop_,
-                            std::optional<int> step_) {
-    std::vector<E *> newList;
-    newList.reserve(inputList.size());
-    SliceWalk walk(static_cast<int>(inputList.size()), start_, stop_, step_);
-    for (int i = walk.begin; !walk.done(i); i += walk.step)
-        newList.push_back(inputList[static_cast<std::size_t>(i)].get());
-    return newList;
-}
-
-/** slice(), but collecting the addresses of value elements rather than copies. */
-template <typename E>
-std::vector<const E *> slice_addrs(const std::vector<E> &inputList,
-                                   std::optional<int> start_, std::optional<int> stop_,
-                                   std::optional<int> step_) {
-    std::vector<const E *> newList;
-    newList.reserve(inputList.size());
-    SliceWalk walk(static_cast<int>(inputList.size()), start_, stop_, step_);
-    for (int i = walk.begin; !walk.done(i); i += walk.step)
-        newList.push_back(&inputList[static_cast<std::size_t>(i)]);
+    int step = step_.has_value() ? *step_ : 1;
+    int length = static_cast<int>(inputList.size());
+    int start, stop;
+    if (!start_.has_value()) {
+        start = (step < 0) ? length - 1 : 0;
+    } else {
+        start = (*start_ < 0) ? *start_ + length : *start_;
+    }
+    if (!stop_.has_value()) {
+        stop = (step < 0) ? -1 : length;
+    } else {
+        stop = (*stop_ < 0) ? *stop_ + length : *stop_;
+    }
+    if (step < 0) {
+        for (int i = std::min(start, length - 1); i >= std::max(stop, 0); i += step) {
+            newList.push_back(inputList[static_cast<std::size_t>(i)]);
+        }
+    } else if (step > 0) {
+        for (int i = std::max(0, start); i < std::min(stop, length); i += step) {
+            newList.push_back(inputList[static_cast<std::size_t>(i)]);
+        }
+    } else {
+        throw IllegalArgumentException();
+    }
     return newList;
 }
 

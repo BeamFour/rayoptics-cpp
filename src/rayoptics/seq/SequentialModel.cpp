@@ -131,9 +131,9 @@ std::vector<PathSeg> SequentialModel::path(std::optional<double> wl,
     for (auto &narr : rndx_list) {
         rndx_sel.push_back(narr[static_cast<std::size_t>(wl_idx)]);
     }
-    return zip_longest(util::Lists::slice_ptrs(ifcs, start, stop, step_),
-                       util::Lists::slice_ptrs(gaps, gap_start, stop, step_),
-                       util::Lists::slice_addrs(lcl_tfrms, start, stop, step_), rndx_sel,
+    return zip_longest(util::Lists::slice(ifcs, start, stop, step_),
+                       util::Lists::slice(gaps, gap_start, stop, step_),
+                       util::Lists::slice(lcl_tfrms, start, stop, step_), rndx_sel,
                        util::Lists::slice(z_dir, start, stop, step_));
 }
 
@@ -156,10 +156,7 @@ std::vector<PathSeg> SequentialModel::reverse_path(std::optional<double> wl,
     } else {
         gap_start = start;
     }
-    // PathSeg borrows its transform, so these have to outlive the returned
-    // path; a local vector would dangle. See reverse_path_tfrms_.
-    reverse_path_tfrms_ = compute_local_transforms(-1);
-    const auto &trfms = reverse_path_tfrms_;
+    auto trfms = compute_local_transforms(-1);
     auto wl_idx = index_for_wavelength(wlv);
     auto rndx_list = util::Lists::slice(rndx, rndx_start, stop, step);
     auto zdir_list = util::Lists::slice(z_dir, start, stop, step);
@@ -171,9 +168,9 @@ std::vector<PathSeg> SequentialModel::reverse_path(std::optional<double> wl,
     for (auto zdir : zdir_list) {
         z_dir_sel.push_back(util::opposite(zdir));
     }
-    return zip_longest(util::Lists::slice_ptrs(ifcs, start, stop, step),
-                       util::Lists::slice_ptrs(gaps, gap_start, stop, step),
-                       util::Lists::slice_addrs(trfms, -(*start + 1), std::nullopt, 1),
+    return zip_longest(util::Lists::slice(ifcs, start, stop, step),
+                       util::Lists::slice(gaps, gap_start, stop, step),
+                       util::Lists::slice(trfms, -(*start + 1), std::nullopt, 1),
                        rndx_sel, z_dir_sel);
 }
 
@@ -416,9 +413,10 @@ void SequentialModel::list_gaps(std::string &sb) const {
 }
 
 std::vector<PathSeg> SequentialModel::zip_longest(
-    const std::vector<Interface *> &ifcs_, const std::vector<Gap *> &gaps_,
-    const std::vector<const math::Tfm3d *> &lcl_tfrms_,
-    const std::vector<double> &rndx_, const std::vector<ZDir> &z_dir_) {
+    const std::vector<std::shared_ptr<Interface>> &ifcs_,
+    const std::vector<std::shared_ptr<Gap>> &gaps_,
+    const std::vector<math::Tfm3d> &lcl_tfrms_, const std::vector<double> &rndx_,
+    const std::vector<ZDir> &z_dir_) {
     std::vector<PathSeg> list;
     std::size_t maxSize =
         std::max({ifcs_.size(), gaps_.size(), lcl_tfrms_.size(), rndx_.size(),
@@ -427,7 +425,9 @@ std::vector<PathSeg> SequentialModel::zip_longest(
     for (std::size_t i = 0; i < maxSize; i++) {
         auto ifc = i < ifcs_.size() ? ifcs_[i] : nullptr;
         auto gap = i < gaps_.size() ? gaps_[i] : nullptr;
-        const math::Tfm3d *tr3 = i < lcl_tfrms_.size() ? lcl_tfrms_[i] : nullptr;
+        std::optional<math::Tfm3d> tr3;
+        if (i < lcl_tfrms_.size())
+            tr3 = lcl_tfrms_[i];
         std::optional<double> n;
         if (i < rndx_.size())
             n = rndx_[i];
@@ -439,9 +439,9 @@ std::vector<PathSeg> SequentialModel::zip_longest(
     return list;
 }
 
-std::vector<PathSeg> SequentialModel::zip_longest(const std::vector<Interface *> &ifcs_,
-                                                  const std::vector<Gap *> &gaps_,
-                                                  const std::vector<ZDir> &z_dir_) {
+std::vector<PathSeg> SequentialModel::zip_longest(
+    const std::vector<std::shared_ptr<Interface>> &ifcs_,
+    const std::vector<std::shared_ptr<Gap>> &gaps_, const std::vector<ZDir> &z_dir_) {
     std::vector<PathSeg> list;
     std::size_t maxSize = std::max({ifcs_.size(), gaps_.size(), z_dir_.size()});
     list.reserve(maxSize);
@@ -451,7 +451,7 @@ std::vector<PathSeg> SequentialModel::zip_longest(const std::vector<Interface *>
         std::optional<ZDir> dir;
         if (i < z_dir_.size())
             dir = z_dir_[i];
-        list.push_back(PathSeg(ifc, gap, nullptr, std::nullopt, dir));
+        list.push_back(PathSeg(ifc, gap, std::nullopt, std::nullopt, dir));
     }
     return list;
 }
