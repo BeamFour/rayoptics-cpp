@@ -66,6 +66,11 @@ add_library(rayoptics
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
+    src/render/Renderer.cpp
+    src/render/RendererSvg.cpp
+    src/render/Plot.cpp
+    src/data/Interpolated1d.cpp
+    src/data/DataSet.cpp
     src/rayoptics/analysis/SpotIntercepts.cpp
     src/rayoptics/analysis/Histogram.cpp
     src/rayoptics/analysis/MTF.cpp
@@ -95,6 +100,9 @@ add_executable(mathlib_tests
     tests/SeqTest.cpp
     tests/RaytrTest.cpp
     tests/AnalysisTest.cpp
+    tests/DataTest.cpp
+    tests/DecimalFormatTest.cpp
+    tests/RenderTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp

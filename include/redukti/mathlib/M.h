@@ -2,6 +2,8 @@
 #ifndef REDUKTI_MATHLIB_M_H
 #define REDUKTI_MATHLIB_M_H
 
+#include "redukti/Text.h"
+
 #include <cmath>
 
 namespace redukti::mathlib {
@@ -68,7 +70,15 @@ double cosd(double deg);
 double sind(double deg);
 double tand(double deg);
 
-// NYI: decimal_format / decimal_format_scientific -- java.text.DecimalFormat.
+/**
+ * Java M.decimal_format. decimal_format_scientific is still NYI: nothing
+ * outside the not-yet-ported exporters uses it.
+ */
+inline ::redukti::DecimalFormat decimal_format(int maxFractionDigits) {
+    return ::redukti::DecimalFormat(maxFractionDigits);
+}
+
+inline ::redukti::DecimalFormat decimal_format() { return decimal_format(3); }
 // Only used by the exporters and renderers, which are ported later.
 
 } // namespace M

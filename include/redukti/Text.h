@@ -43,6 +43,27 @@ std::string intToString(int i);
  */
 std::string formatG(double value, int width, int precision);
 
+/**
+ * The subset of java.text.DecimalFormat that M::decimal_format configures:
+ * minimum 1 integer digit, at most `maxFractionDigits` fraction digits,
+ * minimum 0 fraction digits, no grouping, decimal separator only when needed.
+ *
+ * Java rounds the *shortest round-tripping decimal* of the double, not the
+ * exact binary value -- DecimalFormat feeds DigitList from
+ * FloatingDecimal.getBinaryToASCIIConverter -- and then applies HALF_EVEN. The
+ * two differ, so this rounds the Ryu digits the same way.
+ */
+class DecimalFormat {
+public:
+    explicit DecimalFormat(int maxFractionDigits)
+        : max_fraction_digits_(maxFractionDigits) {}
+
+    std::string format(double value) const;
+
+private:
+    int max_fraction_digits_;
+};
+
 } // namespace redukti
 
 #endif // REDUKTI_TEXT_H
