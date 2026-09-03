@@ -52,7 +52,7 @@ RayResultWithStopCoord Wideangle::enp_z_coordinate(double z_enp,
         final_coord = get(ray_pkg->ray, stop_idx).p;
     } catch (TraceException &ray_error) {
         ray_pkg = ray_error.ray_pkg;
-        rr = RayResult(ray_pkg, std::make_shared<TraceException>(ray_error));
+        rr = RayResult(ray_pkg, ray_error.clone());
         final_coord = Vector3::ZERO;
     }
     return RayResultWithStopCoord(final_coord, rr, stop_idx);

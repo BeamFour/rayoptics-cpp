@@ -25,6 +25,12 @@ public:
     public:
         explicit ExitPupilAimException(std::string message)
             : exceptions::TraceException(std::move(message)) {}
+
+        std::string simple_name() const override { return "ExitPupilAimException"; }
+
+        std::shared_ptr<exceptions::TraceException> clone() const override {
+            return std::make_shared<ExitPupilAimException>(*this);
+        }
     };
 
     /** Result of aiming one ray at a transverse coordinate on the reference sphere. */

@@ -56,6 +56,7 @@ add_library(rayoptics
     src/rayoptics/parax/ParaxTypes.cpp
     src/rayoptics/parax/FirstOrder.cpp
     src/rayoptics/parax/ParaxModel.cpp
+    src/rayoptics/parax/ThirdOrder.cpp
     src/rayoptics/optical/OpticalModel.cpp
     src/rayoptics/elem/transform/Transform.cpp
     src/rayoptics/raytr/RayTypes.cpp
@@ -94,6 +95,16 @@ add_executable(mathlib_tests
     tests/SeqTest.cpp
     tests/RaytrTest.cpp
     tests/AnalysisTest.cpp
+    tests/integration/IntegrationModels.cpp
+    tests/integration/Leica50mmSummicronRTest.cpp
+    tests/integration/Nikkor14mmTest.cpp
+    tests/integration/Nikkor58mmTest.cpp
+    tests/integration/US003549241Example05Test.cpp
+    tests/upstream/JP2018189733Example01PUpstreamTest.cpp
+    tests/upstream/JP2026105585Example01UpstreamTest.cpp
+    tests/upstream/NikkorZ58mmf095Ex1UpstreamTest.cpp
+    tests/upstream/US004123144Example08PUpstreamTest.cpp
+    tests/upstream/US004717245Example02PUpstreamTest.cpp
 )
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)

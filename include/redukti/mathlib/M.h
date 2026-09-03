@@ -49,13 +49,20 @@ inline int trunc(double value) {
 }
 
 /**
- * Java's Math.toRadians / Math.toDegrees. The operation order matters and is
- * reproduced exactly: the JDK computes `angdeg / 180.0 * PI`, which does not
- * round identically to multiplying by a precomputed PI/180 constant.
+ * Java Math.toRadians / Math.toDegrees.
+ *
+ * These are a single multiply by a precomputed constant, not a divide followed
+ * by a multiply. `javap -c java.lang.Math` on JDK 25 shows exactly
+ * `dload_0; ldc2_w <constant>; dmul` for both, and the two spellings do not
+ * round alike: at 23.12 degrees `angdeg / 180.0 * PI` lands one ulp below
+ * `angdeg * DEGREES_TO_RADIANS`. That one ulp is amplified by 1e10 when a
+ * chief ray is launched from an infinite object, so it has to match.
  */
 inline constexpr double PI = 3.14159265358979323846;
-inline double toRadians(double angdeg) { return angdeg / 180.0 * PI; }
-inline double toDegrees(double angrad) { return angrad * 180.0 / PI; }
+inline constexpr double DEGREES_TO_RADIANS = 0.017453292519943295;
+inline constexpr double RADIANS_TO_DEGREES = 57.29577951308232;
+inline double toRadians(double angdeg) { return angdeg * DEGREES_TO_RADIANS; }
+inline double toDegrees(double angrad) { return angrad * RADIANS_TO_DEGREES; }
 
 double cosd(double deg);
 double sind(double deg);

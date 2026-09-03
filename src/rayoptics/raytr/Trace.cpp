@@ -71,11 +71,11 @@ RayResult Trace::trace_safe(optical::OpticalModel *opt_model, const Vector2 &pup
             *trace_options.rayerr_filter == "full") {
             ray_pkg = rayerr.ray_pkg;
             result.pkg = ray_pkg;
-            result.err = std::make_shared<TraceException>(rayerr);
+            result.err = rayerr.clone();
         } else if (trace_options.rayerr_filter.has_value() &&
                    *trace_options.rayerr_filter == "summary") {
             rayerr.ray_pkg = nullptr;
-            result.err = std::make_shared<TraceException>(rayerr);
+            result.err = rayerr.clone();
             result.pkg = nullptr;
         }
     }
@@ -151,7 +151,7 @@ public:
         } catch (TraceException &ray_error) {
             pkg = ray_error.ray_pkg;
             rr->pkg = ray_error.ray_pkg;
-            rr->err = std::make_shared<TraceException>(ray_error);
+            rr->err = ray_error.clone();
             if (ray_error.surf <= *ifcx)
                 throw;
         }
@@ -993,7 +993,7 @@ public:
         } catch (TraceException &ray_error) {
             pkg = ray_error.ray_pkg;
             rr->pkg = ray_error.ray_pkg;
-            rr->err = std::make_shared<TraceException>(ray_error);
+            rr->err = ray_error.clone();
             if (ray_error.surf <= *ifcx)
                 throw;
         }
@@ -1104,8 +1104,7 @@ RayResultWithStartCoord Trace::iterate_ray_raw(
             } catch (TraceException &ray_err) {
                 RayResultWithStartCoord result;
                 result.start_coords = std::vector<double>{0, 0};
-                result.rr = RayResult(ray_err.ray_pkg,
-                                      std::make_shared<TraceException>(ray_err));
+                result.rr = RayResult(ray_err.ray_pkg, ray_err.clone());
                 return result;
             }
         } else {
@@ -1115,8 +1114,7 @@ RayResultWithStartCoord Trace::iterate_ray_raw(
             } catch (TraceException &ray_err) {
                 RayResultWithStartCoord result;
                 result.start_coords = std::vector<double>{0, 0};
-                result.rr = RayResult(ray_err.ray_pkg,
-                                      std::make_shared<TraceException>(ray_err));
+                result.rr = RayResult(ray_err.ray_pkg, ray_err.clone());
                 return result;
             }
         }

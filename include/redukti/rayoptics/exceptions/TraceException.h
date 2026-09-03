@@ -62,6 +62,19 @@ public:
      * regardless of what typeid() names look like on a given compiler.
      */
     virtual std::string simple_name() const { return "TraceException"; }
+
+    /**
+     * A copy that keeps its dynamic type.
+     *
+     * Java stores the caught exception object itself in RayResult, so a later
+     * `instanceof TraceMissedSurfaceException` still answers true. Copying a
+     * caught reference into make_shared<TraceException> would slice off the
+     * subclass and silently turn every such test false, so every site that
+     * stores a caught exception must go through this.
+     */
+    virtual std::shared_ptr<TraceException> clone() const {
+        return std::make_shared<TraceException>(*this);
+    }
 };
 
 class TraceMissedSurfaceException : public TraceException {
@@ -71,6 +84,10 @@ public:
         : TraceException(std::move(message)) {}
 
     std::string simple_name() const override { return "TraceMissedSurfaceException"; }
+
+    std::shared_ptr<TraceException> clone() const override {
+        return std::make_shared<TraceMissedSurfaceException>(*this);
+    }
 };
 
 class TraceRayBlockedException : public TraceException {
@@ -78,6 +95,10 @@ public:
     TraceRayBlockedException(const mathlib::Vector3 &int_pt_) { int_pt = int_pt_; }
 
     std::string simple_name() const override { return "TraceRayBlockedException"; }
+
+    std::shared_ptr<TraceException> clone() const override {
+        return std::make_shared<TraceRayBlockedException>(*this);
+    }
 };
 
 class TraceTIRException : public TraceException {
@@ -90,6 +111,10 @@ public:
     TraceTIRException() = default;
 
     std::string simple_name() const override { return "TraceTIRException"; }
+
+    std::shared_ptr<TraceException> clone() const override {
+        return std::make_shared<TraceTIRException>(*this);
+    }
 };
 
 } // namespace redukti::rayoptics::exceptions
