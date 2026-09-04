@@ -5,6 +5,24 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Default to an optimized build.
+#
+# With CMAKE_BUILD_TYPE unset, a single-config generator (Makefiles, Ninja)
+# compiles with no optimisation flags at all, and this suite really works: a
+# full LensTool2 report, five upstream ray-trace comparisons and, when enabled,
+# two optimizer solves. Unoptimised that is minutes rather than seconds.
+#
+# Multi-config generators (Visual Studio, Ninja Multi-Config) ignore this and
+# choose per invocation, so build and test them with an explicit config:
+#
+#     cmake --build build --config Release
+#     ctest --test-dir build -C Release
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+                 Debug Release RelWithDebInfo MinSizeRel)
+endif()
+
 if (MSVC)
     add_compile_options(/W3 /permissive- /EHsc)
 else()
@@ -129,7 +147,16 @@ add_executable(mathlib_tests
     tests/OptimTest.cpp
     tests/OptimSolveTest.cpp
     tests/OtusOptimTest.cpp
+    tests/NikkorZ58Model.cpp
     tests/MtfTest.cpp
+    tests/OrientationTest.cpp
+    tests/WeightedSpotAnalysisTest.cpp
+    tests/ContrastAnalysisTest.cpp
+    tests/ContrastResidualCenteringTest.cpp
+    tests/Trace2dSolverTest.cpp
+    tests/WaveAbrFinitePupilTest.cpp
+    tests/GaussianQuadraturePatternTest.cpp
+    tests/Layout2DTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp
@@ -148,6 +175,12 @@ target_compile_definitions(mathlib_tests PRIVATE
     REDUKTI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Examples/"
     REDUKTI_TEST_TMPDIR="${CMAKE_CURRENT_BINARY_DIR}/testtmp/")
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
+# One entry, deliberately: the binary self-registers its tests, so any partition
+# by name would silently stop running a test whose name stopped matching.
+#
+# mathlib_tests takes an optional substring filter for chasing one failure --
+# `mathlib_tests optim_` -- which is much faster than a full run, especially in
+# a Debug build.
 add_test(NAME mathlib COMMAND mathlib_tests)
 
 # ---------------------------------------------------------------------------
