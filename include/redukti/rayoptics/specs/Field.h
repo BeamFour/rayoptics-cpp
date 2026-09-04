@@ -120,7 +120,19 @@ private:
     }
 };
 
-/** An immutable snapshot of a Field, taken when a RayPkg records its field. */
+/** Analysis metadata with no model dependencies; results own it as const. */
+class FieldSnapshot {
+public:
+    double x, y, vux, vuy, vlx, vly, wt;
+    explicit FieldSnapshot(const Field &field)
+        : x(field.x), y(field.y), vux(field.vux), vuy(field.vuy),
+          vlx(field.vlx), vly(field.vly), wt(field.wt), label(field.toString()) {}
+    std::string toString() const { return label; }
+private:
+    std::string label;
+};
+
+/** Snapshot taken when a RayPkg records its field. */
 class ReadOnlyField {
 public:
     double x;

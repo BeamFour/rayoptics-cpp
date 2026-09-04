@@ -39,12 +39,16 @@ public:
 
 class GeoMTFPlot {
 public:
-    const rayoptics::specs::Field *fld;
+    std::shared_ptr<const rayoptics::specs::FieldSnapshot> fld;
     const rayoptics::analysis::MonochromaticGeometricMTF *geo_mtf;
+
+    GeoMTFPlot(const rayoptics::specs::FieldSnapshot &fld_,
+               const rayoptics::analysis::MonochromaticGeometricMTF &geo_mtf_)
+        : fld(std::make_shared<const rayoptics::specs::FieldSnapshot>(fld_)), geo_mtf(&geo_mtf_) {}
 
     GeoMTFPlot(const rayoptics::specs::Field &fld_,
                const rayoptics::analysis::MonochromaticGeometricMTF &geo_mtf_)
-        : fld(&fld_), geo_mtf(&geo_mtf_) {}
+        : GeoMTFPlot(rayoptics::specs::FieldSnapshot(fld_), geo_mtf_) {}
 
     std::string plot() const;
 };

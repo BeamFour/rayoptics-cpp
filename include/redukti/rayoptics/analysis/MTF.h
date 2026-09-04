@@ -43,8 +43,6 @@ protected:
 /** The geometric MTF of one histogram: pad each LSF, transform, take magnitudes. */
 class MTF : public BaseMTF {
 public:
-    /** Borrowed; the owner of the histogram outlives this. */
-    const Histogram *h2d;
     std::vector<double> padded_lsf_x;
     std::vector<double> padded_lsf_y;
 
@@ -53,7 +51,7 @@ public:
 private:
     void pad_lfs(const std::vector<double> &lsf, std::vector<double> &padded_lsf);
     void compute_mtf(int xy);
-    void compute_mtfs();
+    void compute_mtfs(const Histogram &histogram);
 };
 
 /** A weighted sum of monochromatic spectra, magnitudes taken once at the end. */

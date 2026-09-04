@@ -69,7 +69,7 @@ Recommended fix: replace both arrays with `std::vector<int>` sized to `N`.
 Alternatively reject `N > 100` explicitly, although dynamic arrays remove an
 unnecessary limitation.
 
-### P2: analysis results contain fragile borrowed and self-referential pointers
+### Fixed: analysis results contained fragile borrowed and self-referential pointers
 
 Locations:
 
@@ -93,16 +93,23 @@ There are also self-reference problems:
 - `PolyChromaticGeometricMTF` has the same sibling-pointer concern after a move
   once `mtf` has been computed.
 
-Recommended fix:
+Implemented fix:
 
-- Remove `SpotIntercepts::trace_data`; after construction its methods can use
-  the sizes of the already-copied parallel arrays.
-- Delete unsafe copy operations for self-referential MTF owner types and provide
-  move operations that rebind the internal histogram pointer, or redesign `MTF`
-  not to retain that pointer after construction.
-- Make result/model lifetime explicit. Prefer immutable field snapshots in
-  returned results where practical; otherwise document and enforce that the
-  model must outlive every result.
+- Removed `SpotIntercepts::trace_data`; centroid operations use owned arrays.
+- Removed `MTF::h2d`; the histogram is consumed during construction only.
+  Monochromatic copies and moves and polychromatic moves no longer contain
+  sibling pointers that need rebinding.
+- Spot, contrast and ray-fan results own const `FieldSnapshot` metadata rather
+  than borrowing the model's `Field`. Coordinates, weights, vignetting and the
+  report label describe the field at result creation and survive model changes
+  or destruction. The snapshot has no `FieldSpec` or ray-cache dependencies.
+- Added regression coverage for source destruction, spot-result copying and
+  MTF owner movement. Consumers needing mutable fields must use the model;
+  result metadata intentionally exposes only the snapshot API.
+- Java now uses the same `FieldSnapshot` fields (`x`, `y`, `vux`, `vuy`,
+  `vlx`, `vly`, `wt`) and captured report label, and likewise removes the
+  construction-only grid and histogram references. Both `GeoMTFPlot` APIs accept
+  either a snapshot or a live field and retain owned snapshot metadata.
 
 ### P2: configuration access uses unchecked indexing
 

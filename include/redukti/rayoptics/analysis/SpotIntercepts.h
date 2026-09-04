@@ -28,11 +28,6 @@ public:
     std::vector<double> weights;
     /** Not vector<bool>: that is a bitfield and hands out proxies, not refs. */
     std::vector<char> valid;
-    /**
-     * Borrowed. The SpotAnalysisResult that builds this owns the traced grid
-     * and outlives every SpotIntercepts made from it.
-     */
-    const raytr::TraceGridByWvl *trace_data;
 
     explicit SpotIntercepts(const raytr::TraceGridByWvl &trace_data_);
 

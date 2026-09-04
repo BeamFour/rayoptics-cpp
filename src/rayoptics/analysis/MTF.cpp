@@ -57,15 +57,15 @@ void BaseMTF::compute_magnitude(int xy) {
 // ---------------------------------------------------------------------------
 
 MTF::MTF(const Histogram &h2d_)
-    : BaseMTF(h2d_.num_bins * 2, h2d_.pixel_size), h2d(&h2d_) {
+    : BaseMTF(h2d_.num_bins * 2, h2d_.pixel_size) {
     padded_lsf_x.assign(static_cast<std::size_t>(fft_size), 0.0);
     padded_lsf_y.assign(static_cast<std::size_t>(fft_size), 0.0);
-    compute_mtfs();
+    compute_mtfs(h2d_);
 }
 
 void MTF::pad_lfs(const std::vector<double> &lsf, std::vector<double> &padded_lsf) {
-    for (int i = 0; i < h2d->num_bins; i++)
-        padded_lsf[static_cast<std::size_t>(i + h2d->num_bins / 2)] =
+    for (int i = 0; i < fft_size / 2; i++)
+        padded_lsf[static_cast<std::size_t>(i + fft_size / 4)] =
             lsf[static_cast<std::size_t>(i)];
 }
 
@@ -79,9 +79,9 @@ void MTF::compute_mtf(int xy) {
     compute_fft(xy);
 }
 
-void MTF::compute_mtfs() {
-    pad_lfs(h2d->lsf_x, padded_lsf_x);
-    pad_lfs(h2d->lsf_y, padded_lsf_y);
+void MTF::compute_mtfs(const Histogram &histogram) {
+    pad_lfs(histogram.lsf_x, padded_lsf_x);
+    pad_lfs(histogram.lsf_y, padded_lsf_y);
     compute_mtf(0);
     compute_mtf(1);
     compute_magnitude(0);

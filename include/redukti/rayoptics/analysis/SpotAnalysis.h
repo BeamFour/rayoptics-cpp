@@ -60,7 +60,7 @@ public:
 
     class SpotResultsForField {
     public:
-        specs::Field *fld;
+        std::shared_ptr<const specs::FieldSnapshot> fld;
         mathlib::Vector3 image_pt;
         std::vector<raytr::TraceGridByWvl> trace_results;
         std::vector<SpotIntercepts> intercepts;

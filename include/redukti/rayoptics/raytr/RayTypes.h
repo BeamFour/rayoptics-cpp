@@ -395,7 +395,7 @@ class TraceFanResult {
 public:
     /** Left unset until setFanType; Java leaves the field null. */
     std::optional<RayFanType> type;
-    specs::Field *fld;
+    std::shared_ptr<const specs::FieldSnapshot> fld;
     int fi;
     int xy;
     std::vector<TraceFanPoints> fans;
@@ -404,7 +404,7 @@ public:
 
     TraceFanResult(specs::Field *fld_, int fi_, int xy_, std::vector<TraceFanPoints> fans_,
                    double max_rho_val_, double max_y_val_)
-        : fld(fld_), fi(fi_), xy(xy_), fans(std::move(fans_)),
+        : fld(fld_ ? std::make_shared<const specs::FieldSnapshot>(*fld_) : nullptr), fi(fi_), xy(xy_), fans(std::move(fans_)),
           max_rho_val(max_rho_val_), max_y_val(max_y_val_) {}
 
     TraceFanResult &setFanType(RayFanType type_) {

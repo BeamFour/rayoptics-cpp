@@ -96,7 +96,7 @@ SpotOptions &SpotOptions::check_apertures(bool value) {
 SpotAnalysisResult::SpotResultsForField::SpotResultsForField(
     specs::Field *fld_, std::vector<TraceGridByWvl> trace_results_, double ref_wvl,
     bool use_centroid)
-    : fld(fld_), image_pt(fld_->ref_sphere->image_pt),
+    : fld(std::make_shared<const specs::FieldSnapshot>(*fld_)), image_pt(fld_->ref_sphere->image_pt),
       trace_results(std::move(trace_results_)) {
     // The traced grids have to be in their final home before the intercepts are
     // built: each SpotIntercepts keeps a pointer into this vector.

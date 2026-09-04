@@ -8,8 +8,7 @@ namespace redukti::rayoptics::analysis {
 
 using mathlib::Vector2;
 
-SpotIntercepts::SpotIntercepts(const raytr::TraceGridByWvl &trace_data_)
-    : trace_data(&trace_data_) {
+SpotIntercepts::SpotIntercepts(const raytr::TraceGridByWvl &trace_data_) {
     const auto n = trace_data_.grid.size();
     wvl = trace_data_.wvl;
     x.resize(n);
@@ -28,7 +27,7 @@ SpotIntercepts::SpotIntercepts(const raytr::TraceGridByWvl &trace_data_)
 Vector2 SpotIntercepts::compute_centroid() const {
     double cx = 0, cy = 0;
     double totalWeight = 0.0;
-    for (std::size_t i = 0; i < trace_data->grid.size(); i++) {
+    for (std::size_t i = 0; i < x.size(); i++) {
         if (!valid[i])
             continue;
         cx += this->weights[i] * this->x[i];
@@ -45,7 +44,7 @@ Vector2 SpotIntercepts::compute_centroid() const {
 }
 
 void SpotIntercepts::adjust_to_centroid(const Vector2 &centroid) {
-    for (std::size_t i = 0; i < trace_data->grid.size(); i++) {
+    for (std::size_t i = 0; i < x.size(); i++) {
         if (!valid[i])
             continue;
         this->x[i] -= centroid.x;

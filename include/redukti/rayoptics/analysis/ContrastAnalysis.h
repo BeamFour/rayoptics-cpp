@@ -104,11 +104,12 @@ public:
     /** Java record FieldResult(Field field, List<WavelengthResult> wavelengths). */
     class FieldResult {
     public:
-        specs::Field *field;
+        std::shared_ptr<const specs::FieldSnapshot> field;
         std::vector<WavelengthResult> wavelengths;
 
         FieldResult(specs::Field *field_, std::vector<WavelengthResult> wavelengths_)
-            : field(field_), wavelengths(std::move(wavelengths_)) {}
+            : field(field_ ? std::make_shared<const specs::FieldSnapshot>(*field_) : nullptr),
+              wavelengths(std::move(wavelengths_)) {}
     };
 
     double spatialFrequency;
