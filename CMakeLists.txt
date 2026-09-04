@@ -73,6 +73,14 @@ add_library(rayoptics
     src/rayoptics/layout/ElementModel.cpp
     src/rayoptics/layout/Layout2D.cpp
     src/importers/OpticalBenchDataImporter.cpp
+    src/optim/ParaxHelper.cpp
+    src/optim/Analysis.cpp
+    src/optim/Var.cpp
+    src/optim/Goals.cpp
+    src/optim/Constraint.cpp
+    src/optim/LMDer.cpp
+    src/optim/OptimizationBuilder.cpp
+    src/optim/ConfigurationReport.cpp
     src/spec/SurfaceType.cpp
     src/spec/Prescription.cpp
     src/spec/RayOpticsModelBuilder.cpp
@@ -118,6 +126,9 @@ add_executable(mathlib_tests
     tests/ZemaxExporterTest.cpp
     tests/FormatFTest.cpp
     tests/LensTool2Test.cpp
+    tests/OptimTest.cpp
+    tests/OptimSolveTest.cpp
+    tests/OtusOptimTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp

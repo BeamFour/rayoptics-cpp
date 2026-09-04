@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -67,17 +68,33 @@ template <typename E> std::vector<E> step(const std::vector<E> &inputList, int s
     return slice(inputList, std::nullopt, std::nullopt, step_);
 }
 
-/** Negative indices count back from the end, as in Python. */
-template <typename E> E &get(std::vector<E> &inputList, int i) {
+/**
+ * Negative indices count back from the end, as in Python.
+ *
+ * Bounds-checked, because the Java this ports is `List.get`, which throws
+ * IndexOutOfBoundsException. Several callers rely on that: a ray that dies part
+ * way through the system leaves a segment list shorter than the index a caller
+ * asks for, and the resulting exception is caught and turned into a penalty
+ * value -- by the optimizer's merit function, among others. Leaving it as a bare
+ * operator[] made that path undefined behaviour instead, which Release quietly
+ * read past the end of and a debug STL aborted on.
+ */
+template <typename E> std::size_t checked_index(const std::vector<E> &inputList, int i) {
     if (i < 0)
         i += static_cast<int>(inputList.size());
-    return inputList[static_cast<std::size_t>(i)];
+    if (i < 0 || static_cast<std::size_t>(i) >= inputList.size())
+        throw IndexOutOfBoundsException("Index " + std::to_string(i) +
+                                        " out of bounds for length " +
+                                        std::to_string(inputList.size()));
+    return static_cast<std::size_t>(i);
+}
+
+template <typename E> E &get(std::vector<E> &inputList, int i) {
+    return inputList[checked_index(inputList, i)];
 }
 
 template <typename E> const E &get(const std::vector<E> &inputList, int i) {
-    if (i < 0)
-        i += static_cast<int>(inputList.size());
-    return inputList[static_cast<std::size_t>(i)];
+    return inputList[checked_index(inputList, i)];
 }
 
 template <typename E> void set(std::vector<E> &inputList, int i, const E &e) {

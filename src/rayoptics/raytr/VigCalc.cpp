@@ -127,6 +127,13 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     options.check_apertures = false;
     auto ray_result = Trace::trace_safe(opm, start_coords, *fld_0, cwl, options);
     auto ray_pkg = ray_result.pkg;
+    // The Java dereferences ray_pkg below without checking, so a trial geometry
+    // that kills the axial ray raises NullPointerException there -- caught by
+    // the optimizer's merit function and turned into a rejected step. Here that
+    // would be a null dereference, so raise the ported equivalent instead.
+    if (ray_pkg == nullptr)
+        throw IllegalStateException(
+            "the axial ray did not trace, so the pupil cannot be set");
     auto obj_img_key = osp->pupil->key.imageKey;
     auto pupil_spec = osp->pupil->key.valueKey;
     auto pupil_value_orig = osp->pupil->value;
@@ -142,7 +149,7 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
                 auto slp0 = scale_ratio * ax_ray[0].slp;
                 if (pupil_spec == ValueKey::NA) {
                     auto n0 = sm->central_rndx(0);
-                    auto rs0 = ray_pkg->ray[0];
+                    auto rs0 = get(ray_pkg->ray, 0);
                     osp->pupil->value = n0 * rs0.d.y;
                 } else if (pupil_spec == ValueKey::Fnum) {
                     osp->pupil->value = 1.0 / (2.0 * slp0);
@@ -163,12 +170,12 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
             }
         }
     } else {
-        auto scale_ratio = ray_pkg->ray[1].p.y / ax_ray[1].ht;
+        auto scale_ratio = get(ray_pkg->ray, 1).p.y / get(ax_ray, 1).ht;
         if (obj_img_key == ImageKey::Object) {
             if (pupil_spec == ValueKey::EPD) {
                 osp->pupil->value *= scale_ratio;
             } else {
-                auto rs0 = ray_pkg->ray[0];
+                auto rs0 = get(ray_pkg->ray, 0);
                 auto slp0 = rs0.d.y / rs0.d.z;
                 if (pupil_spec == ValueKey::NA) {
                     auto n0 = sm->central_rndx(0);

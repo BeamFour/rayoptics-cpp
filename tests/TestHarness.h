@@ -21,7 +21,8 @@ struct TestCase {
 };
 
 std::vector<TestCase> &registry();
-int runAll();
+/** Runs every registered test, or only those whose name contains `filter`. */
+int runAll(const char *filter = nullptr);
 
 /** Failures within the currently running test. */
 extern int currentFailures;
