@@ -14,6 +14,7 @@
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/seq/Gap.h"
 #include "redukti/rayoptics/seq/Interface.h"
+#include "redukti/rayoptics/seq/PathCache.h"
 #include "redukti/rayoptics/seq/SurfaceData.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/util/Tuples.h"
@@ -72,7 +73,7 @@ public:
      * Returns a reference into a bounded cache owned by this model, so the
      * common case of tracing millions of rays through an unchanging model does
      * not rebuild an identical vector every time. The reference stays valid
-     * until either the model changes (see invalidate_path_cache) or enough
+     * until either the model changes (see path_cache_) or enough
      * distinct keys are requested to evict this one from the ring; callers hold
      * it only for the duration of a trace.
      */
@@ -264,50 +265,22 @@ private:
     void initialize_arrays();
 
     /**
-     * Bounded cache of computed paths, as a ring: on a miss the oldest entry is
-     * overwritten.
+     * Cached paths, so that tracing millions of rays through an unchanging
+     * model does not rebuild an identical vector every time.
      *
      * A PathSeg copies the transform, the refractive index and the z direction
-     * out of the model, so a cached entry goes stale whenever lcl_tfrms, rndx,
-     * z_dir or wvlns is rewritten, or whenever the interface and gap lists are
+     * out of the model, so an entry goes stale whenever lcl_tfrms, rndx, z_dir
+     * or wvlns is rewritten, or whenever the interface and gap lists are
      * spliced. It does *not* go stale when an Interface or Gap object is edited
      * in place, because the entry holds shared_ptrs to those same objects.
      *
-     * Every writer of the four copied arrays therefore has to call
-     * invalidate_path_cache(): initialize_arrays(), insert(), and
-     * update_model() are the only ones -- nothing outside this class mutates
-     * them.
+     * Every writer of the four copied arrays therefore has to clear it, at the
+     * end of the write rather than the start so that anything reached during
+     * the write itself cannot leave a stale entry behind. initialize_arrays(),
+     * insert() and update_model() are the only such writers -- nothing outside
+     * this class mutates them.
      */
-    struct PathCacheKey {
-        std::optional<double> wl;
-        std::optional<int> start;
-        std::optional<int> stop;
-        std::optional<int> step;
-
-        bool operator==(const PathCacheKey &o) const {
-            return wl == o.wl && start == o.start && stop == o.stop && step == o.step;
-        }
-    };
-
-    struct PathCacheEntry {
-        PathCacheKey key;
-        std::vector<PathSeg> segs;
-    };
-
-    /**
-     * Sized to comfortably exceed the number of distinct keys in flight: the
-     * ray trace asks for one shape per wavelength, and a wavelength-resolved
-     * MTF run uses the most wavelengths of anything in the tool.
-     */
-    static constexpr std::size_t PATH_CACHE_CAPACITY = 16;
-
-    std::vector<PathCacheEntry> path_cache_;
-    std::size_t path_cache_next_ = 0;
-
-    void invalidate_path_cache() {
-        path_cache_.clear();
-        path_cache_next_ = 0;
-    }
+    PathCache path_cache_;
 };
 
 } // namespace redukti::rayoptics::seq
