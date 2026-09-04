@@ -22,7 +22,9 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <set>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -149,11 +151,17 @@ public:
     Validity validity;
     double value = 1.0;
     bool valid = true;
+    bool throwBadOptionalAccess = false;
+    bool throwLogicError = false;
 
     explicit TestAnalysis(Validity validity_)
         : Analysis(nullptr, {0.0}, {1}), validity(validity_) {}
 
     void compute() override {
+        if (throwBadOptionalAccess)
+            (void)std::optional<int>{}.value();
+        if (throwLogicError)
+            throw std::logic_error("synthetic programming error");
         valid = validity(value);
         if (!valid)
             throw redukti::IllegalStateException("synthetic killed ray");
@@ -235,6 +243,36 @@ TEST(optim_rejects_unknown_derivative_and_restores_base_point) {
     CHECK_EQ(fixture.analysis.value, 1.0);
     CHECK(fixture.analysis.valid);
     CHECK_EQ(fixture.goal->value(), 1.0);
+}
+
+TEST(optim_converts_bad_optional_access_to_an_invalid_residual) {
+    Fixture fixture([](double) { return true; });
+    fixture.analysis.throwBadOptionalAccess = true;
+    std::vector<double> x{1.0};
+    std::vector<double> residual(1, 0.0);
+
+    CHECK_EQ(fixture.merit.apply(1, 1, x, residual, 1), 0);
+    CHECK_EQ(residual[0], redukti::mathlib::LMLSolver::BIGVAL);
+}
+
+TEST(optim_rejects_bad_optional_access_during_a_nudge) {
+    Fixture fixture([](double) { return true; });
+    fixture.analysis.throwBadOptionalAccess = true;
+    std::vector<double> x{1.0};
+    std::vector<double> delta{1.0e-4};
+    std::vector<double> values(1, 0.0);
+
+    CHECK(!fixture.merit.nudge(x, delta, values));
+    CHECK(std::isnan(values[0]));
+}
+
+TEST(optim_does_not_hide_unrelated_standard_exceptions) {
+    Fixture fixture([](double) { return true; });
+    fixture.analysis.throwLogicError = true;
+    std::vector<double> x{1.0};
+    std::vector<double> residual(1, 0.0);
+
+    CHECK_THROWS(fixture.merit.apply(1, 1, x, residual, 1), std::logic_error);
 }
 
 // ===========================================================================

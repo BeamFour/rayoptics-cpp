@@ -11,8 +11,32 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <optional>
+#include <utility>
 
 namespace redukti::optim {
+
+namespace {
+
+/**
+ * Run one optimizer evaluation, rejecting only failures that represent an
+ * unusable optical trial. Other standard-library exceptions remain visible as
+ * programming or resource errors instead of being disguised as a poor merit.
+ */
+template <typename Evaluation> bool tryEvaluation(Evaluation &&evaluation) {
+    try {
+        std::forward<Evaluation>(evaluation)();
+        return true;
+    } catch (const Exception &) {
+        return false;
+    } catch (const std::bad_optional_access &) {
+        // Java's equivalent null unboxing is a RuntimeException and is rejected
+        // by the optimizer. std::optional::value() uses this separate hierarchy.
+        return false;
+    }
+}
+
+} // namespace
 
 const double LMDerMeritFunction::BIGVAL = mathlib::LMLSolver::BIGVAL;
 
@@ -93,16 +117,13 @@ int LMDerMeritFunction::apply(int m, int n, std::vector<double> &x,
 
 void LMDerMeritFunction::computeResiduals(std::vector<double> &x,
                                           std::vector<double> &fvec) {
-    bool okay = true;
-    try {
+    const bool okay = tryEvaluation([&] {
         for (std::size_t i = 0; i < x.size(); i++) {
             vars[i]->set_scaled_value(x[i]);
             vars[i]->write_to_prescription();
         }
         analysis->compute();
-    } catch (const Exception &) {
-        okay = false;
-    }
+    });
     for (std::size_t i = 0; i < functions.size(); i++) {
         double value = okay ? functions[i]->value() : BIGVAL;
         double r;
@@ -127,8 +148,8 @@ bool LMDerMeritFunction::buildJacobian(std::vector<double> &x, std::vector<doubl
     bool success = false;
 
     // The Java body sits in a try/finally; the restoration below is the finally.
-    // Nothing here throws -- evaluate() swallows everything -- so a plain
-    // sequence reproduces it without needing a scope guard.
+    // Recoverable optical failures are returned by evaluate(), so a plain
+    // sequence reproduces the Java flow without needing a scope guard.
     {
         // A derivative is meaningful only around a fully valid accepted point.
         // This also re-establishes x if the preceding LM trial was rejected.
@@ -206,13 +227,14 @@ bool LMDerMeritFunction::isUsable(double value) {
 
 bool LMDerMeritFunction::evaluate(std::vector<double> &x, std::vector<double> &delta,
                                   std::vector<double> &values) {
-    try {
+    const bool okay = tryEvaluation([&] {
         for (std::size_t i = 0; i < delta.size(); i++) {
             vars[i]->set_scaled_value(x[i] + delta[i]);
             vars[i]->write_to_prescription();
         }
         analysis->compute();
-    } catch (const Exception &) {
+    });
+    if (!okay) {
         std::fill(values.begin(), values.end(),
                   std::numeric_limits<double>::quiet_NaN());
         return false;
