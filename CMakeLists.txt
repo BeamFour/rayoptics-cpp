@@ -129,6 +129,7 @@ add_executable(mathlib_tests
     tests/OptimTest.cpp
     tests/OptimSolveTest.cpp
     tests/OtusOptimTest.cpp
+    tests/MtfTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp
