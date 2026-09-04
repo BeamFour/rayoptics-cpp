@@ -1,1 +1,6 @@
+# CMake build trees
 build/
+cmake-build-*/
+
+# JetBrains IDE (CLion) project settings
+.idea/

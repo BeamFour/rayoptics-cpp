@@ -114,8 +114,8 @@ does not have.
 
 A separate experiment -- borrowing the interfaces, gaps and transforms as raw
 pointers instead of holding `shared_ptr`s and copying the transform -- was
-measured at about 18% and then reverted. It is preserved in commit 99345790,
-reverted by 71229d20. The work below replaces it and does not depend on it.
+measured at about 18% and then reverted. It is preserved in commit 262d1f69,
+reverted by a07c0201. The work below replaces it and does not depend on it.
 
 `RayTrace::trace` calls `path()` once per ray, and every call rebuilt an
 identical vector. The path depends only on the wavelength and the surface range

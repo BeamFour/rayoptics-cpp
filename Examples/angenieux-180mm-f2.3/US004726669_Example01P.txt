@@ -1,0 +1,59 @@
+[descriptive data]
+title	US 4,726,669 Example 1 (Angenieux DEM 180mm F2.3 APO)
+[constants]
+Scaled	180	100
+[variable distances]
+Focal Length	180	undefined
+Angle of View	12.36	undefined
+F-Number	2.3	undefined
+Image Height	43.2	43.2
+Magnification	0	-0.12
+d0	Infinity	1603.61
+d2	3.006	0.432
+d6	26.982	29.538
+d11	17.982	0.576
+Bf(p)	80.622	98.046
+Bf	80.567	97.97
+[lens data]
+1	85.6872	11.988	1.5890	80.36	61.2	B89-61
+2	-2002.0536	d2		80.36	
+3	61.8390	13.986	1.4970	69.94	81.6	FCD1
+4	5668.4898	0.108		66.02	
+5	Infinity	3.996	1.7850	66.02	25.9	D85-25
+6	131.0832	d6		61.76	
+7	1784.2662	2.502	1.7720	43.58	49.7	N-LAF34
+8	40.1706	6.628		39.08	
+9	AS	4.37		36.604
+10	-57.2148	7.992	1.8060	39.36	40.9	S-LAH53
+11	-24.6060	2.502	1.7720	39.08	49.7	N-LAF34
+12	-66.5946	d11		41.00
+13	94.4082	2.502	1.7280	41.26	28.4	D28-28	S-TIH10
+14	51.0804	5.994	1.7720	41.26	49.7	N-LAF34
+15	-678.5694	Bf		41.26
+[group data]
+L1	1	2	139.27
+L2	3	6	399.51
+L3	7	8	-56.88
+[figure]
+source	Data/US004726669_Figure01a.png
+originX	74.36
+originY	271.82
+ppmm	5.906
+[figure]
+source	Data/US004726669_Figure01aP.png
+originX	70.86
+originY	245.48
+ppmm	3.746
+[notes]
+Bill: Measured d0.
+[patent info]
+country	US
+number	US4726669
+example	1
+year applied	1985
+inventors	Pierre Angenieux
+current assignee	Pierre Angenieux
+original assignee	Pierre Angenieux
+link	https://patents.google.com/patent/US4726669A/en
+[report data]
+lens name	Angenieux DEM 180mm F2.3 APO

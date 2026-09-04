@@ -133,7 +133,7 @@ add_executable(mathlib_tests
 # path is baked in here rather than hardcoded in the test so a clone anywhere
 # still finds them.
 target_compile_definitions(mathlib_tests PRIVATE
-    REDUKTI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Examples/jfotoptix/"
+    REDUKTI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Examples/"
     REDUKTI_TEST_TMPDIR="${CMAKE_CURRENT_BINARY_DIR}/testtmp/")
 target_link_libraries(mathlib_tests PRIVATE rayoptics)
 add_test(NAME mathlib COMMAND mathlib_tests)
