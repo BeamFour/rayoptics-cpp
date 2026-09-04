@@ -32,6 +32,22 @@ LMDerMeritFunction::LMDerMeritFunction(Analysis *analysis,
         vars[i]->read_from_prescription();
 }
 
+LMDerMeritFunction::LMDerMeritFunction(std::shared_ptr<Analysis> analysis_,
+                                       std::vector<std::shared_ptr<Var>> vars_,
+                                       std::vector<std::shared_ptr<Goal>> functions_,
+                                       bool use_native)
+    : analysis_owner(std::move(analysis_)), analysis(analysis_owner.get()),
+      vars(std::move(vars_)), functions(std::move(functions_)), use_native(use_native) {
+    weights.resize(functions.size());
+    for (std::size_t i = 0; i < functions.size(); i++) {
+        if (!std::isfinite(functions[i]->_weight) || functions[i]->_weight < 0.0)
+            throw IllegalArgumentException("Goal weight must be finite and non-negative");
+        weights[i] = std::sqrt(functions[i]->_weight);
+    }
+    for (const auto &var : vars)
+        var->read_from_prescription();
+}
+
 int LMDerMeritFunction::apply(int m, int n, std::vector<double> &x,
                               std::vector<double> &fvec, std::vector<double> &fjac,
                               int ldfjac, int iflag) {
@@ -254,6 +270,8 @@ void LMDerMeritFunction::validateInputs() {
 
 std::unique_ptr<Solver> LMDerMeritFunction::getSolver() {
     validateInputs();
+    if (analysis_owner)
+        return std::make_unique<LMDerSolver>(analysis_owner, vars, functions, use_native);
     return std::make_unique<LMDerSolver>(analysis, vars, functions, use_native);
 }
 
@@ -286,7 +304,9 @@ double LMDerMeritFunction::getRMS() {
 // ---------------------------------------------------------------------------
 
 int LMDerSolver::solve() {
-    LMDerMeritFunction fcn(analysis, vars, functions, use_native);
+    LMDerMeritFunction fcn = analysis_owner
+                                 ? LMDerMeritFunction(analysis_owner, vars, functions, use_native)
+                                 : LMDerMeritFunction(analysis, vars, functions, use_native);
     int m = static_cast<int>(functions.size()); // number of functions
     int n = static_cast<int>(vars.size());      // number of variables, must not exceed m
     if (m < n)

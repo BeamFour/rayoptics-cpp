@@ -24,7 +24,7 @@ public:
 
     int wl_index(double wvl) const;
 
-    /** Named spectral lines, looked up case-insensitively. */
+    /** Named spectral lines; exact case distinguishes sodium D from helium d. */
     static double get_wavelength(const std::string &key);
 
     void update_model() {}

@@ -974,3 +974,64 @@ TEST(optim_validates_mtf_array_lengths_and_measured_frequencies) {
                      {std::make_shared<VarThickness>(&other, 0)}),
                  IllegalArgumentException);
 }
+
+TEST(optim_builder_products_keep_analysis_alive_after_temporary_setup_dies) {
+    auto p = prescription();
+    auto merit = OptimizationBuilder::builder(&p)
+                     .fields({0.0})
+                     .mtfFrequencies({20})
+                     .varyCurvatures({0})
+                     .weighted(false)
+                     .gaussianQuadratureSampling(2, 4)
+                     .spotDeviationGoals({1.0})
+                     .build()
+                     .meritFunction(false);
+
+    auto solver = merit.getSolver();
+    CHECK(std::isfinite(merit.getRMS()));
+    CHECK(solver != nullptr);
+
+    std::unique_ptr<redukti::optim::Solver> detachedSolver;
+    {
+        auto shortLivedMerit = OptimizationBuilder::builder(&p)
+                                   .fields({0.0})
+                                   .mtfFrequencies({20})
+                                   .varyCurvatures({0})
+                                   .weighted(false)
+                                   .gaussianQuadratureSampling(2, 4)
+                                   .spotDeviationGoals({1.0})
+                                   .build()
+                                   .meritFunction(false);
+        detachedSolver = shortLivedMerit.getSolver();
+    }
+    CHECK(detachedSolver->solve() > 0);
+}
+
+TEST(optim_variables_and_constraints_reject_invalid_indices) {
+    using redukti::IllegalArgumentException;
+    auto p = prescription();
+
+    CHECK_THROWS(VarRadius(nullptr, 0), IllegalArgumentException);
+    CHECK_THROWS(VarRadius(&p, -1), IllegalArgumentException);
+    CHECK_THROWS(VarRadius(&p, static_cast<int>(p._surface_list.size())),
+                 IllegalArgumentException);
+    CHECK_THROWS(VarThickness(&p, -1), IllegalArgumentException);
+    CHECK_THROWS(VarAsphK(&p, static_cast<int>(p._surface_list.size())),
+                 IllegalArgumentException);
+    CHECK_THROWS(VarAsphCoeff(&p, 0, -1, 1.0), IllegalArgumentException);
+    CHECK_THROWS(VarAsphCoeff(&p, 0, 100, 1.0), IllegalArgumentException);
+    CHECK_THROWS(VarAsphCoeff(&p, 1, 0, 1.0), IllegalArgumentException);
+
+    p._surface_list[0]._thickness_by_scenario = std::vector<double>{5.0};
+    CHECK_THROWS(VarThickness(&p, 0, 1), IllegalArgumentException);
+
+    Analysis analysis(&p, {0.0}, {20});
+    CHECK_THROWS(redukti::optim::ConstraintCurvature(&analysis, -1, 1.0),
+                 IllegalArgumentException);
+    CHECK_THROWS(ConstraintThickness(&analysis,
+                                     static_cast<int>(p._surface_list.size()), 1.0),
+                 IllegalArgumentException);
+    Analysis invalidScenarioAnalysis(&p, {0.0}, {20}, 1);
+    CHECK_THROWS(ConstraintThickness(&invalidScenarioAnalysis, 0, 1.0),
+                 IllegalArgumentException);
+}

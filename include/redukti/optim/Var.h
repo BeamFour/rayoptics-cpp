@@ -85,8 +85,7 @@ class VarAsphK : public Var {
 public:
     const int _surface_id;
 
-    VarAsphK(spec::Prescription *prescription, int surfaceId)
-        : Var(prescription), _surface_id(surfaceId) {}
+    VarAsphK(spec::Prescription *prescription, int surfaceId);
 
     double read_from_prescription() override;
     void write_to_prescription() override;
@@ -100,9 +99,7 @@ public:
     const double _scaling_factor;
 
     VarAsphCoeff(spec::Prescription *prescription, int surfaceId, int index,
-                 double scalingFactor)
-        : Var(prescription), _surface_id(surfaceId), _index(index),
-          _scaling_factor(scalingFactor != 0.0 ? scalingFactor : 1.0) {}
+                 double scalingFactor);
 
     double get_scaling_factor() const override { return _scaling_factor; }
 

@@ -18,6 +18,27 @@ namespace redukti::optim {
 
 namespace profiles = rayoptics::elem::profiles;
 
+namespace {
+
+const spec::SurfaceType &checked_surface(Analysis *analysis, int surfaceId) {
+    if (analysis == nullptr || analysis->_prescription == nullptr)
+        throw IllegalArgumentException("analysis and prescription must not be null");
+    const auto &surfaces = analysis->_prescription->_surface_list;
+    if (surfaceId < 0 || surfaceId >= static_cast<int>(surfaces.size()))
+        throw IllegalArgumentException("surface index out of range: " + intToString(surfaceId));
+    return surfaces[static_cast<std::size_t>(surfaceId)];
+}
+
+void check_thickness_scenario(const spec::SurfaceType &surface, int scenario) {
+    if (scenario < 0)
+        throw IllegalArgumentException("scenario must be non-negative");
+    if (surface._thickness_by_scenario.has_value() &&
+        scenario >= static_cast<int>(surface._thickness_by_scenario->size()))
+        throw IllegalArgumentException("scenario index out of range: " + intToString(scenario));
+}
+
+} // namespace
+
 Constraint::Constraint(Analysis *analysis, int surfaceId, double base, double weight)
     : Goal(analysis, base, normalized_weight(base, weight)), _surface_id(surfaceId) {
     if (surfaceId < 0)
@@ -55,8 +76,7 @@ std::string Constraint::toString() {
 // ---------------------------------------------------------------------------
 
 double ConstraintCurvature::curvature(Analysis *analysis, int surfaceId) {
-    return 1.0 / analysis->_prescription->_surface_list[static_cast<std::size_t>(surfaceId)]
-                     ._radius;
+    return 1.0 / checked_surface(analysis, surfaceId)._radius;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,8 +84,8 @@ double ConstraintCurvature::curvature(Analysis *analysis, int surfaceId) {
 // ---------------------------------------------------------------------------
 
 double ConstraintThickness::thickness(Analysis *analysis, int surfaceId) {
-    const auto &surface =
-        analysis->_prescription->_surface_list[static_cast<std::size_t>(surfaceId)];
+    const auto &surface = checked_surface(analysis, surfaceId);
+    check_thickness_scenario(surface, analysis->_scenario);
     return surface._thickness_by_scenario.has_value()
                ? (*surface._thickness_by_scenario)[static_cast<std::size_t>(
                      analysis->_scenario)]

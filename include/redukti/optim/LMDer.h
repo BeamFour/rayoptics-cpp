@@ -27,6 +27,9 @@ public:
      */
     LMDerMeritFunction(Analysis *analysis, std::vector<std::shared_ptr<Var>> vars,
                        std::vector<std::shared_ptr<Goal>> functions, bool use_native);
+    LMDerMeritFunction(std::shared_ptr<Analysis> analysis,
+                       std::vector<std::shared_ptr<Var>> vars,
+                       std::vector<std::shared_ptr<Goal>> functions, bool use_native);
 
     bool hasJacobian() override { return true; }
 
@@ -60,6 +63,7 @@ private:
     static constexpr int MAX_JACOBIAN_STEP_REDUCTIONS = 8;
 
     std::vector<double> weights;
+    std::shared_ptr<Analysis> analysis_owner;
     Analysis *analysis;
     std::vector<std::shared_ptr<Var>> vars;
     std::vector<std::shared_ptr<Goal>> functions;
@@ -92,10 +96,15 @@ public:
                 std::vector<std::shared_ptr<Goal>> functions, bool use_native)
         : analysis(analysis), vars(std::move(vars)), functions(std::move(functions)),
           use_native(use_native) {}
+    LMDerSolver(std::shared_ptr<Analysis> analysis_, std::vector<std::shared_ptr<Var>> vars,
+                std::vector<std::shared_ptr<Goal>> functions, bool use_native)
+        : analysis_owner(std::move(analysis_)), analysis(analysis_owner.get()),
+          vars(std::move(vars)), functions(std::move(functions)), use_native(use_native) {}
 
     int solve() override;
 
 private:
+    std::shared_ptr<Analysis> analysis_owner;
     Analysis *analysis;
     /** number of vars in lmder parlance */
     std::vector<std::shared_ptr<Var>> vars;

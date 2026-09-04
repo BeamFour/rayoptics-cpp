@@ -11,6 +11,26 @@
 
 namespace redukti::optim {
 
+namespace {
+
+spec::SurfaceType &checked_surface(spec::Prescription *prescription, int surfaceId) {
+    if (prescription == nullptr)
+        throw IllegalArgumentException("prescription must not be null");
+    if (surfaceId < 0 || surfaceId >= static_cast<int>(prescription->_surface_list.size()))
+        throw IllegalArgumentException("surface index out of range: " + intToString(surfaceId));
+    return prescription->_surface_list[static_cast<std::size_t>(surfaceId)];
+}
+
+void check_scenario(const spec::SurfaceType &surface, int scenario) {
+    if (scenario < 0)
+        throw IllegalArgumentException("scenario must be non-negative");
+    if (surface._thickness_by_scenario.has_value() &&
+        scenario >= static_cast<int>(surface._thickness_by_scenario->size()))
+        throw IllegalArgumentException("scenario index out of range: " + intToString(scenario));
+}
+
+} // namespace
+
 std::string Var::toString() const { return typeid(*this).name(); }
 
 void Var::set_unscaled_value(double d) {
@@ -29,11 +49,9 @@ void Var::set_scaled_value(double d) {
 
 VarRadius::VarRadius(spec::Prescription *prescription, int surfaceId)
     : Var(prescription), _surface_id(surfaceId) {
+    const auto &surface = checked_surface(prescription, surfaceId);
     // same step as optimr's VarRadius, with a floor for flat/near-flat surfaces
-    _d_delta = std::max(
-        std::abs(prescription->_surface_list[static_cast<std::size_t>(surfaceId)]._radius) *
-            0.001,
-        1.0e-3);
+    _d_delta = std::max(std::abs(surface._radius) * 0.001, 1.0e-3);
 }
 
 double VarRadius::read_from_prescription() {
@@ -54,7 +72,24 @@ std::string VarRadius::toString() const {
 
 VarThickness::VarThickness(spec::Prescription *prescription, int surfaceId, int scenario)
     : Var(prescription), _surface_id(surfaceId), _scenario(scenario) {
+    check_scenario(checked_surface(prescription, surfaceId), scenario);
     _d_delta = 1.0e-3; // matches optimr's VarThickness
+}
+
+VarAsphK::VarAsphK(spec::Prescription *prescription, int surfaceId)
+    : Var(prescription), _surface_id(surfaceId) {
+    (void)checked_surface(prescription, surfaceId);
+}
+
+VarAsphCoeff::VarAsphCoeff(spec::Prescription *prescription, int surfaceId, int index,
+                           double scalingFactor)
+    : Var(prescription), _surface_id(surfaceId), _index(index),
+      _scaling_factor(scalingFactor != 0.0 ? scalingFactor : 1.0) {
+    const auto &surface = checked_surface(prescription, surfaceId);
+    if (index < 0 || !surface._coeffs.has_value() ||
+        index >= static_cast<int>(surface._coeffs->size()))
+        throw IllegalArgumentException("aspheric coefficient index out of range: " +
+                                       intToString(index));
 }
 
 double VarThickness::read_from_prescription() {

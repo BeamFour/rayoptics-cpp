@@ -443,17 +443,13 @@ public:
 
     class OptimizationSetup {
     public:
-        /**
-         * The Analysis is owned here and borrowed by every goal, so a setup must
-         * outlive the goals, the merit function and the solver built from it.
-         * The Java relies on the collector for the same thing.
-         */
+        /** The Analysis is shared with merit functions and solvers built here. */
         Analysis *analysis() const { return _analysis.get(); }
         std::vector<std::shared_ptr<Var>> variables() const { return _variables; }
         std::vector<std::shared_ptr<Goal>> goals() const { return _goals; }
 
         LMDerMeritFunction meritFunction(bool useNative) const {
-            return LMDerMeritFunction(_analysis.get(), _variables, _goals, useNative);
+            return LMDerMeritFunction(_analysis, _variables, _goals, useNative);
         }
 
     private:
