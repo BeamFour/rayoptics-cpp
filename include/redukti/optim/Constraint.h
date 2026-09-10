@@ -10,28 +10,6 @@ namespace redukti::optim {
 /**
  * Anchors a prescription parameter to the value it started at.
  *
- * Contrast optimization sees the design clearly enough to rearrange it wholesale, and
- * left to itself it will: on the Leica 75/2 with every air space free it drove three gaps
- * negative, passing elements through each other and through the stop. Nothing in an
- * optical merit function has an opinion about mechanical layout, so something has to.
- *
- * These goals supply that opinion the same way GoalParax holds focal length and
- * f-number: a target, a deviation, and a weight. There is no dead band and no bound. The
- * parameter is free to move, it simply costs merit to do so, and the weight decides how
- * much. Raise it to hold the design close, lower it to let the optimizer explore.
- *
- * The residual is a <em>fraction</em> of the starting value rather than an absolute
- * deviation, which is what makes one weight sensible across a whole prescription: a lens
- * has 0.1mm air gaps beside 39mm ones, and surfaces at r=14 beside r=2009. An absolute
- * residual would effectively freeze the small ones and ignore the large.
- *
- * Deliberately never reports org.redukti.mathlib.LMLSolver#BIGVAL. A goal like
- * this exists to steer the solver, not to end the run, and a single BIGVAL raised during
- * a Jacobian probe step aborts the whole solve.
- */
-/**
- * Anchors a prescription parameter to the value it started at.
- *
  * Contrast optimization sees the design clearly enough to rearrange it
  * wholesale, and left to itself it will: on the Leica 75/2 with every air space
  * free it drove three gaps negative, passing elements through each other and
