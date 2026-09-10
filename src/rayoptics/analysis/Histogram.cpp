@@ -75,6 +75,7 @@ void Histogram::normalize_histogram() {
 void Histogram::build_lsf(int xy) {
     std::vector<double> &lsf = xy == Orientation::SAGITTAL ? lsf_x : lsf_y;
     if (xy == Orientation::SAGITTAL) {
+        // integrate over y → LSF(x)
         for (int i = 0; i < num_bins; i++) {
             double s = 0;
             for (int j = 0; j < num_bins; j++) {
@@ -83,6 +84,7 @@ void Histogram::build_lsf(int xy) {
             lsf[static_cast<std::size_t>(i)] = s;
         }
     } else {
+        // integrate over x → LSF(y)
         for (int j = 0; j < num_bins; j++) {
             double s = 0;
             for (int i = 0; i < num_bins; i++) {
@@ -91,6 +93,7 @@ void Histogram::build_lsf(int xy) {
             lsf[static_cast<std::size_t>(j)] = s;
         }
     }
+    // normalize lsf
     double lsfSum = 0;
     for (double v : lsf)
         lsfSum += v;
@@ -99,8 +102,8 @@ void Histogram::build_lsf(int xy) {
 }
 
 void Histogram::build_lsfs() {
-    build_lsf(0);
-    build_lsf(1);
+    build_lsf(0);  // x
+    build_lsf(1);  // y
 }
 
 void Histogram::compute() {

@@ -26,6 +26,7 @@ using raytr::TraceGridByWvl;
 // ---------------------------------------------------------------------------
 
 SpotOptions::SpotOptions(bool useGaussGuadrature) {
+    // Spot analysis historically checked the physical surface apertures.
     _trace_options.check_apertures = true;
     if (useGaussGuadrature)
         use_gaussian_quadrature();
@@ -104,6 +105,8 @@ SpotAnalysisResult::SpotResultsForField::SpotResultsForField(
     // The traced grids have to be in their final home before the intercepts are
     // built: each SpotIntercepts keeps a pointer into this vector.
     std::optional<Vector2> centroid;
+    // To preserve chromatic aberration when applying centroid
+    // adjust to reference wvl
     for (const auto &result : trace_results) {
         SpotIntercepts s(result);
         if (result.wvl == ref_wvl && use_centroid)
@@ -157,6 +160,7 @@ SpotAnalysisResult &SpotAnalysisResult::add(specs::Field *fld,
 }
 
 std::vector<double> SpotAnalysisResult::fields() const {
+    // Here we assume that the y component of the field is set
     std::vector<double> fields(spot_results.size());
     for (std::size_t i = 0; i < spot_results.size(); i++)
         fields[i] = spot_results[i].fld->y;
@@ -267,6 +271,7 @@ SpotAnalysisResult SpotAnalysis::eval(optical::OpticalModel *opt_model,
                                                 trace_options),
                        ref_wvl);
         else
+            // hexapolar
             result.add(f,
                        eval_rings(opt_model, static_cast<int>(fi), std::nullopt, num_rays,
                                   trace_options),

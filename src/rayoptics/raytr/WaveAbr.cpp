@@ -287,21 +287,6 @@ FinitePupilWaveAberrationResult WaveAbr::wave_abr_calc_finite_pupil(
         ep = denom == 0 ? 0.0 : J / denom;
         ray_exit_pupil_coord = p_coord.plus(b4_dir.times(ep));
     }
-    /**
-     *
-     * @param ray_pkg A test aperture ray
-     * @param chief_ray_pkg The chief ray
-     * @param ref_sphere The reference sphere
-     * @param e1 Object space geometric difference between chief ray and aperture ray from entry pupil to first surface.
-     * @param ekp Image space geometric difference between chief ray amd aperture ray from last surface to exit pupil excluding impact of focus.
-     * @param ep Image space geometric adjustment for focus
-     * @param ray_exit_pupil_coord coordinate of B′, the test ray’s intersection
-     *                             with the reference sphere, in the coordinate
-     *                             system whose origin is the chief-ray exit-pupil
-     *                             point Ē′
-     * @param ray_op optical path length of aperture ray inside the lens
-     * @param cr_op optical path length of chief ray inside the lens
-     */
     return FinitePupilWaveAberrationResult(ray_pkg, chief_ray_pkg, ref_sphere, e1, ekp,
                                            ep, ray_exit_pupil_coord, ray_op, cr_op);
 }

@@ -26,6 +26,9 @@ public:
         results.push_back(std::move(fan_result));
     }
 
+    /**
+     * Gets the results for given field, xy, and wavelength
+     */
     /** Null when no fan matches; borrowed from `results`. */
     const raytr::TraceFanPoints *get_fans(int fi, int xy, double wvl) const;
 

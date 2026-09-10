@@ -19,8 +19,10 @@ BaseMTF::BaseMTF(int fft_size_, double pixel_size_)
     : pixel_size(pixel_size_), fft_size(fft_size_) {
     mtf_size = fft_size / 2 + 1;
     freq.assign(static_cast<std::size_t>(mtf_size), 0.0);
+    // fourier transforms - complex numbers so has real and imaginary pairs
     fft_x.assign(static_cast<std::size_t>(fft_size) * 2, 0.0);
     fft_y.assign(static_cast<std::size_t>(fft_size) * 2, 0.0);
+    // magnitudes - computed for the positive half
     mag_x.assign(static_cast<std::size_t>(mtf_size), 0.0);
     mag_y.assign(static_cast<std::size_t>(mtf_size), 0.0);
     compute_freq();
@@ -33,13 +35,17 @@ void BaseMTF::compute_freq() {
 
 void BaseMTF::compute_fft(int xy) {
     std::vector<double> &fft = xy == Orientation::SAGITTAL ? fft_x : fft_y;
+    //        var fft2d = new DoubleFFT_1D(fft_size);
+    //        fft2d.complexForward(fft);
     mathlib::fftpack::ComplexDoubleFFT fft2d(fft_size);
     fft2d.ft(fft);
 }
 
 void BaseMTF::compute_magnitude(std::vector<double> &mag, const std::vector<double> &fft) {
+    // Only positive frequencies 0 … N/2
     for (std::size_t i = 0; i < mag.size(); i++)
         mag[i] = std::hypot(fft[2 * i], fft[2 * i + 1]);
+    // normalize
     double dc = mag[0];
     for (std::size_t k = 0; k < mag.size(); k++) {
         mag[k] = mag[k] / dc;
@@ -64,6 +70,8 @@ MTF::MTF(const Histogram &h2d_)
 }
 
 void MTF::pad_lfs(const std::vector<double> &lsf, std::vector<double> &padded_lsf) {
+    // pad the LSF with zeroes
+    // This is to ensure FFT computation is correct
     for (int i = 0; i < fft_size / 2; i++)
         padded_lsf[static_cast<std::size_t>(i + fft_size / 4)] =
             lsf[static_cast<std::size_t>(i)];
@@ -72,9 +80,10 @@ void MTF::pad_lfs(const std::vector<double> &lsf, std::vector<double> &padded_ls
 void MTF::compute_mtf(int xy) {
     std::vector<double> &lsf = xy == Orientation::SAGITTAL ? padded_lsf_x : padded_lsf_y;
     std::vector<double> &fft = xy == Orientation::SAGITTAL ? fft_x : fft_y;
+    // copy the reals and set imaginary numbers to 0
     for (std::size_t i = 0; i < static_cast<std::size_t>(fft_size); i++) {
-        fft[2 * i] = lsf[i];
-        fft[2 * i + 1] = 0.0;
+        fft[2 * i] = lsf[i];  // real
+        fft[2 * i + 1] = 0.0;  // imaginary
     }
     compute_fft(xy);
 }
@@ -165,6 +174,7 @@ double MTFResultByFreq::interpolate(const std::vector<double> &freq,
         return mag[0];
     if (f >= freq[static_cast<std::size_t>(n - 1)])
         return mag[static_cast<std::size_t>(n - 1)];
+    // binary search for the bracketing interval [lo, lo+1] with freq[lo] <= f < freq[lo+1]
     int lo = 0, hi = n - 1;
     while (hi - lo > 1) {
         // Java uses >>> here; both operands are non-negative and small, so an

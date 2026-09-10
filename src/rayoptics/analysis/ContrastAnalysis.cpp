@@ -32,6 +32,8 @@ ContrastOptions::ContrastOptions(double spatialFrequency_) {
             "Spatial frequency must be finite and non-negative");
     }
     this->spatialFrequency = spatialFrequency_;
+    // Contrast samples already occupy the common vignetted-pupil overlap.
+    // Do not additionally reject them against surface apertures by default.
     this->traceOptions.check_apertures = false;
 }
 
@@ -56,21 +58,51 @@ ContrastOptions &ContrastOptions::trace_options(const raytr::TraceOptions &value
     return *this;
 }
 
+/**
+ * Subtract the constant part of each wavefront-difference block, so the residuals
+ * carry the variance the OTF modulus depends on rather than the un-centred second
+ * moment. Off by default because it changes every contrast residual. See
+ * ContrastAnalysis#center_residuals(ContrastAnalysisResult, int).
+ */
 ContrastOptions &ContrastOptions::center_residuals(bool value) {
     centerResiduals = value;
     return *this;
 }
 
+/** Whether traced contrast rays are also rejected by surface apertures. */
 ContrastOptions &ContrastOptions::check_apertures(bool value) {
     traceOptions.check_apertures = value;
     return *this;
 }
 
+/**
+ * Correct the pupil shift so the sampled pair realises the requested spatial
+ * frequency in image space.
+ *
+ * The shift is applied in entrance-pupil coordinates but is derived from an
+ * exit-pupil relation, so pupil aberration makes the realised frequency fall short -
+ * measured around 8% low at full field on an f/2 lens, and worsening with field.
+ * Enabling this measures the shortfall with one probe pair per field, wavelength and
+ * direction, and scales the shift to compensate. It costs four extra rays per field
+ * and wavelength.
+ *
+ * Off by default: it changes the sampled frequency and therefore every contrast
+ * residual, so it is opt-in until the correct exit-pupil treatment is settled.
+ */
 ContrastOptions &ContrastOptions::calibrate_frequency(bool value) {
     calibrateFrequency = value;
     return *this;
 }
 
+/**
+ * Inverse-aim every displaced contrast ray so its separation from the reference ray
+ * is the requested vector on the exit-pupil reference sphere.
+ *
+ * This is the physically direct alternative to block calibration. It retains the
+ * entrance-pupil quadrature for the reference rays, but does not approximate the
+ * partner ray with a rigid entrance-pupil displacement. It is unavailable for afocal
+ * systems and cannot be combined with #calibrate_frequency(boolean).
+ */
 ContrastOptions &ContrastOptions::aim_exit_pupil(bool value) {
     aimExitPupil = value;
     return *this;
@@ -95,6 +127,13 @@ ContrastAnalysisResult::WavelengthResult::withOffsets(double sagittal,
                             tangential);
 }
 
+/**
+ * The optimizer residual for a sample: the sample's own residual less the
+ * constant part, which is a pure image displacement and costs no MTF.
+ *
+ * Note this is sqrt(w) * (dW - offset), not
+ * sqrt(w) * dW - offset.
+ */
 double ContrastAnalysisResult::WavelengthResult::sagittalResidual(int index) const {
     const auto &sample = samples[static_cast<std::size_t>(index)];
     return std::sqrt(sample.weight) * (sample.sagittalDifference - sagittalOffset);
@@ -196,6 +235,17 @@ double ContrastAnalysis::weighted_mean(
     return weightSum > 0.0 ? weightedSum / weightSum : 0.0;
 }
 
+/**
+ * Convert frequency to a displacement in normalized <em>entrance</em> pupil-radius
+ * units. The displacement is 2 at the incoherent diffraction cutoff 1/(lambda F#).
+ *
+ * Note the mismatch the name records: the magnitude comes from an exit-pupil
+ * relation, since that is where the OTF autocorrelation is defined, but it is applied
+ * in entrance-pupil coordinates because that is what REL_PUPIL means. Those
+ * coincide only where the pupil imaging is aberration free. See
+ * #exit_pupil_frequency_calibration, which measures and corrects the
+ * difference when ContrastOptions#calibrate_frequency(boolean) is enabled.
+ */
 double ContrastAnalysis::normalized_entry_pupil_shift(optical::OpticalModel *opticalModel,
                                                       double wavelength,
                                                       double spatialFrequency) {
@@ -204,6 +254,28 @@ double ContrastAnalysis::normalized_entry_pupil_shift(optical::OpticalModel *opt
     return 2.0 * wavelengthInSystemUnits * fNumber * spatialFrequency;
 }
 
+/**
+ * Scale for the entrance-pupil shift so that the traced pair actually realises the
+ * requested image-space spatial frequency.
+ *
+ * REL_PUPIL coordinates are normalised on the <em>entrance</em> pupil, but
+ * the OTF is the autocorrelation of the <em>exit</em> pupil, and
+ * #normalized_entry_pupil_shift derives its displacement from an exit-pupil relation
+ * (2*lambda*F#*nu). The two agree only where the pupil imaging is aberration
+ * free; real pupil aberration lands a rigid entrance-pupil shift as a smaller,
+ * field-dependent exit-pupil shift - around 8% low at full field on a fast lens.
+ *
+ * A pair of rays forms image-plane fringes of frequency nu exactly when
+ * their image-space direction cosines differ by lambda*nu, and that holds
+ * wherever the exit pupil happens to lie. So one probe pair per field, wavelength and
+ * direction measures the frequency the shift really delivers, and its reciprocal
+ * corrects it.
+ *
+ * This removes the field-dependent bias, which is the dominant term. The remaining
+ * variation across the pupil (a few percent, from pupil spherical aberration) would
+ * need per-ray aiming and is left uncorrected. Cost is four rays per field and
+ * wavelength against the couple of hundred used for the samples.
+ */
 double ContrastAnalysis::exit_pupil_frequency_calibration(
     optical::OpticalModel *opticalModel, specs::Field &field, double wavelength,
     double shift, int axis, const ContrastOptions &options) {
@@ -215,6 +287,11 @@ double ContrastAnalysis::exit_pupil_frequency_calibration(
     auto traceOptions = options.traceOptions.copy();
     traceOptions.pupil_type = PupilType::REL_PUPIL;
     traceOptions.apply_vignetting = false;
+    // Set the pupil up exactly as SequentialModel.trace_contrast does for the sampling
+    // rays: take the reference image point from the central wavelength, then establish
+    // this wavelength's chief ray and reference sphere against that point. Probing
+    // through a differently configured pupil would measure a mapping the samples never
+    // see, which is the one way this correction could do harm rather than nothing.
     double focus = opticalModel->optical_spec->defocus()->get_focus();
     auto reference = Trace::setup_pupil_coords(
         opticalModel, field, opticalModel->seq_model->central_wavelength(), focus,
@@ -240,6 +317,8 @@ double ContrastAnalysis::exit_pupil_frequency_calibration(
     if (!std::isfinite(realized) || realized < 1.0e-12)
         return 1.0;
     double scale = required / realized;
+    // A correction this far from unity says the probe failed rather than that the
+    // pupil mapping is unusual; leave the shift alone rather than destabilise the merit.
     return scale > 0.5 && scale < 2.0 ? scale : 1.0;
 }
 
@@ -305,6 +384,7 @@ double ContrastAnalysis::opd(optical::OpticalModel *opticalModel,
                              const std::shared_ptr<const RayPkg> &ray,
                              specs::Field &field, double wavelength, double focus,
                              const std::optional<Vector2> &pupil) {
+    // below xy is set to 0 as it is not used by the opd calculation
     // opd ignores its pupil argument, so an absent input_pupil (Java: null)
     // changes nothing; the zero stands in for the null reference.
     return WavefrontAberrationAnalysis::opd(opticalModel,

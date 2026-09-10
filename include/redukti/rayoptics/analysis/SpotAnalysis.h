@@ -44,9 +44,16 @@ public:
     SpotOptions &use_grid();
     SpotOptions &use_gaussian_quadrature();
     SpotOptions &num_spokes(std::optional<int> spokes);
+    /**
+     * Select a concentric annular pupil using a normalized inner radius in [0,1).
+     */
     SpotOptions &inner_pupil_radius(double radius);
     SpotOptions &use_centroid(bool value);
     SpotOptions &append_failed_rays(bool value);
+    /**
+     * Whether Gaussian-quadrature spot rays are rejected by surface apertures.
+     * Grid and ring/hexapolar spot analyses always check their physical apertures.
+     */
     SpotOptions &check_apertures(bool value);
 
     bool is_gauss_quadrature() const { return _pattern == PATTERN_GAUSS_QUADRATURE; }
@@ -76,6 +83,11 @@ public:
         double get_max_radius() const { return max_radius * 1000; }
         double get_mean_radius() const { return mean_radius * 1000; }
 
+        /**
+         * Histogram grid for this field's geometric MTF, sized to the field's spot
+         * extent (across all wavelengths). Shared by every wavelength so the
+         * monochromatic MTFs can be combined into a PolyMTF.
+         */
         Histogram::Config mtfHistogramConfig() const {
             return Histogram::adaptiveConfig(max_radius);
         }
@@ -94,6 +106,9 @@ public:
 
     std::vector<double> fields() const;
 
+    /**
+     * Compute geometric MTF for given frequencies
+     */
     std::vector<MTFResultByFreq> computeMTFs(const std::vector<int> &freqs) const;
 
     std::string toString() const;
