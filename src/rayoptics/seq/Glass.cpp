@@ -30,6 +30,12 @@ std::map<double, std::vector<std::shared_ptr<Glass>>> &glasses_by_nd() {
     return m;
 }
 
+/** The same, ordered by ne, for prescriptions that quote the e line. */
+std::map<double, std::vector<std::shared_ptr<Glass>>> &glasses_by_ne() {
+    static std::map<double, std::vector<std::shared_ptr<Glass>>> m;
+    return m;
+}
+
 } // namespace
 
 Glass::Glass(std::optional<std::string> manufacturer, std::optional<std::string> name,
@@ -99,6 +105,7 @@ std::map<Glass::GlassName, std::shared_ptr<Glass>> &Glass::glasses() {
 void Glass::addGlass(const std::shared_ptr<Glass> &glass) {
     glasses()[GlassName(glass->catalog_name, glass->label)] = glass;
     glasses_by_nd()[glass->nd].push_back(glass);
+    glasses_by_ne()[glass->ne].push_back(glass);
 }
 
 void Glass::ensureCatalogLoaded() {
@@ -161,25 +168,37 @@ int Glass::catalog_rank(const std::optional<std::string> &catalog_name) {
 }
 
 std::vector<Glass::GlassMatch> Glass::find_glasses(double nd_, double vd_) {
-    return find_glasses(nd_, vd_, DEFAULT_ND_TOLERANCE, DEFAULT_VD_TOLERANCE, 3);
+    return find_glasses(nd_, vd_, IndexLine::D);
+}
+
+std::vector<Glass::GlassMatch> Glass::find_glasses(double n, double vd_, IndexLine line) {
+    return find_glasses(n, vd_, DEFAULT_ND_TOLERANCE, DEFAULT_VD_TOLERANCE, 3, line);
 }
 
 std::vector<Glass::GlassMatch> Glass::find_glasses(double nd_, double vd_,
                                                    double nd_tolerance,
                                                    double vd_tolerance, int limit) {
+    return find_glasses(nd_, vd_, nd_tolerance, vd_tolerance, limit, IndexLine::D);
+}
+
+std::vector<Glass::GlassMatch> Glass::find_glasses(double n, double vd_,
+                                                   double nd_tolerance,
+                                                   double vd_tolerance, int limit,
+                                                   IndexLine line) {
     ensureCatalogLoaded();
-    if (!std::isfinite(nd_) || !std::isfinite(vd_) || nd_tolerance <= 0.0 ||
+    if (!std::isfinite(n) || !std::isfinite(vd_) || nd_tolerance <= 0.0 ||
         vd_tolerance <= 0.0 || limit <= 0)
         return {};
 
     std::vector<GlassMatch> matches;
     // Java's subMap(lo, true, hi, true) -- inclusive at both ends.
-    auto &byNd = glasses_by_nd();
-    auto lo = byNd.lower_bound(nd_ - nd_tolerance);
-    auto hi = byNd.upper_bound(nd_ + nd_tolerance);
+    auto &index = line == IndexLine::E ? glasses_by_ne() : glasses_by_nd();
+    auto lo = index.lower_bound(n - nd_tolerance);
+    auto hi = index.upper_bound(n + nd_tolerance);
     for (auto it = lo; it != hi; ++it) {
         for (const auto &glass : it->second) {
-            double nd_difference = std::abs(glass->nd - nd_);
+            double glass_index = line == IndexLine::E ? glass->ne : glass->nd;
+            double nd_difference = std::abs(glass_index - n);
             double vd_difference = std::abs(glass->vd - vd_);
             if (vd_difference > vd_tolerance)
                 continue;

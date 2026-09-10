@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <vector>
 
 namespace redukti::optim {
@@ -377,6 +378,10 @@ public:
      * skipped: a fractional constraint cannot be formed around zero, and a
      * design that already starts with coincident or crossed surfaces has nothing
      * useful to anchor to. See ConstraintEdgeThickness::is_constrainable.
+     *
+     * Applies to the gap after a varied thickness AND to both gaps beside a
+     * surface with a varied radius, conic constant or aspheric coefficient; see
+     * edgeAffectedGaps. A setup that varies no thickness at all is still covered.
      */
     OptimizationBuilder &applyEdgeThicknessConstraints() {
         return applyEdgeThicknessConstraints(NOMINAL_CONSTRAINT_WEIGHT);
@@ -497,6 +502,26 @@ private:
 
     void validate() const;
     void validateSurfaces(const std::vector<int> &surfaces, const char *kind) const;
+
+    /**
+     * The gaps whose edge separation some varied parameter can move, sorted and
+     * deduplicated: the gap a varied thickness IS, and BOTH gaps beside a surface
+     * whose shape is varied.
+     *
+     * The second half is easy to miss and was missed originally. The separation
+     * is gap(h) = t + sag_next(h) - sag_this(h), so moving a radius, conic
+     * constant or aspheric coefficient closes the gap on either side of that
+     * surface with no thickness variable involved anywhere. A setup that varied
+     * curvatures and aspherics but no thicknesses therefore got no edge
+     * protection at all, silently -- precisely the configuration in which
+     * curvature is the only freedom, and curvature-driven crossing is the failure
+     * the edge constraint exists to catch.
+     *
+     * Out-of-range gap indices at either end of the surface list are left in and
+     * rejected by the caller's is_constrainable check. (The Java comment also
+     * names an is_boundable check; there is no such method in either code base.)
+     */
+    static std::set<int> edgeAffectedGaps(const std::vector<std::shared_ptr<Var>> &variables);
 
     static bool sameWavelength(double a, double b);
 

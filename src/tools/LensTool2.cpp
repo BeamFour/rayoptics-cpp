@@ -11,11 +11,15 @@
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
+#include "redukti/tools/DefaultOptimizations.h"
+#include "redukti/tools/GlassFinder.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 
 namespace redukti::tools {
 
@@ -41,11 +45,42 @@ const DecimalFormat &decimalFormat() {
 
 std::string d(double v) { return doubleToString(v); }
 
+/** Java's Files.readString. */
+std::string readFile(const std::string &path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in)
+        throw IOException("Failed to read " + path);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+
 } // namespace
 
 LensTool2::LensSpecifications LensTool2::getSpecsFromFile(const std::string &specfile) {
     LensSpecifications specs;
     specs.parse_file(specfile);
+    return specs;
+}
+
+LensTool2::LensSpecifications LensTool2::loadSpecs(const Args &arguments) {
+    if (!arguments.assign_glass_types)
+        return getSpecsFromFile(*arguments.specfile);
+    const std::string &specpath = *arguments.specfile;
+    auto result = GlassFinder::enrich(readFile(specpath), arguments.force,
+                                      arguments.index_line_value());
+    std::cout << "Assigned " << result.selected << " glass types; " << result.ambiguous
+              << " ambiguous; " << result.unmatched << " unmatched" << std::endl;
+    if (result.ambiguous > 0)
+        std::cout << "Ambiguous surfaces carry candidate= fields; pick one by hand for a "
+                     "better fit"
+                  << std::endl;
+    if (arguments.update_specfile) {
+        Helper::createOutputFile(specpath, result.text);
+        std::cout << "Updated " << specpath << std::endl;
+    }
+    LensSpecifications specs;
+    specs.parse_buffer(result.text);
     return specs;
 }
 
@@ -58,6 +93,13 @@ Prescription LensTool2::createPrescription(const LensSpecifications &specs,
                                            bool use_glass_types, bool weighted,
                                            bool d_line) {
     return Prescription::build_prescription(specs, use_glass_types, weighted, d_line);
+}
+
+Prescription LensTool2::createPrescription(const LensSpecifications &specs,
+                                           bool use_glass_types,
+                                           const std::vector<double> &wvls,
+                                           const std::vector<double> &wts) {
+    return Prescription::build_prescription(specs, use_glass_types, wvls, wts);
 }
 
 std::unique_ptr<optical::OpticalModel> LensTool2::createSystem(
@@ -123,9 +165,22 @@ std::string &LensTool2::spotResultsMarkdownTable(
 
 std::string LensTool2::startREADME(const LensSpecifications &specs) {
     Prescription prescription = Prescription::build_prescription(specs, true);
+    return startREADME(prescription);
+}
+
+std::string LensTool2::startREADME(const Prescription &prescription) {
     std::string sb;
     prescription.to_markdown_str(sb);
     return sb;
+}
+
+Prescription LensTool2::createWeightedPrescription(const Prescription &prescription,
+                                                   bool dLineOnly) {
+    LensSpecifications finalSpecs;
+    std::string text;
+    prescription.to_opt_bench_str(text);
+    finalSpecs.parse_buffer(text);
+    return createPrescription(finalSpecs, true, true, dLineOnly);
 }
 
 std::string &LensTool2::addConfigLabelToREADME(std::string &sb,
@@ -204,7 +259,7 @@ std::string LensTool2::suffixed_name(const std::string &baseName,
 analysis::SpotAnalysisResult LensTool2::generateSpotDiagrams(
     optical::OpticalModel *opm, const Args &arguments, bool standardSize,
     const std::string &filename_suffix) {
-    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, analysis::SpotOptions());
+    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
     Helper::createOutputFile(
         Helper::getOutputFileWithPath(*arguments.specfile,
                                       suffixed_name("spot-report", filename_suffix,
@@ -236,7 +291,7 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
                              const std::vector<std::pair<double, double>> &wv_wts,
                              const std::string &outname,
                              const std::string &filename_suffix) {
-    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, analysis::SpotOptions());
+    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
     std::vector<analysis::PolyMTF> mtfs;
     for (std::size_t i = 0; i < spotAnalysis.spot_results.size(); i++) {
         const auto &spotFld = spotAnalysis.spot_results[i];
@@ -317,6 +372,51 @@ void LensTool2::generateRayAberrationPlots(optical::OpticalModel *opm,
     }
 }
 
+analysis::SpotOptions LensTool2::spotOptions(const Args &arguments) {
+    analysis::SpotOptions options;
+    if (arguments.spot_pattern == analysis::SpotOptions::PATTERN_GAUSS_QUADRATURE)
+        return options.use_gaussian_quadrature();
+    if (arguments.spot_pattern == analysis::SpotOptions::PATTERN_GRID)
+        return options.use_grid().num_rays(arguments.spot_grid_size);
+    return options.use_hexapolar();
+}
+
+void LensTool2::runDefaultOptimizations(Prescription &prescription, const Args &arguments,
+                                        VigType vigType) {
+    int backFocus = DefaultOptimizations::findBackFocusSurface(prescription);
+    int configurations = std::max(prescription.get_num_configurations(), 1);
+    bool zoom = prescription.get_num_configurations() > 1;
+    for (int config = 0; config < configurations; config++) {
+        std::vector<int> surfaces;
+        std::string what;
+        if (zoom) {
+            surfaces = DefaultOptimizations::findVariableThicknesses(prescription, backFocus);
+            what = "variable airspaces";
+        } else if (backFocus >= 0) {
+            surfaces = {backFocus};
+            what = "back focus at surface " + std::to_string(backFocus + 1);
+        } else {
+            std::cout << "Could not identify a back focus airspace to optimize; skipping"
+                      << std::endl;
+            return;
+        }
+        if (surfaces.empty()) {
+            std::cout << "No variable airspaces to optimize; skipping" << std::endl;
+            return;
+        }
+        auto objective = arguments.optimize_goal == "mtf"
+                             ? DefaultOptimizations::Objective::MTF
+                             : DefaultOptimizations::Objective::CONTRAST;
+        auto result = DefaultOptimizations::optimizeThicknesses(
+            &prescription, surfaces, arguments.mtf_freqs, config, vigType,
+            arguments.only_d_line, objective);
+        std::cout << "Optimized " << what << " for configuration " << config << " on "
+                  << arguments.optimize_goal << ": status " << result.status << ", merit "
+                  << formatG(result.before, 0, 6) << " -> " << formatG(result.after, 0, 6)
+                  << (result.improved() ? "" : " (no improvement)") << std::endl;
+    }
+}
+
 std::unique_ptr<optical::OpticalModel> LensTool2::createLayoutSystem(
     const Prescription &prescription, int config, VigType vigType,
     bool useWideAngleAiming) {
@@ -371,10 +471,16 @@ std::string LensTool2::today() {
 void LensTool2::run(const Args &arguments, const std::string &generated_on) {
     const std::vector<double> fields{0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
                                      0.6, 0.7, 0.8, 0.9, 1.0};
-    VigType vigType = VigType::SetPupil;
-    LensSpecifications specs = getSpecsFromFile(*arguments.specfile);
+    auto startTime = std::chrono::steady_clock::now();
+    VigType vigType = arguments.vig_type;
+    // Real ray aiming is what makes very wide angle lenses trace correctly, so
+    // it stays on unless the caller asks for paraxial aiming.
+    bool realRayAiming = !arguments.real_ray_aiming.has_value() || *arguments.real_ray_aiming;
+    LensSpecifications specs = loadSpecs(arguments);
     auto prescription =
         createPrescription(specs, arguments.use_glass_types, arguments.only_d_line);
+    if (arguments.optimize)
+        runDefaultOptimizations(prescription, arguments, vigType);
     std::string prescription_output;
     prescription.to_opt_bench_str(prescription_output);
     Helper::createOutputFile(Helper::getOutputFileWithPath(*arguments.specfile,
@@ -385,7 +491,9 @@ void LensTool2::run(const Args &arguments, const std::string &generated_on) {
     Helper::createOutputFile(
         Helper::getOutputPathChangeExt(*arguments.specfile, ".zmx"),
         zemaxExporter.generate(prescription, arguments.only_d_line));
-    std::string SB = startREADME(specs);
+    std::string SB = startREADME(prescription);
+    auto prescriptionForWeightedMTF =
+        createWeightedPrescription(prescription, arguments.only_d_line);
     const int configs = std::max(prescription.get_num_configurations(), 1);
     for (int config = 0; config < configs; config++) {
         if (prescription.get_num_configurations() > 0)
@@ -394,7 +502,7 @@ void LensTool2::run(const Args &arguments, const std::string &generated_on) {
         std::string scenario_filesuffix =
             prescription.get_num_configurations() > 0 ? ("-" + std::to_string(config))
                                                       : "";
-        auto opm = createSystem(prescription, true, vigType, true, fields, config);
+        auto opm = createSystem(prescription, true, vigType, realRayAiming, fields, config);
         auto sm = opm->seq_model.get();
         auto osp = opm->optical_spec.get();
         const auto &fod = opm->optical_spec->parax_data->fod;
@@ -432,12 +540,10 @@ void LensTool2::run(const Args &arguments, const std::string &generated_on) {
                      scenario_filesuffix);
         if (arguments.do_ray_aberrations)
             generateRayAberrationPlots(opm.get(), arguments, scenario_filesuffix);
-        auto prescriptionForWeightedMTF =
-            createPrescription(specs, arguments.use_glass_types, true,
-                               arguments.only_d_line);
-        auto opm2 = createSystem(prescriptionForWeightedMTF, true, vigType, true, fields,
-                                 config);
-        generateMTFs(opm2.get(), arguments, fields,
+        // Generate MTF with weighted average across wavelengths
+        opm = createSystem(prescriptionForWeightedMTF, true, vigType, realRayAiming, fields,
+                           config);
+        generateMTFs(opm.get(), arguments, fields,
                      prescriptionForWeightedMTF.get_wvl_wts(), "mtf-w",
                      scenario_filesuffix);
     }
@@ -445,6 +551,11 @@ void LensTool2::run(const Args &arguments, const std::string &generated_on) {
                  Helper::getOutputFileWithPath(*arguments.specfile, "README.md",
                                                arguments.outdir),
                  generated_on);
+    auto finishTime = std::chrono::steady_clock::now();
+    std::cout << "Finished in "
+              << std::chrono::duration_cast<std::chrono::seconds>(finishTime - startTime)
+                     .count()
+              << " secs" << std::endl;
 }
 
 } // namespace redukti::tools

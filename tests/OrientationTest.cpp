@@ -89,24 +89,23 @@ TEST(analysis_contrast_skips_aperture_checks_by_default_and_can_enable_them) {
 // ===========================================================================
 
 /**
- * No Java counterpart: this pins a deliberate divergence from it.
+ * Sodium D and helium d are different lines, so the lookup is case-sensitive.
  *
- * Sodium D and helium d are different lines. The Java uppercases every key into
- * a single map before looking anything up, so the two collide and it answers
- * 587.5618 for both -- verified against the JVM. That silently returns the
- * wrong line for "D", so this port matches case exactly and keeps them apart.
+ * The Java used to uppercase every key into a single map, which made the two
+ * collide and answer 587.5618 for both; it was fixed in 9c46e8ae and this
+ * matches it. Other spellings of a name are rejected rather than folded, which
+ * is the Java's behaviour too.
  *
  * OpticalSpecs defaults its WvlSpec to WvlWt("d", 1.0), so the lowercase value
- * is what every default-wavelength model traces at; it was 589.2938 until this
- * was found, putting those models 1.7 nm off.
+ * is what every default-wavelength model traces at.
  */
 TEST(wvlspec_distinguishes_sodium_D_from_helium_d) {
     using redukti::rayoptics::specs::WvlSpec;
     CHECK_EQ(WvlSpec::get_wavelength("d"), 587.5618);
     CHECK_EQ(WvlSpec::get_wavelength("D"), 589.2938);
-    // Other spellings still resolve case-insensitively, as the Java does.
     CHECK_EQ(WvlSpec::get_wavelength("He-Ne"), 632.8);
-    CHECK_EQ(WvlSpec::get_wavelength("HE-NE"), 632.8);
+    // Exact spelling only, as the Java does since it dropped the uppercased map.
+    CHECK_THROWS(WvlSpec::get_wavelength("HE-NE"), redukti::IllegalArgumentException);
     CHECK_EQ(WvlSpec::get_wavelength("F"), 486.1327);
     CHECK_THROWS(WvlSpec::get_wavelength("nosuchline"),
                  redukti::IllegalArgumentException);

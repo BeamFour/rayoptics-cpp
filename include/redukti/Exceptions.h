@@ -27,6 +27,16 @@ private:
     std::string message_;
 };
 
+/**
+ * java.io.IOException. Checked in the Java, so it derives from Exception rather
+ * than RuntimeException, and a catch of RuntimeException does not see it.
+ */
+class IOException : public Exception {
+public:
+    IOException() = default;
+    explicit IOException(std::string message) : Exception(std::move(message)) {}
+};
+
 class RuntimeException : public Exception {
 public:
     RuntimeException() = default;

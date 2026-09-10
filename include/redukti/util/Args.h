@@ -5,6 +5,7 @@
 #ifndef REDUKTI_UTIL_ARGS_H
 #define REDUKTI_UTIL_ARGS_H
 
+#include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/spec/Prescription.h"
 
 #include <optional>
@@ -19,29 +20,77 @@ public:
     int scenario = 0;
     /** Null until --specfile is given; the tools treat that as a usage error. */
     std::optional<std::string> specfile;
-    std::string outputType = "layout";
+    // The Java's patent / example (fetching a prescription from the
+    // PhotonsToPhotos Optical Bench) are deliberately not ported: they need an
+    // HTTP client, and this port has no third-party dependencies.
     std::optional<std::string> outputFile;
     std::optional<std::string> outdir;
-    bool dumpSystem = false;
     bool use_glass_types = true;
-    bool include_lost_rays = false;
     bool only_d_line = false;
     bool do_ray_aberrations = false;
     bool do_mono_chrome_mtfs = false;
     std::vector<int> mtf_freqs = default_mtf_freqs();
     int spot_pattern = 1; // SpotOptions::PATTERN_HEXAPOLAR
+    /** Number of samples along each dimension of a rectangular spot grid. */
+    int spot_grid_size = 64;
     bool auto_size_spots = false;
-    bool do_wideangle_layout = false;
+    /**
+     * Run the glass type matcher over the prescription before analysing it, so
+     * that surfaces quoting only nd and vd pick up a real catalog glass and its
+     * full dispersion curve.
+     */
+    bool assign_glass_types = false;
+    /**
+     * With assign_glass_types, also write the enriched prescription back over
+     * the input file. Off by default: assigning glass types is an analysis
+     * choice, and overwriting the author's input should be asked for.
+     */
+    bool update_specfile = false;
+    /**
+     * Line the prescription's refractive index column is quoted at, "d" or "e".
+     * Some patents tabulate the index at the e line while still quoting the Abbe
+     * number as vd; matching on the wrong line finds nothing.
+     */
+    std::string index_line = "d";
+    /**
+     * Run the routine airspace optimization before reporting: the back focus on
+     * a prime, the variable airspaces other than the back focus on a zoom.
+     */
+    bool optimize = false;
+    /**
+     * Objective for `optimize`: "contrast" or "mtf". Contrast is the default
+     * because the geometric MTF merit surface is rough at the scale the solver
+     * steps, so a solve driven by it stalls in a local minimum.
+     */
+    std::string optimize_goal = "contrast";
     bool force = false;
     spec::VigType vig_type = spec::VigType::SetPupil;
-    /** Java uses a Boolean here so "unset" differs from false. */
-    std::optional<bool> wide_angle;
+    /**
+     * Selects the chief ray aiming algorithm. true aims with a real ray trace at
+     * the entrance pupil (what the model calls a wide angle system), false uses
+     * paraxial aiming. Unset leaves it derived from the half angle of view.
+     *
+     * Real ray aiming is slower but is what makes very wide angle lenses trace
+     * correctly, so it is the default in LensTool2. The Java uses a Boolean
+     * here so "unset" differs from false.
+     */
+    std::optional<bool> real_ray_aiming;
     bool generate_java = false;
     bool legacy_notebook = false;
     std::optional<std::string> reference_file;
 
     static Args parseArguments(const std::vector<std::string> &args);
 
+    /** The Glass::IndexLine this maps to. */
+    rayoptics::seq::Glass::IndexLine index_line_value() const;
+
+    /** Accepts d or e, rejecting anything else rather than defaulting. */
+    static std::string parse_index_line(const std::optional<std::string> &value);
+
+    /** Accepts contrast or mtf, rejecting anything else rather than defaulting. */
+    static std::string parse_optimize_goal(const std::optional<std::string> &value);
+
+    /** The MTF frequencies used by every report under Examples/. */
     static std::vector<int> default_mtf_freqs() { return {10, 30, 50}; }
 
     static std::vector<int> parse_mtf_freqs(const std::optional<std::string> &value);
@@ -49,6 +98,10 @@ public:
     static std::string vig_type_names();
     static int parse_spot_pattern(const std::optional<std::string> &value);
     static std::string spot_pattern_names();
+
+private:
+    static int parse_positive_int(const std::string &option,
+                                  const std::optional<std::string> &value);
 };
 
 /** Path and file helpers, matching org.redukti.util.Helper. */

@@ -31,6 +31,12 @@ public:
     double _diameter;
     bool _is_aperture_stop;
     bool _is_field_stop = false;
+    /**
+     * Marks a CG row. Needed to locate the back focus: on a design with a cover
+     * glass the gap that matters is the one in front of it, not the short gap
+     * between the cover glass and the image.
+     */
+    bool _is_cover_glass = false;
     double _nd;
     double _vd;
     /** Nullable in the Java. */
@@ -63,6 +69,11 @@ public:
 
     bool is_aperture_stop() const { return _is_aperture_stop; }
     bool is_field_stop() const { return _is_field_stop; }
+    bool is_cover_glass() const { return _is_cover_glass; }
+    SurfaceType &set_is_cover_glass(bool value) {
+        _is_cover_glass = value;
+        return *this;
+    }
 
     double get_diameter() const { return _diameter; }
     double get_diameter_by_scenario(int scenario) const;

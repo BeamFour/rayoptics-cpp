@@ -106,13 +106,31 @@ public:
     /** Java's `public static Map<GlassName, Glass> glasses`. */
     static std::map<GlassName, std::shared_ptr<Glass>> &glasses();
 
+    /**
+     * Which line a prescription's refractive index column is quoted at. Most
+     * quote nd, but some patents tabulate the index at the e line while still
+     * quoting the Abbe number as vd, so the two are selected independently.
+     */
+    enum class IndexLine { D, E };
+
     static void addGlass(const std::shared_ptr<Glass> &glass);
 
     static std::vector<GlassMatch> find_glasses(double nd_, double vd_);
 
+    static std::vector<GlassMatch> find_glasses(double n, double vd_, IndexLine line);
+
     static std::vector<GlassMatch> find_glasses(double nd_, double vd_,
                                                 double nd_tolerance, double vd_tolerance,
                                                 int limit);
+
+    /**
+     * Finds catalog glasses matching a refractive index and Abbe number. The
+     * index is compared at `line`; the Abbe number is always vd, which is what
+     * prescriptions quote even when their index column is at the e line.
+     */
+    static std::vector<GlassMatch> find_glasses(double n, double vd_,
+                                                double nd_tolerance, double vd_tolerance,
+                                                int limit, IndexLine line);
 
     /**
      * Populates the catalog. Java runs the five add_*_glasses() methods from a

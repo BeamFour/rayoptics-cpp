@@ -236,3 +236,65 @@ TEST(lenstool2_reproduces_committed_example) {
     for (std::size_t i = 0; i < mineReadme.size() && i < refReadme.size(); i++)
         CHECK_STR_EQ(mineReadme[i], refReadme[i]);
 }
+
+// ---------------------------------------------------------------------------
+// Port of org.redukti.tools.LensTool2Test: the weighted-MTF prescription is
+// built from the final geometry, so airspaces the optimizer changed survive.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+using redukti::rayoptics::seq::Glass;
+
+const std::string WEIGHTED_INPUT = "[descriptive data]\n"
+                                   "title\tTest lens\n"
+                                   "[variable distances]\n"
+                                   "Focal Length\t50\t60\n"
+                                   "F-Number\t4\t5\n"
+                                   "Angle of View\t40\t35\n"
+                                   "Bf\t45\t55\n"
+                                   "[lens data]\n"
+                                   "1\t50\t4\t1.5\t20\t60\n"
+                                   "2\t-50\tBf\t\t20\n"
+                                   "[report data]\n"
+                                   "lens name\tTest lens\n"
+                                   "scenarios\t0\t1\n"
+                                   "names\tWide\tLong\n";
+
+} // namespace
+
+TEST(lenstool2_reports_and_weighted_spectrum_keep_final_airspaces) {
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(WEIGHTED_INPUT);
+    auto prescription = LensTool2::createPrescription(specs, true, false);
+    std::string originalReport = LensTool2::startREADME(prescription);
+    // Simulate the in-place airspace changes made by the optimizer.
+    prescription.get_surfaces()[1]._thickness = 43.25;
+    prescription.get_surfaces()[1]._thickness_by_scenario = std::vector<double>{43.25, 52.75};
+
+    auto weighted = LensTool2::createWeightedPrescription(prescription, false);
+    CHECK(weighted.get_surfaces()[1]._thickness_by_scenario ==
+          std::optional<std::vector<double>>(std::vector<double>{43.25, 52.75}));
+    CHECK(weighted._wvls == (std::vector<double>{Glass::d, Glass::C, Glass::e, Glass::F, Glass::g}));
+    CHECK(weighted._wts == (std::vector<double>{1.0, 0.475, 0.98, 0.49, 0.15}));
+    std::string report = LensTool2::startREADME(prescription);
+    CHECK(originalReport != report);
+    CHECK(report.find("43.25") != std::string::npos);
+    CHECK(report.find("52.75") != std::string::npos);
+}
+
+TEST(lenstool2_weighted_d_line_keeps_final_prime_back_focus_and_ignored_glass_types) {
+    std::string input = WEIGHTED_INPUT.substr(0, WEIGHTED_INPUT.find("[report data]"));
+    const std::string from = "1.5\t20\t60";
+    input.replace(input.find(from), from.size(), "1.5\t20\t60\tN-BK7\tSchott");
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(input);
+    auto prescription = LensTool2::createPrescription(specs, false, true);
+    prescription.get_surfaces()[1]._thickness = 43.25;
+    auto weighted = LensTool2::createWeightedPrescription(prescription, true);
+    CHECK_EQ(weighted.get_surfaces()[1]._thickness, 43.25);
+    CHECK(!weighted.get_surfaces()[0]._glass_name.has_value());
+    CHECK_EQ(weighted.get_surfaces()[0].get_refractive_index(), 1.5);
+    CHECK(weighted._wvls == (std::vector<double>{Glass::d}));
+    CHECK(weighted._wts == (std::vector<double>{1.0}));
+}

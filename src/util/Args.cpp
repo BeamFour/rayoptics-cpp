@@ -4,6 +4,8 @@
 #include "redukti/Exceptions.h"
 
 #include <cctype>
+#include <climits>
+#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -86,18 +88,11 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
         } else if (arg1 == "--scenario") {
             arguments.scenario = std::atoi(arg2.value().c_str());
             i++;
-        } else if (arg1 == "--output" || arg1 == "--type") {
-            arguments.outputType = arg2.value();
-            i++;
         } else if (arg1 == "--outdir") {
             arguments.outdir = arg2;
             i++;
         } else if (arg1 == "--dont-use-glass-types") {
             arguments.use_glass_types = false;
-        } else if (arg1 == "--dump-system") {
-            arguments.dumpSystem = true;
-        } else if (arg1 == "--exclude-lost-rays") {
-            arguments.include_lost_rays = false;
         } else if (arg1 == "--force") {
             arguments.force = true;
         } else if (arg1 == "--only-d-line") {
@@ -112,17 +107,30 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
         } else if (arg1 == "--use-spot-pattern") {
             arguments.spot_pattern = parse_spot_pattern(arg2);
             i++;
+        } else if (arg1 == "--spot-grid-size") {
+            arguments.spot_grid_size = parse_positive_int(arg1, arg2);
+            i++;
         } else if (arg1 == "--auto-size-spot-diagrams") {
             arguments.auto_size_spots = true;
-        } else if (arg1 == "--do-wideangle-layout") {
-            arguments.do_wideangle_layout = true;
+        } else if (arg1 == "--assign-glass-types") {
+            arguments.assign_glass_types = true;
+        } else if (arg1 == "--index-line") {
+            arguments.index_line = parse_index_line(arg2);
+            i++;
+        } else if (arg1 == "--update-specfile") {
+            arguments.update_specfile = true;
+        } else if (arg1 == "--optimize") {
+            arguments.optimize = true;
+        } else if (arg1 == "--optimize-goal") {
+            arguments.optimize_goal = parse_optimize_goal(arg2);
+            i++;
         } else if (arg1 == "--vig-type") {
             arguments.vig_type = parse_vig_type(arg2);
             i++;
-        } else if (arg1 == "--wide-angle") {
-            arguments.wide_angle = true;
-        } else if (arg1 == "--no-wide-angle") {
-            arguments.wide_angle = false;
+        } else if (arg1 == "--real-ray-aiming") {
+            arguments.real_ray_aiming = true;
+        } else if (arg1 == "--paraxial-ray-aiming") {
+            arguments.real_ray_aiming = false;
         } else if (arg1 == "--generate-java") {
             arguments.generate_java = true;
         } else if (arg1 == "--legacy-notebook") {
@@ -133,6 +141,63 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
         }
     }
     return arguments;
+}
+
+rayoptics::seq::Glass::IndexLine Args::index_line_value() const {
+    return index_line == "e" ? rayoptics::seq::Glass::IndexLine::E
+                             : rayoptics::seq::Glass::IndexLine::D;
+}
+
+std::string Args::parse_index_line(const std::optional<std::string> &value) {
+    if (!value.has_value())
+        throw IllegalArgumentException("--index-line requires a value, one of: d, e");
+    std::string normalized = lower(trim(*value));
+    if (normalized == "d" || normalized == "e")
+        return normalized;
+    throw IllegalArgumentException("Unrecognized --index-line '" + *value +
+                                   "', expected one of: d, e");
+}
+
+std::string Args::parse_optimize_goal(const std::optional<std::string> &value) {
+    if (!value.has_value())
+        throw IllegalArgumentException(
+            "--optimize-goal requires a value, one of: contrast, mtf");
+    std::string normalized = lower(trim(*value));
+    if (normalized == "contrast" || normalized == "mtf")
+        return normalized;
+    throw IllegalArgumentException("Unrecognized --optimize-goal '" + *value +
+                                   "', expected one of: contrast, mtf");
+}
+
+int Args::parse_positive_int(const std::string &option,
+                             const std::optional<std::string> &value) {
+    if (!value.has_value())
+        throw IllegalArgumentException(option + " requires a positive integer");
+    // Integer.parseInt: an optional sign, then digits, nothing else -- no
+    // surrounding whitespace, and out-of-range values rejected rather than
+    // clamped. Anything it would reject is reported the same way.
+    const std::string &text = *value;
+    bool wellFormed = !text.empty();
+    std::size_t digitsFrom = (!text.empty() && (text[0] == '+' || text[0] == '-')) ? 1 : 0;
+    if (digitsFrom == text.size())
+        wellFormed = false;
+    for (std::size_t k = digitsFrom; wellFormed && k < text.size(); k++)
+        if (!std::isdigit(static_cast<unsigned char>(text[k])))
+            wellFormed = false;
+    long long parsed = 0;
+    if (wellFormed) {
+        errno = 0;
+        parsed = std::strtoll(text.c_str(), nullptr, 10);
+        if (errno == ERANGE || parsed < INT_MIN || parsed > INT_MAX)
+            wellFormed = false;
+    }
+    if (!wellFormed)
+        throw IllegalArgumentException(option + " requires a positive integer, got '" +
+                                       text + "'");
+    if (parsed < 2)
+        throw IllegalArgumentException(option + " must be at least 2, got " +
+                                       std::to_string(parsed));
+    return static_cast<int>(parsed);
 }
 
 std::vector<int> Args::parse_mtf_freqs(const std::optional<std::string> &value) {

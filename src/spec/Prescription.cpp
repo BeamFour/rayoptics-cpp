@@ -144,6 +144,7 @@ Prescription &Prescription::import_surface(
     } else {
         surf(radius, thickness, diameter);
     }
+    _surface_list.back().set_is_cover_glass(surface.is_cover_glass());
     const OpticalBenchDataImporter::AsphericalData *aspherical_data =
         surface.get_aspherical_data();
     if (aspherical_data != nullptr) {

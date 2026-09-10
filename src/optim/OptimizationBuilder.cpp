@@ -391,6 +391,30 @@ OptimizationBuilder::OptimizationSetup OptimizationBuilder::build() {
     return OptimizationSetup(std::move(analysis), std::move(variables), std::move(goals));
 }
 
+std::set<int> OptimizationBuilder::edgeAffectedGaps(
+    const std::vector<std::shared_ptr<Var>> &variables) {
+    std::set<int> gaps;
+    for (const auto &variable : variables) {
+        if (const auto *thickness = dynamic_cast<const VarThickness *>(variable.get())) {
+            gaps.insert(thickness->_surface_id);
+            continue;
+        }
+        int surface;
+        if (const auto *radius = dynamic_cast<const VarRadius *>(variable.get()))
+            surface = radius->_surface_id;
+        else if (const auto *conic = dynamic_cast<const VarAsphK *>(variable.get()))
+            surface = conic->_surface_id;
+        else if (const auto *coefficient =
+                     dynamic_cast<const VarAsphCoeff *>(variable.get()))
+            surface = coefficient->_surface_id;
+        else
+            continue;
+        gaps.insert(surface - 1);
+        gaps.insert(surface);
+    }
+    return gaps;
+}
+
 void OptimizationBuilder::configureContrastAnalysis(Analysis &analysis) const {
     if (_contrastGoals.empty())
         return;
@@ -502,14 +526,10 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
                     analysis, thickness->_surface_id, *thicknessConstraintWeight));
     }
     if (edgeThicknessConstraintWeight.has_value()) {
-        for (const auto &variable : variables) {
-            const auto *thickness = dynamic_cast<const VarThickness *>(variable.get());
-            if (thickness != nullptr &&
-                ConstraintEdgeThickness::is_constrainable(analysis,
-                                                          thickness->_surface_id))
+        for (int gap : edgeAffectedGaps(variables))
+            if (ConstraintEdgeThickness::is_constrainable(analysis, gap))
                 result.push_back(std::make_shared<ConstraintEdgeThickness>(
-                    analysis, thickness->_surface_id, *edgeThicknessConstraintWeight));
-        }
+                    analysis, gap, *edgeThicknessConstraintWeight));
     }
     if (curvatureConstraintWeight.has_value()) {
         for (const auto &variable : variables)

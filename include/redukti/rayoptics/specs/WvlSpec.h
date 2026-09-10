@@ -39,8 +39,6 @@ public:
 private:
     /** The named lines as written, with "d" and "D" distinct. */
     static const std::map<std::string, double> &spectra();
-    /** The same uppercased, for tolerating other spellings. */
-    static const std::map<std::string, double> &spectra_uc();
 };
 
 } // namespace redukti::rayoptics::specs

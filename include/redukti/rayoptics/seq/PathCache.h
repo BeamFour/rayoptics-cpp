@@ -95,12 +95,6 @@ public:
     static std::uint64_t hits() { return hits_.load(std::memory_order_relaxed); }
     static std::uint64_t misses() { return misses_.load(std::memory_order_relaxed); }
 
-private:
-    struct Entry {
-        Key key;
-        std::vector<PathSeg> segs;
-    };
-
     /**
      * Comfortably more than the distinct keys in flight: the ray trace asks for
      * one shape per wavelength, and a wavelength-resolved MTF run uses the most
@@ -108,6 +102,12 @@ private:
      * lookups, so the ring does not thrash and the linear scan costs nothing.
      */
     static constexpr std::size_t CAPACITY = 16;
+
+private:
+    struct Entry {
+        Key key;
+        std::vector<PathSeg> segs;
+    };
 
     std::vector<Entry> entries_;
     std::size_t next_ = 0;

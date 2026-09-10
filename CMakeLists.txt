@@ -86,6 +86,8 @@ add_library(rayoptics
     src/rayoptics/raytr/VigCalc.cpp
     src/util/Args.cpp
     src/tools/LensTool2.cpp
+    src/tools/GlassFinder.cpp
+    src/tools/DefaultOptimizations.cpp
     src/exporters/ZemaxExporter.cpp
     src/plotter/Plotter.cpp
     src/rayoptics/layout/ElementModel.cpp
@@ -157,6 +159,8 @@ add_executable(mathlib_tests
     tests/WaveAbrFinitePupilTest.cpp
     tests/GaussianQuadraturePatternTest.cpp
     tests/Layout2DTest.cpp
+    tests/GlassFinderTest.cpp
+    tests/PathCacheTest.cpp
     tests/integration/IntegrationModels.cpp
     tests/integration/Leica50mmSummicronRTest.cpp
     tests/integration/Nikkor14mmTest.cpp
@@ -189,3 +193,7 @@ add_test(NAME mathlib COMMAND mathlib_tests)
 # ---------------------------------------------------------------------------
 add_executable(lenstool2 src/tools/lenstool2_main.cpp)
 target_link_libraries(lenstool2 PRIVATE rayoptics)
+
+# GlassFinder: matches each lens-data row's nd/vd to a catalog glass.
+add_executable(glassfinder src/tools/glassfinder_main.cpp)
+target_link_libraries(glassfinder PRIVATE rayoptics)

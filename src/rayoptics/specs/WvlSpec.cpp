@@ -10,12 +10,6 @@
 namespace redukti::rayoptics::specs {
 
 namespace {
-std::string toUpper(const std::string &s) {
-    std::string r = s;
-    for (char &c : r)
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    return r;
-}
 } // namespace
 
 const std::map<std::string, double> &WvlSpec::spectra() {
@@ -25,20 +19,6 @@ const std::map<std::string, double> &WvlSpec::spectra() {
         {"d", 587.5618}, {"e", 546.074},   {"F", 486.1327},  {"F'", 479.9914},
         {"g", 435.8343}, {"h", 404.6561},  {"i", 365.014},
     };
-    return m;
-}
-
-const std::map<std::string, double> &WvlSpec::spectra_uc() {
-    // Built by uppercasing every key, as the Java does, so a later entry
-    // overwrites an earlier one that collides. That is how "D" ends up holding
-    // the helium d value in the Java, and this reproduces it for the fallback
-    // path below.
-    static const std::map<std::string, double> m = [] {
-        std::map<std::string, double> out;
-        for (const auto &entry : spectra())
-            out[toUpper(entry.first)] = entry.second;
-        return out;
-    }();
     return m;
 }
 
@@ -72,21 +52,11 @@ int WvlSpec::wl_index(double wvl) const {
 }
 
 double WvlSpec::get_wavelength(const std::string &key) {
-    // Exact match first, and this deliberately does NOT match the Java.
-    //
-    // Sodium D (589.2938) and helium d (587.5618) are different lines. The Java
-    // uppercases every key into one map before looking anything up, so the two
-    // collide and it answers 587.5618 for both -- silently returning the wrong
-    // line for "D". Case matters here, so it is honoured.
-    //
-    // The uppercased map is still consulted afterwards, so any other spelling
-    // ("he-ne", "HE-NE") resolves as before. Only "D" changes behaviour, and
-    // nothing in this port asks for it: OpticalSpecs defaults to "d".
-    auto exact = spectra().find(key);
-    if (exact != spectra().end())
-        return exact->second;
-    auto it = spectra_uc().find(toUpper(key));
-    if (it == spectra_uc().end())
+    // Case-sensitive, as the Java is since 9c46e8ae. Sodium D (589.2938) and
+    // helium d (587.5618) are different lines; an uppercased lookup made them
+    // collide and answered 587.5618 for both.
+    auto it = spectra().find(key);
+    if (it == spectra().end())
         throw IllegalArgumentException("Unknown wavelength '" + key + "'");
     return it->second;
 }

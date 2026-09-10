@@ -34,6 +34,8 @@ std::string &SurfaceType::to_opt_bench_str(std::string &sb, bool is_last) const 
         sb += "AS";
     else if (_is_field_stop)
         sb += "FS";
+    else if (_is_cover_glass)
+        sb += "CG";
     else
         sb += d(_radius);
     sb += "\t";
@@ -170,6 +172,8 @@ std::string &SurfaceType::to_markdown_table_row(std::string &sb) const {
         sb += "AS";
     else if (_is_field_stop)
         sb += "FS";
+    else if (_is_cover_glass)
+        sb += "CG";
     else
         sb += d(_radius);
     sb += " | ";

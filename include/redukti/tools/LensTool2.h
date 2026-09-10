@@ -34,6 +34,10 @@ public:
     static spec::Prescription createPrescription(const LensSpecifications &specs,
                                                  bool use_glass_types, bool weighted,
                                                  bool d_line);
+    static spec::Prescription createPrescription(const LensSpecifications &specs,
+                                                 bool use_glass_types,
+                                                 const std::vector<double> &wvls,
+                                                 const std::vector<double> &wts);
 
     static std::unique_ptr<rayoptics::optical::OpticalModel> createSystem(
         const spec::Prescription &prescription, bool fov_angle, spec::VigType vig_type,
@@ -50,6 +54,15 @@ public:
         std::string &sb);
 
     static std::string startREADME(const LensSpecifications &specs);
+    static std::string startREADME(const spec::Prescription &prescription);
+
+    /**
+     * Use the final geometry, including optimized airspaces, with the weighted
+     * spectrum. Package-private in the Java; public here so the test can reach
+     * it.
+     */
+    static spec::Prescription createWeightedPrescription(
+        const spec::Prescription &prescription, bool dLineOnly);
     static std::string &addConfigLabelToREADME(std::string &sb,
                                                const std::optional<std::string> &label);
     static std::string &addLayoutsToREADME(std::string &sb,
@@ -84,6 +97,13 @@ public:
     static std::string today();
 
 private:
+    /**
+     * Loads the prescription, optionally running the glass type matcher over it
+     * first. The matched prescription is used for this run only; it replaces
+     * the input file just when --update-specfile asks for that.
+     */
+    static LensSpecifications loadSpecs(const util::Args &arguments);
+
     static rayoptics::analysis::SpotAnalysisResult generateSpotDiagrams(
         rayoptics::optical::OpticalModel *opm, const util::Args &arguments,
         bool standardSize, const std::string &filename_suffix);
@@ -99,9 +119,21 @@ private:
                                            const util::Args &arguments,
                                            const std::string &filname_suffix);
 
+    static rayoptics::analysis::SpotOptions spotOptions(const util::Args &arguments);
+
     static std::unique_ptr<rayoptics::optical::OpticalModel> createLayoutSystem(
         const spec::Prescription &prescription, int config, spec::VigType vigType,
         bool useWideAngleAiming);
+
+    /**
+     * Runs the routine airspace optimization. A prime gets its back focus
+     * varied; a zoom gets the other variable airspaces varied, one
+     * configuration at a time, because a variable cannot yet be shared across
+     * configurations.
+     */
+    static void runDefaultOptimizations(spec::Prescription &prescription,
+                                        const util::Args &arguments,
+                                        spec::VigType vigType);
 
     static std::string suffixed_name(const std::string &baseName,
                                      const std::string &suffix, const std::string &ext);
