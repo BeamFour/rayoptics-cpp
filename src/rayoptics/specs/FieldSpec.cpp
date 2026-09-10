@@ -57,10 +57,14 @@ void FieldSpec::set_from_list(const std::vector<double> &flds) {
     value = max_field().first;
 }
 
+/**
+ * return pupil spec as paraxial height or slope value
+ */
 util::Triple<ImageKey, std::optional<ValueKey>, double>
 FieldSpec::derive_parax_params() const {
     auto fov_oi_key = key.imageKey;
     auto fov_value_key = key.valueKey;
+    // guard against zero as a field spec for parax calc
     auto fov_value = this->value != 0 ? this->value : 1.0;
     std::optional<ValueKey> field_key; // null in the Java unless a branch sets it
     double field_value = 0.0;
@@ -81,6 +85,9 @@ FieldSpec::derive_parax_params() const {
                                                                    field_value);
 }
 
+/**
+ * Checks for object angles greater than the threshold.
+ */
 bool FieldSpec::check_is_wide_angle(double angle_threshold) {
     is_wide_angle = false;
     if (key.imageKey == ImageKey::Image && key.valueKey == ValueKey::RealHeight &&
@@ -97,6 +104,9 @@ void FieldSpec::update_model() {
     for (auto &f : fields) {
         f->update();
     }
+    // recalculate max_field and relabel fields.
+    //  relabeling really assumes the fields are radial, specifically,
+    //  y axis only
     double field_norm;
     if (is_relative)
         field_norm = 1.0;
@@ -142,6 +152,12 @@ void FieldSpec::apply_scale_factor(double scale_factor) {
     }
 }
 
+/**
+ * Return a pt, direction pair characterizing `fld`.
+ *
+ *         If a field point is defined in image space, the paraxial object
+ *         space data is used to calculate the field coordinates.
+ */
 Coord FieldSpec::obj_coords(Field &fld) {
     ImageKey obj_img_key = key.imageKey;
     ValueKey value_key = key.valueKey;
@@ -160,6 +176,7 @@ Coord FieldSpec::obj_coords(Field &fld) {
     Vector3 pt1(0.0, 0.0, obj2enp_dist);
     ConjugateType obj_conj = optical_spec->conjugate_type(ImageKey::Object);
     if (obj_conj == ConjugateType::INFINITE) {
+        // generate 'object', 'angle' fld_spec
         Vector3 fld_angle = Vector3::ZERO;
         if (obj_img_key == ImageKey::Image) {
             double max_field_ang;
@@ -172,6 +189,7 @@ Coord FieldSpec::obj_coords(Field &fld) {
                     fld.z_enp = pkg.z_enp;
                     fld.aim_info = std::nullopt;
                 } else {
+                    // compute offset at paraxial entrance pupil
                     auto del_z = fod.enp_dist - pkg.z_enp;
                     std::vector<double> aim_pt;
                     if (mathlib::M::isZero(obj_dir.z)) {
@@ -248,11 +266,18 @@ Coord FieldSpec::obj_coords(Field &fld) {
                 obj_pt = fld_coord;
             }
         }
+        // applies to both the image and object keyed branches above
         obj_dir = pt1.minus(obj_pt).normalize();
     }
     return Coord(obj_pt, obj_dir);
 }
 
+/**
+ * calculates the maximum field of view
+ *
+ *         Returns:
+ *             magnitude of maximum field, maximum Field instance
+ */
 util::Pair<double, int> FieldSpec::max_field() const {
     int max_fld = 0;
     double max_fld_sqrd = -1.0;
@@ -270,6 +295,9 @@ util::Pair<double, int> FieldSpec::max_field() const {
     return util::Pair<double, int>(max_fld_value, max_fld);
 }
 
+/**
+ * Reset the vignetting to 0 for all fields.
+ */
 void FieldSpec::clear_vignetting() {
     for (auto &f : fields) {
         f->clear_vignetting();

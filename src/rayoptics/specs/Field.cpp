@@ -31,6 +31,7 @@ bool Field::is_relative() const {
 double Field::max_field() const {
     if (fov != nullptr)
         return fov->value;
+    // omitted local max_field
     return 1.;
 }
 

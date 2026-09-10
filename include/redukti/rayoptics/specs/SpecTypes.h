@@ -88,14 +88,29 @@ public:
     SystemSpec()
         : title(""), initials(""), dimensions("mm"), temperature(20.0), pressure(760.0) {}
 
+    /**
+     * convert nm to system units
+     *
+     * Args:
+     * nm (float): value in nm
+     *
+     * Returns:
+     * float: value converted to system units
+     *
+     * @param nm
+     * @return
+     */
     /** Convert nm to the system units. */
     double nm_to_sys_units(double nm) const;
 };
 
 /**
- * Focus range specification.
- *   focus_shift: focus shift (z displacement) from nominal image interface
- *   defocus_range: +/- half the total focal range, from the focus_shift position
+ Focus range specification
+
+    Attributes:
+        focus_shift: focus shift (z displacement) from nominal image interface
+        defocus_range: +/- half the total focal range, from the focus_shift
+                       position
  */
 class FocusRange {
 public:
@@ -114,6 +129,15 @@ public:
         defocus_range *= scale_factor;
     }
 
+    /**
+     * return focus position for input focus range parameter
+     *
+     *         Args:
+     *             fr (float): focus range parameter, -1.0 to 1.0
+     *
+     *         Returns:
+     *             focus position for input focus range parameter
+     */
     double get_focus(double fr) const { return focus_shift + fr * defocus_range; }
     double get_focus() const { return get_focus(0.0); }
 

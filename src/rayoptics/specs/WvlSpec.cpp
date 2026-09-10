@@ -62,6 +62,7 @@ double WvlSpec::get_wavelength(const std::string &key) {
     if (it == spectra().end())
         throw IllegalArgumentException("Unknown wavelength '" + key + "'");
     return it->second;
+        // TODO self.calc_colors()
 }
 
 void WvlSpec::list_str(std::string &sb) const {

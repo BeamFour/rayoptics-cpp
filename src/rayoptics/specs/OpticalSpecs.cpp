@@ -131,6 +131,8 @@ Coord OpticalSpecs::ray_start_from_osp(const std::vector<double> &pupil_,
     auto p0 = coord.pt;
     auto d0 = coord.dir;
     auto &fod = parax_data->fod;
+    // if image space specification, swap in the corresponding first order
+    // object space parameter
     if (pupil_oi_key == ImageKey::Image) {
         if (std::abs(fod.m) < 1e-10) { // infinite object distance
             if (pupil_value_key == ValueKey::EPD)
@@ -153,6 +155,8 @@ Coord OpticalSpecs::ray_start_from_osp(const std::vector<double> &pupil_,
     Vector3 pt0 = Vector3::ZERO;
     Vector3 dir0 = Vector3::ZERO;
     auto z_enp = fod.enp_dist;
+    // generate starting pt and dir depending on whether the pupil spec is
+    // spatial or angular
     if (ValueKey::EPD == pupil_value_key) {
         Vector3 pt1 = Vector3::ZERO;
         if (pupil_type == raytr::PupilType::AIM_PT) {
@@ -161,6 +165,7 @@ Coord OpticalSpecs::ray_start_from_osp(const std::vector<double> &pupil_,
         } else {
             auto eprad = pupil_value / 2.0;
             if (fov->is_wide_angle) {
+                // transform pupil_pt, in direction coords into surf#1 coordinates
                 auto pupil_pt = Vector3(pupil_[0], pupil_[1], 0.0).times(eprad);
                 auto rot_mat_d2s = Matrix3::rot_v1_into_v2(d0, Vector3::vector3_001);
                 pt1 = rot_mat_d2s.multiply(pupil_pt);
@@ -168,6 +173,8 @@ Coord OpticalSpecs::ray_start_from_osp(const std::vector<double> &pupil_,
                     z_enp = *fld.z_enp;
                 auto obj2enp_dist = -(fod.obj_dist + z_enp);
                 if (conjugate_type(ImageKey::Object) == ConjugateType::INFINITE) {
+                    // rotate the on-axis object pt into the incident direction
+                    // and then position wrt z_enp
                     Vector3 enp_pt(0.0, 0.0, obj2enp_dist);
                     auto rot_mat_s2d =
                         Matrix3::rot_v1_into_v2(Vector3::vector3_001, d0);

@@ -18,15 +18,39 @@ namespace redukti::rayoptics::specs {
 
 class OpticalSpecs;
 
+/**
+ * Field of view specification
+ *
+ *     Attributes:
+ *         key: 'object'|'image', 'height'|'real height'|'angle'
+ *         value: maximum field, per the key
+ *         fields: list of Field instances
+ *         is_relative: if True, `fields` are relative to max field
+ *         is_wide_angle: if True, aim at real entrance pupil
+ *
+ */
 class FieldSpec {
 public:
     /** Back-reference to the owning OpticalSpecs; borrowed, never owned. */
     OpticalSpecs *optical_spec = nullptr;
+    /**
+     * 'field', 'object'|'image', 'height'|'angle'
+     */
     SpecKey key;
+    /**
+     * maximum field, per the key
+     */
     double value = 0.0;
+    /**
+     * if True, `fields` are relative to max field
+     */
     bool is_relative = false;
     bool is_wide_angle = false;
 
+    /**
+     * list of Field instances
+     * Fields are placed on the y axis, so x is sagittal and y is tangential.
+     */
     /**
      * Java holds a Field[]; the Field objects are referred to by pointer from
      * traces in flight, so they are held indirectly here to keep their
@@ -40,6 +64,14 @@ public:
               std::optional<bool> is_relative_, std::optional<bool> is_wide_angle_,
               std::optional<bool> do_init);
 
+    /**
+     * @param key   Specifies whether the field is in image space or object space and the value type (Angle, Height, RealHeight)
+     * @param value Value used to define the field, interpretation depends on key
+     * @param flds  Fields are placed on the y axis, so x is sagittal and y is tangential.
+     * @param is_relative   Defaults to false
+     * @param is_wide_angle Defaults to false
+     * @param do_init Defaults to true
+     */
     FieldSpec(OpticalSpecs *parent, util::Pair<ImageKey, ValueKey> key_,
               const std::vector<double> &flds)
         : FieldSpec(parent, key_, 0.0, flds, std::nullopt, std::nullopt, std::nullopt) {}

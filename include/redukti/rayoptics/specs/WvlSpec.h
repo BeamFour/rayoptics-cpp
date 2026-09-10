@@ -27,6 +27,12 @@ public:
 
     int wl_index(double wvl) const;
 
+    /**
+     * Return wvl in nm, where wvl can be a spectral line
+     *
+     * @param key a string with a spectral line identifier. Case sensitive
+     * @return float: the wavelength in nm
+     */
     /** Named spectral lines; exact case distinguishes sodium D from helium d. */
     static double get_wavelength(const std::string &key);
 
