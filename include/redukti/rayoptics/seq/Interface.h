@@ -22,6 +22,30 @@
 namespace redukti::rayoptics::seq {
 
 /**
+ *     Basic part of a sequential model
+ *
+ *     The :class:`~sequential.SequentialModel` is a sequence of Interfaces and
+ *     Gaps. The Interface class is a boundary between two adjacent Gaps and
+ *     their associated media. It specifies several methods that must be
+ *     implemented to model the optical behavior of the interface.
+ *
+ *     The Interface class addresses the following use cases:
+ *
+ *         - support for ray intersection calculation during ray tracing
+ *             - interfaces can be tilted and decentered wrt the adjacent gaps
+ *         - support for getting and setting the optical power of the interface
+ *         - support for various optical properties, i.e. does it reflect or
+ *           transmit
+ *         - supports a basic idea of size, the max_aperture
+ *
+ *     Attributes:
+ *         interact_mode: 'transmit' | 'reflect' | 'dummy'
+ *         delta_n: refractive index difference across the interface
+ *         decenter: :class:`~rayoptics.elem.surface.DecenterData` for the interface, if specified
+ *         max_aperture: the maximum aperture radius on the interface
+ *
+ */
+/**
  * Basic part of a sequential model.
  *
  * The SequentialModel is a sequence of Interfaces and Gaps. The Interface class
@@ -79,6 +103,22 @@ public:
     /**
      * Get a target for ray aiming to aperture boundaries.
      *
+     *         The main use case for this function is iterating a ray to the internal
+     *         edge of a surface.
+     *
+     *         Although `rel_dir` is given as a 2d vector, in practice only the 4
+     *         quadrant axes are handled in the implementation, a 1D directional
+     *         search along a coordinate axis.
+     *
+     *         Args:
+     *             rel_dir: 2d vector encoding coord axis and direction for edge sample
+     *
+     *         Returns:
+     *             edge_pt: intersection point of rel_dir with the aperture boundary
+     */
+    /**
+     * Get a target for ray aiming to aperture boundaries.
+     *
      * The main use case is iterating a ray to the internal edge of a surface.
      * Although rel_dir is given as a 2d vector, in practice only the 4 quadrant
      * axes are handled, a 1D directional search along a coordinate axis.
@@ -87,6 +127,15 @@ public:
         return rel_dir.normalize().times(max_aperture);
     }
 
+    /**
+     * Returns True if the point (x, y) is inside the clear aperture.
+     *
+     *         Args:
+     *             x: x coodinate of the test point
+     *             y: y coodinate of the test point
+     *             fuzz: tolerance on test pt/aperture comparison,
+     *                   i.e. pt fuzzy <= surface_od
+     */
     /**
      * Returns true if the point (x, y) is inside the clear aperture.
      * `fuzz` is a nullable Double in the Java.
@@ -103,6 +152,21 @@ public:
         return mathlib::Vector2(-max_aperture, max_aperture);
     }
 
+    /**
+     * Intersect an :class:`~.Interface`, starting from an arbitrary point.
+     *
+     *         Args:
+     *             p0:  start point of the ray in the interface's coordinate system
+     *             d:  direction cosine of the ray in the interface's coordinate system
+     *             z_dir: +1 if propagation positive direction, -1 if otherwise
+     *             eps: numeric tolerance for convergence of any iterative procedure
+     *
+     *         Returns:
+     *             tuple: distance to intersection point *s1*, intersection point *p*
+     *
+     *         Raises:
+     *             :exc:`~rayoptics.raytr.traceerror.TraceMissedSurfaceError`
+     */
     /**
      * Intersect an Interface, starting from an arbitrary point.
      *
@@ -137,6 +201,7 @@ public:
 
     // TODO phase() method
 
+    // TODO phase() method
     virtual void apply_scale_factor(double scale_factor) {
         this->max_aperture *= std::abs(scale_factor);
         if (decenter)

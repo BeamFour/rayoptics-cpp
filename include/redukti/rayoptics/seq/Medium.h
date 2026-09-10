@@ -19,6 +19,9 @@ enum class InteractMode {
 };
 
 /**
+ * Constant refractive index medium.
+ */
+/**
  * Media are shared: Air::INSTANCE is a singleton and Glass instances come from
  * a static catalog, so a Gap holds a shared_ptr rather than owning its Medium.
  */
@@ -45,6 +48,11 @@ public:
 
     virtual ~Medium() = default;
 
+    /**
+     * returns the interpolated refractive index at wv_nm
+     * @param wv_nm the wavelength in nm for the refractive index query
+     * @return float: the refractive index at wv_nm
+     */
     /**
      * returns the interpolated refractive index at wv_nm
      * @param wv_nm the wavelength in nm for the refractive index query

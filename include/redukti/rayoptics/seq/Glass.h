@@ -26,7 +26,7 @@ public:
     /** red hydrogen line at 656.2725nm */
     static constexpr double C = 656.2725;
     /** red cadmium line at 643.8469nm */
-    static constexpr double C_ = 643.8469;
+    static constexpr double C_ = 643.8469;  // C'
     /** yellow sodium line at 589.2938nm */
     static constexpr double D = 589.2938;
     /** yellow helium line at 587.5618nm */
@@ -36,7 +36,7 @@ public:
     /** blue hydrogen line at 486.1327nm */
     static constexpr double F = 486.1327;
     /** blue cadmium line at 479.9914nm */
-    static constexpr double F_ = 479.9914;
+    static constexpr double F_ = 479.9914;  // F'
     /** blue mercury line at 435.8343nm */
     static constexpr double g = 435.8343;
     /** violet mercury line at 404.6561nm */

@@ -32,6 +32,48 @@ class OpticalModel;
 namespace redukti::rayoptics::seq {
 
 /**
+ * Manager class for a sequential optical model
+ *
+ * A sequential optical model is a sequence of surfaces and gaps.
+ *
+ * The sequential model has this structure
+ * <pre>
+ *
+ *         IfcObj  Ifc1  Ifc2  Ifc3 ... Ifci-1   IfcImg
+ *              \  /  \  /  \  /             \   /
+ *              GObj   G1    G2              Gi-1
+ *
+ *     where
+ *
+ *         - Ifc is a :class:`~rayoptics.seq.interface.Interface` instance
+ *         - G   is a :class:`~rayoptics.seq.gap.Gap` instance
+ *
+ *     </pre>
+ *
+ * There are N interfaces and N-1 gaps. The initial configuration has an
+ * object and image Surface and an object gap.
+ *
+ * The Interface API supports implementation of an optical action, such as
+ * refraction, reflection, scatter, diffraction, etc. The Interface may be
+ * realized as a physical profile separating the adjacent gaps or an idealized
+ * object, such as a thin lens or 2 point HOE.
+ *
+ * The Gap class maintains a simple separation (z translation) and the medium
+ * filling the gap. More complex coordinate transformations are handled
+ * through the Interface API.
+ *
+ * Attributes:
+ * opt_model: parent optical model
+ * ifcs: list of :class:`~rayoptics.seq.interface.Interface`
+ * gaps: list of :class:`~rayoptics.seq.gap.Gap`
+ * lcl_tfrms: forward transform, interface to interface
+ * rndx: a list with refractive indices for all **wvls**
+ * z_dir: -1 if gap follows an odd number of reflections, otherwise +1
+ * gbl_tfrms: global coordinates of each interface wrt the 1st interface
+ * stop_surface (int): index of stop interface
+ * cur_surface (int): insertion index for next interface
+ */
+/**
  * Manager class for a sequential optical model.
  *
  * A sequential optical model is a sequence of interfaces and gaps. It includes
@@ -54,11 +96,20 @@ public:
     /** insertion index for the next interface */
     std::optional<int> cur_surface;
     bool do_apertures = true;
+    // derived attributes
     /** global coordinates of each interface wrt the 1st interface */
     std::vector<math::Tfm3d> gbl_tfrms;
     /** forward transform, interface to interface */
     std::vector<math::Tfm3d> lcl_tfrms;
+    //  data for a wavelength vs index vs gap data arrays
+    /**
+     * sampling wavelengths in nm
+     */
     std::vector<double> wvlns;
+    /**
+     * a list with refractive indices for all **wvls**
+     * refractive index vs wv and gap
+     */
     /** refractive index by surface, then by wavelength */
     std::vector<std::vector<double>> rndx;
 
@@ -67,6 +118,15 @@ public:
 
     int get_num_surfaces() const { return static_cast<int>(ifcs.size()); }
 
+    /**
+     * returns an iterable path tuple for a range in the sequential model
+     *
+     * @param wl    wavelength in nm for path, defaults to central wavelength
+     * @param start start of range
+     * @param stop  first value beyond the end of the range
+     * @param step  increment or stride of range
+     * @return (* * ifcs, gaps, lcl_tfrms, rndx, z_dir * *)
+     */
     /**
      * The path for the given wavelength and surface range.
      *
@@ -83,16 +143,42 @@ public:
         return path(std::nullopt, std::nullopt, std::nullopt, std::nullopt);
     }
 
+    /**
+     * returns an iterable path tuple for a range in the sequential model
+     *
+     *         Args:
+     *             wl: wavelength in nm for path, defaults to central wavelength
+     *             start: start of range
+     *             stop: first value beyond the end of the range
+     *             step: increment or stride of range
+     *
+     *         Returns:
+     *             (**ifcs, gaps, lcl_tfrms, rndx, z_dir**)
+     */
     std::vector<PathSeg> reverse_path(std::optional<double> wl, std::optional<int> start,
                                       std::optional<int> stop, std::optional<int> step);
 
+    /**
+     * returns a list with refractive indices for all **wvls**
+     *
+     * @param wvls list of wavelengths in nm
+     */
     std::vector<std::vector<double>> calc_ref_indices_for_spectrum(
         const std::vector<double> &wvls);
 
+    /**
+     * returns the central wavelength in nm of the model's `WvlSpec`
+     */
     double central_wavelength() const;
 
+    /**
+     * returns index into rndx array for wavelength `wvl` in nm
+     */
     int index_for_wavelength(double wvl);
 
+    /**
+     * returns the central refractive index of the model's WvlSpec
+     */
     double central_rndx(int i) const;
 
     util::Pair<std::shared_ptr<Interface>, std::shared_ptr<Gap>> get_surface_and_gap(
@@ -100,12 +186,43 @@ public:
 
     void set_cur_surface(int s) { cur_surface = s; }
 
+    /**
+     * sets the stop surface to the current surface
+     */
     std::optional<int> set_stop(std::optional<int> cur_idx);
     std::optional<int> set_stop() { return set_stop(std::nullopt); }
 
+    /**
+     * insert ifc and gap *after* cur_surface in seq_model lists
+     */
     void insert(std::shared_ptr<Interface> ifc, std::shared_ptr<Gap> gap,
                 std::optional<util::ZDir> z_dir_, std::optional<int> idx);
 
+    // TODO scan_for_reflections
+
+    /**
+     * add a surface where `surf_data` is a list that contains:
+     *
+     * [curvature, thickness, refractive_index, v-number, semi-diameter]
+     *
+     * The `curvature` entry is interpreted as radius if `radius_mode` is **True**
+     *
+     * The `thickness` is the signed thickness
+     *
+     * The `refractive_index, v-number` entry can have several forms:
+     *
+     *       - **refractive_index, v-number** (numeric)
+     *       - **refractive_index** only -> constant index model
+     *       - **glass_name, catalog_name** as 1 or 2 strings
+     *       - an instance with a :meth:`~opticalglass.opticalmedium.OpticalMedium.rindex` attribute
+     *       - **air**, str -> :class:`~opticalglass.opticalmedium.Air`
+     *       - blank -> defaults to :class:`~opticalglass.opticalmedium.Air`
+     *       - **'REFL'** -> set interact_mode to 'reflect'
+     *
+     * The `semi-diameter` entry is optional
+     *
+     * @param surf_data
+     */
     void add_surface(SurfaceData &surf_data);
 
     void update_model() { update_model(std::nullopt); }
@@ -116,11 +233,35 @@ public:
     void apply_scale_factor(double scale_factor) {
         apply_scale_factor_over(scale_factor, {});
     }
+    /**
+     * Apply the `scale_factor` to the `surfs` arg.
+     *
+     *         - If `surfs` isn't present, the `scale_factor` is applied to all interfaces and gaps.
+     *         - If `surfs` contains a single value, it is applied to that interface and gap.
+     *         - If `surfs` contains 2 values it is considered an interface range and the `scale_factor` is applied to the interface range and the gaps contained between the outer interfaces.
+     */
     void apply_scale_factor_over(double scale_factor, const std::vector<int> &surfs);
 
+    /**
+     * Sum gap thicknesses from `os_idx` to `is_idx`
+     *
+     *         The default arguments return the thickness sum between the 1st and last surfaces.
+     *
+     *         To include the image surface, is_idx=len(sm.gaps)
+     *
+     *         Args:
+     *             os_idx: starting gap index
+     *             is_idx: final gap index
+     *
+     *         Returns:
+     *             oal: float, overal length of gap range
+     */
     double overall_length(std::optional<int> os_idx, std::optional<int> is_idx);
     double overall_length() { return overall_length(1, -1); }
 
+    /**
+     * Total track length, distance from object to image.
+     */
     double total_track() { return overall_length(0, static_cast<int>(gaps.size())); }
 
     void set_clear_aperture_paraxial();
@@ -129,6 +270,12 @@ public:
                              const std::vector<int> *include_list);
     void set_clear_apertures() { set_clear_apertures(nullptr, nullptr); }
 
+    /**
+     * Return global surface coordinates (rot, t) wrt surface `glo`.
+     *
+     *         If origin isn't None, it should be a tuple (r, t) being the transform
+     *         from the desired global origin to the specified global surface.
+     */
     std::vector<math::Tfm3d> compute_global_coords(std::optional<int> glo,
                                                    std::optional<math::Tfm3d> origin);
     std::vector<math::Tfm3d> compute_global_coords() {

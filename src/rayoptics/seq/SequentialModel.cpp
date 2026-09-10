@@ -95,6 +95,7 @@ using elem::surface::Surface;
 using math::Tfm3d;
 using mathlib::Matrix3;
 using mathlib::Vector3;
+/** Bounded because callers can request paths with arbitrary slice arguments. */
 using util::ZDir;
 
 SequentialModel::SequentialModel(optical::OpticalModel *opm, bool do_init) {
@@ -103,15 +104,22 @@ SequentialModel::SequentialModel(optical::OpticalModel *opm, bool do_init) {
         initialize_arrays();
 }
 
+/**
+ * initialize object and image interfaces and intervening gap
+ */
 void SequentialModel::initialize_arrays() {
+    // add object interface
     ifcs.push_back(std::make_shared<Surface>("Obj", InteractMode::DUMMY));
     Tfm3d tfrm(Matrix3::IDENTITY, Vector3::ZERO);
     gbl_tfrms.push_back(tfrm);
     lcl_tfrms.push_back(tfrm);
+    // add object gap
     gaps.push_back(std::make_shared<Gap>());
     z_dir.push_back(ZDir::PROPAGATE_RIGHT);
     rndx.push_back(std::vector<double>{1.0});
+    // interfaces are inserted after cur_surface
     cur_surface = 0;
+    // add image interface
     ifcs.push_back(std::make_shared<Surface>("Img", InteractMode::DUMMY));
     gbl_tfrms.push_back(tfrm);
     lcl_tfrms.push_back(tfrm);
@@ -277,6 +285,8 @@ void SequentialModel::insert(std::shared_ptr<Interface> ifc, std::shared_ptr<Gap
         rindex[i] = gap->medium->rindex(wvls[i]);
     rndx.insert(rndx.begin() + idx, rindex);
     path_cache_.clear();
+        //         if ifc.interact_mode == 'reflect':
+        //            self.update_reflections(start=idx)
 }
 
 void SequentialModel::add_surface(SurfaceData &surf_data) {
@@ -293,6 +303,8 @@ void SequentialModel::add_surface(SurfaceData &surf_data) {
 }
 
 void SequentialModel::update_model(std::optional<int> start_) {
+    // delta n across each surface interface must be set to some
+    // reasonable default value. use the index at the central wavelength
     auto osp = opt_model->optical_spec.get();
     int ref_wl = osp->wvls->reference_wvl;
     (void)ref_wl;
@@ -305,6 +317,7 @@ void SequentialModel::update_model(std::optional<int> start_) {
         else if (*cur_surface >= num_ifcs)
             cur_surface = num_ifcs - 1;
     } else {
+        // if None set cur_surface to insert before image surface
         cur_surface = num_ifcs - 2;
     }
     int start = start_.has_value() ? *start_ : 0;
@@ -319,6 +332,7 @@ void SequentialModel::update_model(std::optional<int> start_) {
         ZDir z_dir_after = z_dir_before;
         if (ifc->interact_mode == InteractMode::REFLECT)
             z_dir_after = util::opposite(z_dir_after);
+        // leave rndx data unsigned, track change of sign using z_dir
         // The gap is null for the last interface -- see zip_longest.
         if (g != nullptr) {
             double n_after = this->rndx[i][static_cast<std::size_t>(ref_wl)];
@@ -329,14 +343,18 @@ void SequentialModel::update_model(std::optional<int> start_) {
             z_dir_before = z_dir_after;
             this->z_dir[i] = z_dir_after;
         }
+        // call update() on the surface interface
         ifc->update();
         i++;
     }
     this->gbl_tfrms = this->compute_global_coords();
     this->lcl_tfrms = this->compute_local_transforms();
+    // Keep this last so work performed during the update cannot leave a
+    // stale path behind.
     // Last, so that anything reached during the update above cannot leave a
     // stale entry behind.
     path_cache_.clear();
+    // self.seq_def.update()
 }
 
 void SequentialModel::update_optical_properties() {
@@ -472,6 +490,32 @@ std::vector<PathSeg> SequentialModel::zip_longest(
     return list;
 }
 
+/**
+ * create a surface and gap where `surf_data` is a list that contains:
+ *
+ * [curvature, thickness, refractive_index, v-number, semi-diameter]
+ *
+ * The `curvature` entry is interpreted as radius if `radius_mode` is **True**
+ *
+ * The `thickness` is the signed thickness
+ *
+ * The `refractive_index, v-number` entry can have several forms:
+ *
+ *   - **refractive_index, v-number** (numeric)
+ *   - **refractive_index** only -> constant index model
+ *   - **glass_name, catalog_name** as 1 or 2 strings
+ *   - an instance with a :meth:`~opticalglass.opticalmedium.OpticalMedium.rindex` attribute
+ *   - **air**, str -> :class:`~opticalglass.opticalmedium.Air`
+ *   - blank -> defaults to :class:`~opticalglass.opticalmedium.Air`
+ *   - **'REFL'** -> set interact_mode to 'reflect'
+ *
+ * The `semi-diameter` entry is optional
+ *
+ * @param surf_data
+ * @param radius_mode
+ * @param prev_medium
+ * @param wvl
+ */
 NewSurfaceSpec SequentialModel::create_surface_and_gap(
     SurfaceData &surf_data, bool radius_mode, std::shared_ptr<Medium> prev_medium,
     std::optional<double> wvl_) {
