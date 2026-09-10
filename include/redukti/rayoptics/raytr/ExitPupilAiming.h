@@ -18,8 +18,10 @@ class OpticalModel;
 
 namespace redukti::rayoptics::raytr {
 
+/** Inverse entrance-to-exit-pupil mapping used by contrast tracing. */
 class ExitPupilAiming {
 public:
+    /** A ray traced successfully, but its requested exit-pupil coordinate was not found. */
     /** Java's nested `ExitPupilAimException extends TraceException`. */
     class ExitPupilAimException : public exceptions::TraceException {
     public:
@@ -82,6 +84,11 @@ private:
     static Result failed(const mathlib::Vector2 &pupil,
                          std::shared_ptr<exceptions::TraceException> error);
 
+    /**
+     * Aim a ray so its transverse coordinate on the exit-pupil reference sphere equals
+     * target. The initial entrance-pupil coordinate is normally the traditional
+     * entrance-pupil displacement and is therefore already a close guess.
+     */
     static Evaluation evaluate(optical::OpticalModel *opticalModel,
                                const mathlib::Vector2 &pupil,
                                const mathlib::Vector2 &target, specs::Field &field,

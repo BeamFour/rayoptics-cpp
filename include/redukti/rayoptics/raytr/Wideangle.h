@@ -53,11 +53,24 @@ public:
                                            std::optional<int> stop_idx,
                                            specs::Field &fld, double wvl);
 
+    /**
+     * Locate the z center of the real pupil for `fld`, wrt 1st ifc
+     *
+     *     This function implements a 2 step process to finding the chief ray
+     *     for `fld` and `wvl` for wide angle systems. `fld` should be of type
+     *     ('object', 'angle'), even for finite object distances.
+     *
+     *     The first phase searches for the window of pupil locations by sampling the
+     *     z coordinate starting from the paraxial pupil location. The real pupil can move either inward or outward from the paraxial pupil location. As soon as 2 successful rays are traced, the search direction is updated if needed. The search continues until z_enp values are found giving rays that straddle the stop center. If no interval is found that contains the central ray, a finer sampled search is done to find the edges more accurately. If only a single successful trace is in hand, a second, more finely subdivided search is conducted around the successful point.
+     *
+     *     The outcome is a range, start_z -> end_z, an estimate of where the crossing point is (z_estimate), and a ray iteration (using :func:`~.raytr.wideangle.find_z_enp_on_interval`) to find the center of the stop surface.
+     */
     static RayResultWithZEnp find_real_enp_rev1(optical::OpticalModel *opm,
                                                 std::optional<int> stop_idx,
                                                 specs::Field &fld, double wvl,
                                                 std::optional<bool> check_direction);
 
+    //logger.info(f"fld: {fld.yv:3.1f}:   {z_enp=:8.4f}  {ht_at_stop=:10.2e}")
     static RayResultWithZEnp find_real_enp_orig(optical::OpticalModel *opm,
                                                 std::optional<int> stop_idx,
                                                 specs::Field &fld, double wvl);
@@ -71,6 +84,29 @@ public:
     static ZEnpStopHt find_edge(mathlib::ScalarObjectiveFunction &f, double a, double b,
                                 std::optional<int> max_iter);
 
+    /**
+     * iterates a ray to [0, 0] on interface stop_ifc, returning aim info
+     *
+     *     This function finds the entrance pupil location, z_enp, inside a range of pupil locations. The rays in the interval must be trace without throwing TraceError exceptions (ignoring aperture clipping).
+     *
+     *     Args:
+     *
+     *         opt_model:  input OpticalModel
+     *         stop_idx:   index of the aperture stop interface
+     *         start_z:    lower bound of the z_enp interval to be searched
+     *         end_z:      upper bound of the z_enp interval to be searched
+     *         z_estimate: estimate of pupil location. this estimate must support
+     *                     a raytrace up to stop_ifc
+     *         fld:        field point
+     *         wvl:        wavelength of raytrace (nm)
+     *
+     *     Returns z distance from 1st interface to the entrance pupil.
+     *
+     *     If stop_ifc is None, i.e. a floating stop surface, returns paraxial
+     *     entrance pupil.
+     *
+     *     If the iteration fails, a TraceError will be raised
+     */
     static util::Pair<mathlib::Vector3, RayResult> find_z_enp_on_interval(
         optical::OpticalModel *opt_model, std::optional<int> stop_idx, double start_z,
         double end_z, double z_estimate, specs::Field &fld, double wvl);
@@ -85,6 +121,9 @@ public:
     static RayDataWithZ_Enp eval_real_image_ht(optical::OpticalModel *opt_model,
                                                specs::Field &fld, double wvl);
 
+    /**
+     * returns the function value or None, if fct failed to evalute.
+     */
     /** Wraps enp_z_coordinate as a scalar function of the pupil position. */
     class Enp_z_coordinate_wrapper : public mathlib::ScalarObjectiveFunction {
     public:

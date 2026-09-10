@@ -86,6 +86,10 @@ void VigCalc::set_clear_apertures(optical::OpticalModel *opt_model,
 void VigCalc::set_ape(optical::OpticalModel *opm, const std::vector<int> *avoid_list,
                       const std::vector<int> *include_list) {
     set_clear_apertures(opm, avoid_list, include_list);
+    // Upstream follows this with em.sync_to_seq(sm) to push the new
+    // apertures into the element model. Beam43 needs no equivalent: its
+    // layout reads Interface.max_aperture and surface_od() live at render
+    // time rather than caching them, so there is nothing to go stale.
 }
 
 void VigCalc::set_vig(optical::OpticalModel *opm, std::optional<bool> use_bisection) {
@@ -98,6 +102,11 @@ void VigCalc::set_vig(optical::OpticalModel *opm, std::optional<bool> use_bisect
     }
 }
 
+/**
+ * Set the aperture on the stop surface to satisfy the pupil spec.
+ *
+ * The vignetting is recalculated after the stop aperture change.
+ */
 void VigCalc::set_stop_aperture(optical::OpticalModel *opm) {
     auto sm = opm->seq_model.get();
     opm->optical_spec->fov->with_index_label("axis")->clear_vignetting();
@@ -106,6 +115,14 @@ void VigCalc::set_stop_aperture(optical::OpticalModel *opm) {
     set_vig(opm, false);
 }
 
+/**
+ * From existing stop size, calculate pupil spec and vignetting.
+ *
+ *     Use the upper Y marginal ray on-axis (field #0) and iterate until it
+ *     goes through the edge of the stop surface. Use the object or image
+ *     segments of this ray to update the pupil specification value
+ *     e.g. EPD, NA or f/#.
+ */
 void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     auto sm = opm->seq_model.get();
     if (!sm->stop_surface.has_value()) {
@@ -114,12 +131,14 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     }
     auto idx_stop = *sm->stop_surface;
     auto osp = opm->optical_spec.get();
+    // iterate the on-axis marginal ray thru the edge of the stop.
     auto fld_foc = osp->lookup_fld_wvl_focus(0);
     auto fld_0 = fld_foc.first;
     auto cwl = fld_foc.second;
     auto stop_radius = get(sm->ifcs, idx_stop)->surface_od();
     auto start_coords = iterate_pupil_ray(opm, sm->stop_surface, 1, 1.0, stop_radius,
                                           *fld_0, cwl);
+    // trace the real axial marginal ray
     TraceOptions options;
     options.output_filter = std::nullopt;
     options.rayerr_filter = std::string("full");
@@ -142,6 +161,7 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     auto &fod = parax_data->fod;
     if (use_parax) {
         auto scale_ratio = stop_radius / ax_ray[static_cast<std::size_t>(idx_stop)].ht;
+        //logger.debug(f"{scale_ratio=:8.5f} (parax)")
         if (obj_img_key == ImageKey::Object) {
             if (pupil_spec == ValueKey::EPD) {
                 osp->pupil->value = scale_ratio * (2 * fod.enp_radius);
@@ -200,6 +220,7 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
             }
         }
     }
+    // trace the real axial marginal ray with aperture clipping
     TraceOptions clipoptions;
     clipoptions.output_filter = std::nullopt;
     clipoptions.rayerr_filter = std::string("full");
@@ -216,6 +237,13 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     if (osp->pupil->value != pupil_value_orig) {
         opm->update_model();
     }
+    // Always establish vignetting, even when the pupil value was already
+    // correct. Skipping is only safe when earlier factors can stand in, and
+    // set_pupil is called on freshly built models where there are none -
+    // the factors would silently stay at zero. Callers cannot tell that
+    // apart from a genuinely unvignetted system: contrast sampling in
+    // particular would then take the full pupil as available and, since it
+    // traces without aperture checking, optimize light the lens blocks.
     set_vig(opm, std::nullopt);
 }
 
@@ -238,6 +266,7 @@ void VigCalc::calc_vignetting_for_field(optical::OpticalModel *opm, specs::Field
         }
         vig_factors[i] = result.vig;
     }
+    // update the field's vignetting factors
     fld.vux = vig_factors[0];
     fld.vlx = vig_factors[1];
     fld.vuy = vig_factors[2];
@@ -256,14 +285,19 @@ std::optional<double> VigCalc::Fn_r_pupil_coordinate::eval(double xy_coord) {
                                     wvl, options);
     } catch (TraceException &ray_error) {
         ray_pkg = ray_error.ray_pkg;
+        // Check if the ray error occurred at or before the indx surface.
+        // if the error is at or following indx, drop thru
         if (dynamic_cast<TraceMissedSurfaceException *>(&ray_error) != nullptr) {
+            // no surface intersection, so no ray data at indx
             if (ray_error.surf <= indx)
                 return std::nullopt;
         } else {
+            // other ray trace error exceptions
             if (ray_error.surf < indx)
                 return std::nullopt;
         }
     }
+    // compute the radial distance to the intersection point
     auto p = get(ray_pkg->ray, indx).p;
     auto r_ray = std::copysign(std::sqrt(p.x * p.x + p.y * p.y), r_target);
     auto delta = r_ray - r_target;
@@ -313,15 +347,38 @@ public:
                 throw;
             }
         }
+        // compute the radial distance to the intersection point
         auto p = get(ray_pkg->ray, indx).p;
         auto r_ray = std::copysign(std::sqrt(p.x * p.x + p.y * p.y), r_target);
         auto delta = r_ray - r_target;
+        //            logger.debug(f"  {xy_coord=:8.5f}   {r_ray=:8.5f}    "
+        //                    f"delta={delta:9.2g}")
+        //System.out.println(String.format("   xy_coord=%8.5f   r_ray=%8.5f   delta=%9.2g",xy_coord,r_ray,delta));
         return delta;
     }
 };
 
 } // namespace
 
+/**
+ * Find the limiting aperture and return the vignetting factor.
+ *
+ *     Args:
+ *         opm: :class:`~.OpticalModel` instance
+ *         xy: 0 or 1 depending on x or y axis as the pupil direction
+ *         start_dir: the unit length starting pupil coordinates, e.g [1., 0.].
+ *                    This establishes the radial direction of the ray iteration.
+ *         fld: :class:`~.Field` point for wave aberration calculation
+ *         wvl: wavelength of ray (nm)
+ *         max_iter_count: fail-safe limit on aperture search
+ *
+ *     Returns:
+ *         (**vig**, **clip_indx**, **ray_pkg**)
+ *
+ *         - **vig** - vignetting factor
+ *         - **clip_indx** - the index of the limiting interface
+ *         - **ray_pkg** - the vignetting-limited ray
+ */
 VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                                       const Vector2 &start_dir, specs::Field &fld,
                                       double wvl, std::optional<int> max_iter_count_) {
@@ -343,16 +400,27 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
             auto arr = rel_p1.as_array();
             ray_pkg = Trace::trace_base(opm, std::vector<double>{arr[0], arr[1]}, fld,
                                         wvl, options);
+            //  ray successfully traced.
             if (clip_indx.has_value()) {
+                // fall through and exit
                 // The Java computes r_error here and discards it; the call to
                 // edge_pt_target is kept because it is the only other effect.
                 (void)get(sm->ifcs, *clip_indx)->edge_pt_target(start_dir);
+                //                    logger.debug(f" C {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
+                //                            f"blocked at {clip_indx}, del={r_error:8.1e}, "
+                //                            "exiting")
                 still_iterating = false;
             } else {
+                // this is the first time through
+                // iterate to find the ray that goes through the edge
+                // of the stop surface
                 std::optional<int> indx;
                 indx = stop_indx = sm->stop_surface;
                 if (stop_indx.has_value()) {
                     auto r_target = get(sm->ifcs, *stop_indx)->edge_pt_target(start_dir);
+                    //                        logger.debug(f" D {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
+                    //                                f"passed first time, iterate to edge of stop, "
+                    //                                f"ifcs[{stop_indx}]")
                     rel_p1 = iterate_pupil_ray(opm, indx, xy, rel_p1.v(xy),
                                                r_target.v(xy), fld, wvl);
                     still_iterating = true;
@@ -367,9 +435,18 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 // As above: the Java's r_error computation here is dead, and its
                 // IndexOutOfBoundsException catch guarded only that.
                 (void)get(sm->ifcs, *clip_indx)->edge_pt_target(start_dir);
+                //                        logger.debug(f" A {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
+                //                                f"blocked at {clip_indx}, del={r_error:8.1e}, "
+                //                                "exiting")
+                //                        logger.debug(f" A' {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
+                //                                f"blocked at {clip_indx}, "
+                //                                "exiting")
                 still_iterating = false;
             } else {
                 auto r_target = get(sm->ifcs, *indx)->edge_pt_target(start_dir);
+                // If we missed the first surface, use bisection to bracket
+                // the edge. Use the result to start the newton iteration to
+                // quickly find the edge.
                 if (dynamic_cast<TraceMissedSurfaceException *>(&ray_error) != nullptr &&
                     ray_error.surf == 1) {
                     Fn_r_pupil_coordinate fn(opm, *indx, xy, &fld, wvl, r_target.v(xy));
@@ -384,13 +461,36 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
         }
     }
     auto vig = 1.0 - (rel_p1.v(xy) / start_dir.v(xy));
+    //        logger.info(f" ray: ({start_dir[0]:2.0f}, {start_dir[1]:2.0f}), "
+    //                f"vig={vig:8.4f}, limited at ifcs[{clip_indx}]")
     return VigResult(vig, clip_indx, ray_pkg);
 }
 
+/**
+ * Find the limiting aperture and return the vignetting factor.
+ *
+ *     Args:
+ *         opm: :class:`~.OpticalModel` instance
+ *         xy: 0 or 1 depending on x or y axis as the pupil direction
+ *         start_dir: the unit length starting pupil coordinates, e.g [1., 0.].
+ *                    This establishes the radial direction of the ray iteration.
+ *         fld: :class:`~.Field` point for wave aberration calculation
+ *         wvl: wavelength of ray (nm)
+ *         max_iter_count: fail-safe limit on aperture search
+ *
+ *     Returns:
+ *         (**vig**, **clip_indx**, **ray_pkg**)
+ *
+ *         - **vig** - vignetting factor
+ *         - **clip_indx** - the index of the limiting interface
+ *         - **ray_pkg** - the vignetting-limited ray
+ */
 VigResult VigCalc::calc_vignetted_ray_by_bisection(optical::OpticalModel *opm, int xy,
                                                    const Vector2 &start_dir,
                                                    specs::Field &fld, double wvl,
                                                    std::optional<int> max_iter_count_) {
+    //        logger.debug(f"fld={fld.yf:5.2f}, [{start_dir[0]:5.2f}, "
+    //                f"{start_dir[1]:5.2f}]")
     int max_iter_count = max_iter_count_.has_value() ? *max_iter_count_ : 10;
     auto rel_p1 = start_dir;
     std::optional<int> clip_indx;
@@ -413,9 +513,12 @@ VigResult VigCalc::calc_vignetted_ray_by_bisection(optical::OpticalModel *opm, i
             ray_pkg = ray_error.ray_pkg;
             clip_indx = ray_error.surf;
             rel_p1 = start_dir.times(-step_size).plus(rel_p1);
+            //                logger.debug(f"{xy_str[xy]} = {rel_p1[xy]:10.6f}: "
+            //                        f"blocked at {clip_indx}")
         }
     }
     auto vig = 1.0 - (rel_p1.v(xy) / start_dir.v(xy));
+    //        logger.debug(f"   {vig=:7.4f}, {clip_indx=}")
     return VigResult(vig, clip_indx, ray_pkg);
 }
 
@@ -430,6 +533,8 @@ Vector2 VigCalc::iterate_pupil_ray(optical::OpticalModel *opt_model,
             start_r =
                 mathlib::SecantSolver::find_root(objective_fn, start_r0, 50, 1e-6).root;
         } catch (TraceException &rt_err) {
+            //                logger.debug(f"  {type(rt_err).__name__}: surf={rt_err.surf}    "
+            //                        f"rel_p1={rt_err.rel_p1[xy]=:8.5f}   ")
             start_r = 0.9 * rt_err.rel_p1->v(xy);
         }
         return start_coord.set(xy, start_r);

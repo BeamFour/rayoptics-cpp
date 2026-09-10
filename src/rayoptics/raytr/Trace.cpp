@@ -103,10 +103,16 @@ std::shared_ptr<const RayPkg> Trace::trace_base(optical::OpticalModel *opt_model
         pupil_coords, fld, trace_options.pupil_type);
     auto pt0 = coord.pt;
     auto dir0 = coord.dir;
+    // if wide_angle, don't try to intercept object and don't disallow
+    // propagation against z_dir; this will be the case for rays exceeding
+    // 90 degrees at the first surface.
     RayTraceOptions options(trace_options);
     if (opt_model->optical_spec->fov->is_wide_angle)
         options.intersect_obj = false;
     else {
+        // otherwise, if not wide angle, propagation against z_dir means
+        // a virtual object. To handle virtual object distances, always
+        // propagate from the object in a positive Z direction.
         if (dir0.z * util::value(opt_model->seq_model->z_dir[0]) < 0)
             dir0 = dir0.negate();
     }
@@ -141,6 +147,7 @@ public:
     RaySeg evalSeg(double x1, double y1) {
         Vector3 pt1(x1, y1, obj2enp_dist);
         Vector3 dir0 = pt1.minus(pt0).normalize();
+        // handle case where entrance pupil is behind the object
         if (not_wa && dir0.z * util::value(seq_model->z_dir[0]) < 0)
             dir0 = dir0.negate();
         std::shared_ptr<const RayPkg> pkg;
@@ -159,6 +166,7 @@ public:
     }
 };
 
+/* 1D solver */
 class SecantFunction : public BaseObjectiveFunction, public mathlib::ScalarObjectiveFunction {
 public:
     double y_target;
@@ -228,6 +236,7 @@ RayResultWithStartCoord Trace::get_1d_solution(seq::SequentialModel *seq_model,
     return res;
 }
 
+/* Solver for use in Minpack algos */
 RayResultWithStartCoord Trace::get_2d_solution(seq::SequentialModel *seq_model,
                                                std::optional<int> ifcx,
                                                const Vector3 &pt0, double dist,
@@ -242,9 +251,11 @@ RayResultWithStartCoord Trace::get_2d_solution(seq::SequentialModel *seq_model,
     int lwa = (2 * (3 * 2 + 13)) / 2;
     std::vector<double> wa(static_cast<std::size_t>(lwa), 0.0);
     std::vector<int> info(1, 0);
+    // epsfcn is relative error; fdjac1 uses its square root as the step.
     double epsfcn = 1.0e-8;
     info[0] = MinPack::hybrd1(f, 2, x, fvec, 1.0e-10, wa, lwa, epsfcn);
     std::vector<int> dummy(1, 0);
+    // Numerical Jacobian evaluation leaves rr referring to a perturbed ray.
     f.apply(2, x, fvec, dummy);
     double residual = std::hypot(fvec[0], fvec[1]);
     double coordinateScale = std::max(std::max(std::abs(x[0]), std::abs(x[1])),
@@ -280,6 +291,7 @@ RayResultWithStartCoord Trace::iterate_ray(optical::OpticalModel *opt_model,
     auto pt0 = coord.pt;
     if (ifcx.has_value()) {
         if (pt0.x == 0.0 && xy_target[0] == 0.0) {
+            // do 1D iteration if field and target points are zero in x
             auto y_target = xy_target[1];
             return get_1d_solution(seq_model, ifcx, pt0, obj2enp_dist, wvl, y_target,
                                    not_wa);
@@ -288,6 +300,7 @@ RayResultWithStartCoord Trace::iterate_ray(optical::OpticalModel *opt_model,
                                    not_wa);
         }
     } else {
+        // floating stop surface - use entrance pupil for aiming
         RayResultWithStartCoord result;
         result.start_coords = xy_target;
         return result;
@@ -297,6 +310,7 @@ RayResultWithStartCoord Trace::iterate_ray(optical::OpticalModel *opt_model,
 std::vector<std::shared_ptr<const RayPkg>> Trace::trace_boundary_rays_at_field(
     optical::OpticalModel *opt_model, specs::Field &fld, double wvl,
     TraceOptions &trace_options) {
+    // default it, rather than override a filter the caller chose
     if (!trace_options.rayerr_filter.has_value())
         trace_options.rayerr_filter = std::string("full");
     auto ref_sphere_cr =
@@ -387,6 +401,10 @@ std::shared_ptr<const ChiefRayPkg> Trace::trace_chief_ray(
     options.rayerr_filter = std::string("full");
     auto ray_result = trace_safe(opt_model, Vector2(0., 0.), fld, wvl, options);
     auto cr = ray_result.pkg;
+    // op = rt.calc_optical_path(ray, opt_model.seq_model.path())
+
+    // cr_exp_pt: E upper bar prime: pupil center for pencils from Q
+    // cr_exp_pt, cr_b4_dir, cr_exp_dist
     auto cr_exp_seg = WaveAbr::transfer_to_exit_pupil(
         get(opt_model->seq_model->ifcs, -2),
         RayData(get(cr->ray, -2).p, get(cr->ray, -2).d), fod.exp_dist);
@@ -446,6 +464,7 @@ RefSphereCR Trace::setup_pupil_coords(optical::OpticalModel *opt_model,
 
 AimInfo Trace::aim_chief_ray(optical::OpticalModel *opt_model, specs::Field &fld,
                              std::optional<double> wvl_) {
+    // aim chief ray at center of stop surface and save results on **fld**
     auto seq_model = opt_model->seq_model.get();
     auto osp = opt_model->optical_spec.get();
     double wvl = wvl_.has_value() ? *wvl_ : seq_model->central_wavelength();
@@ -485,6 +504,7 @@ std::vector<GridItem> Trace::trace_fan(optical::OpticalModel *opt_model,
                 fan.push_back(GridItem(pupil, ray_result.pkg));
             }
         } else if (append_if_none) {
+            //ray outside pupil or failed
             fan.push_back(GridItem(pupil, nullptr));
         }
         start = Vector2(start.x + step.x, start.y + step.y);
@@ -499,6 +519,8 @@ std::vector<GridItem> Trace::trace_grid(optical::OpticalModel *opt_model,
                                         const TraceOptions &trace_options_in) {
     (void)foc;
     TraceOptions trace_options = trace_options_in.copy();
+    // A grid represents the physical sampled aperture; retain upstream
+    // ray-optics behaviour regardless of the general TraceOptions default.
     trace_options.check_apertures = true;
     auto start = grid_rng.grid_start;
     auto stop = grid_rng.grid_stop;
@@ -516,6 +538,7 @@ std::vector<GridItem> Trace::trace_grid(optical::OpticalModel *opt_model,
                     grid.push_back(GridItem(pupil, ray_result.pkg));
                 }
             } else {
+                //ray outside pupil or failed
                 if (img_filter != nullptr) {
                     auto item = img_filter->apply(pupil, nullptr);
                     if (item.has_value())
@@ -544,17 +567,22 @@ std::vector<GridItem> Trace::trace_rings(optical::OpticalModel *opt_model,
                                          const TraceOptions &trace_options_in) {
     (void)foc;
     TraceOptions trace_options = trace_options_in.copy();
+    // Ring/hexapolar spot analysis has the same physical-aperture semantics
+    // as the upstream grid tracer. Only the optimization-oriented Gaussian
+    // quadrature path permits this check to be disabled.
     trace_options.check_apertures = true;
     trace_options.pupil_type = PupilType::REL_PUPIL;
     trace_options.apply_vignetting = true;
     std::vector<GridItem> grid;
+    // Below creates concentric rings of points that will be relative to pupil of radius 1.0
     int num_rings = grid_rng.num_rings;
-    double max_radius = grid_rng.max_radius;
+    double max_radius = grid_rng.max_radius;  // max radius
     std::vector<Vector2> points;
     if (grid_rng.hexapolar) {
         points = generate_hexapolar_points(grid_rng, max_radius, num_rings);
     } else {
         points = generate_points(grid_rng, num_rings, max_radius);
+        //points = generate_gaussian(grid_rng, num_rings, max_radius);
     }
     for (std::size_t i = 0; i < points.size(); i++) {
         auto pupil = points[i];
@@ -566,6 +594,7 @@ std::vector<GridItem> Trace::trace_rings(optical::OpticalModel *opt_model,
                 grid.push_back(GridItem(pupil, ray_result.pkg));
             }
         } else {
+            //ray outside pupil or failed
             if (img_filter != nullptr) {
                 auto item = img_filter->apply(pupil, nullptr);
                 if (item.has_value())
@@ -640,9 +669,13 @@ std::vector<Vector2> generate_points(const TraceRingsDef &grid_rng, int num_ring
     int num_points_in_ring_one = grid_rng.num_points_in_ring_one;
     double angle_deg_ring_one = 360.0 / num_points_in_ring_one;
     for (int ring = 1; ring <= num_rings; ring++) {
+        // angular step
         double daz = angle_deg_ring_one / ring;
+        // Odd rings offset by half-step
         double offset = (ring % 2 == 0) ? 0.0 : 0.5 * daz;
+        // Linear radius spacing
         double r = ring * max_radius / num_rings;
+        // Number of points on this ring
         int numPoints = num_points_in_ring_one * ring;
         for (int jaz = 0; jaz < numPoints; jaz++) {
             double angle_deg = offset + jaz * daz;
@@ -679,6 +712,7 @@ std::vector<Vector2> generate_points(const TraceRingsDef &grid_rng, int num_ring
     return points;
 }
 
+/** Computes Gauss-Legendre nodes and weights on [-1, 1]. */
 std::vector<std::vector<double>> gauss_legendre_nodes_and_weights(int order) {
     std::vector<double> nodes(static_cast<std::size_t>(order), 0.0);
     std::vector<double> weights(static_cast<std::size_t>(order), 0.0);
@@ -717,10 +751,20 @@ Vector2 apply_vignetting_pt(const Vector2 &pupil, const specs::Field &fld) {
     return Vector2(vignetted[0], vignetted[1]);
 }
 
+/** Area element of Field#apply_vignetting at a nominal pupil point. */
 double vignetting_jacobian(const Vector2 &pupil, const specs::Field &fld) {
     return fld.vignetting_scale_x(pupil.x) * fld.vignetting_scale_y(pupil.y);
 }
 
+/**
+ * Smallest usable contraction of the contrast quadrature pattern. Below this
+ * the samples crowd around the overlap centre, all three rays of a triplet
+ * report nearly the same wavefront, and the residuals collapse towards zero -
+ * which an optimizer would read as perfect contrast rather than as an
+ * unusable request. The pattern reaches this limit a little below the
+ * 0.707/(lambda*F#) frequency at which the overlap centre itself leaves the
+ * pupil, so both bounds are reported as errors rather than silently honoured.
+ */
 const double MIN_CONTRAST_CONTRACTION = 0.1;
 
 bool valid_contrast_point(const Vector2 &pupil, const Vector2 &sagittalShift,
@@ -806,6 +850,9 @@ std::vector<GaussianQuadraturePoint> Trace::generate_contrast_quadrature(
             "The requested contrast shear has no common vignetted pupil overlap");
     }
     std::vector<Vector2> offsets;
+    // Map the nominal pattern into the physical pupil once. The contraction
+    // search only rescales these offsets, so the map must not be repeated
+    // inside the bisection loop.
     offsets.reserve(nominal.size());
     for (const auto &point : nominal)
         offsets.push_back(apply_vignetting_pt(point.pupil, fld).minus(physicalCenter));
@@ -814,6 +861,9 @@ std::vector<GaussianQuadraturePoint> Trace::generate_contrast_quadrature(
                                 tangential_shift, fld)) {
         double low = 0.0;
         double high = 1.0;
+        // Converge to machine precision: the contraction must be a
+        // repeatable function of the design so that the finite-difference
+        // Jacobian does not see quantisation steps.
         for (int iteration = 0; iteration < 60; iteration++) {
             double trial = 0.5 * (low + high);
             if (valid_contrast_pattern(offsets, overlapCenter, trial, sagittal_shift,
@@ -906,6 +956,13 @@ std::vector<ContrastRayTriplet> Trace::trace_contrast(
             "Physical exit-pupil shifts are required when aiming is enabled");
     }
     TraceOptions trace_options = trace_options_in.copy();
+    // The quadrature generator explicitly maps samples into the physical
+    // vignetted pupil. Applying Field vignetting in trace_base as well
+    // would independently scale the displaced rays and change their MTF
+    // shear, especially when a pair straddles a pupil axis.
+    // ContrastOptions defaults aperture checking off so temporary clipping does
+    // not become a discontinuous optimizer failure, but honour an explicit caller
+    // choice to validate against the physical surface apertures.
     trace_options.pupil_type = PupilType::REL_PUPIL;
     trace_options.apply_vignetting = false;
     trace_options.rayerr_filter = std::string("summary");
@@ -979,6 +1036,7 @@ public:
     RaySeg evalSeg(double x1, double y1) {
         Vector3 pt1(x1, y1, dist);
         Vector3 dir0 = pt1.minus(pt0).normalize();
+        // handle case where entrance pupil is behind the object
         if (not_wa && dir0.z * util::value(*(*pthlist)[0].Zdir) < 0)
             dir0 = dir0.negate();
         std::shared_ptr<const RayPkg> pkg;
@@ -1001,6 +1059,7 @@ public:
     }
 };
 
+/* 1D solver */
 class SecantFunctionRaw : public BaseObjectiveFunctionRaw,
                           public mathlib::ScalarObjectiveFunction {
 public:
@@ -1053,6 +1112,7 @@ RayResultWithStartCoord Trace::get_1d_solution_raw(
     return res;
 }
 
+/* Solver for use in Minpack algos */
 RayResultWithStartCoord Trace::get_2d_solution_raw(
     const std::vector<seq::PathSeg> &pthlist, std::optional<int> ifcx,
     const Vector3 &pt0, double dist, double wvl, const std::vector<double> &xy_target,
@@ -1065,9 +1125,11 @@ RayResultWithStartCoord Trace::get_2d_solution_raw(
     int lwa = (2 * (3 * 2 + 13)) / 2;
     std::vector<double> wa(static_cast<std::size_t>(lwa), 0.0);
     std::vector<int> info(1, 0);
+    // epsfcn is relative error; fdjac1 uses its square root as the step.
     double epsfcn = 1.0e-8;
     info[0] = MinPack::hybrd1(f, 2, x, fvec, 1.0e-10, wa, lwa, epsfcn);
     std::vector<int> dummy(1, 0);
+    // Numerical Jacobian evaluation leaves rr referring to a perturbed ray.
     f.apply(2, x, fvec, dummy);
     double residual = std::hypot(fvec[0], fvec[1]);
     double coordinateScale = std::max(std::max(std::abs(x[0]), std::abs(x[1])),
@@ -1097,6 +1159,7 @@ RayResultWithStartCoord Trace::iterate_ray_raw(
     (void)eprad;
     if (ifcx.has_value()) {
         if (pt0.x == 0.0 && xy_target[0] == 0.0) {
+            // do 1D iteration if field and target points are zero in x
             auto y_target = xy_target[1];
             try {
                 return get_1d_solution_raw(pthlist, ifcx, pt0, obj2pup_dist, wvl,
@@ -1119,6 +1182,7 @@ RayResultWithStartCoord Trace::iterate_ray_raw(
             }
         }
     } else {
+        // floating stop surface - use entrance pupil for aiming
         RayResultWithStartCoord result;
         result.start_coords = xy_target;
         return result;

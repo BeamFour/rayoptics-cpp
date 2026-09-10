@@ -38,12 +38,27 @@ enum class PupilType {
     AIM_DIR,   // aim direction in object space
 };
 
+/**
+ * ray intersection and transfer data
+ */
 /** One segment of a traced ray. */
 class RaySeg {
 public:
+    /**
+     * the point of incidence
+     */
     mathlib::Vector3 p;
+    /**
+     * ray direction cosine following the interface
+     */
     mathlib::Vector3 d;
+    /**
+     * geometric distance to next point of incidence
+     */
     double dst;
+    /**
+     * surface normal vector at the point of incidence
+     */
     mathlib::Vector3 nrml;
 
     // TODO phase
@@ -52,12 +67,18 @@ public:
            const mathlib::Vector3 &nrml_)
         : p(p_), d(d_), dst(dst_), nrml(nrml_) {}
 
+    /**
+     * Clone and add dst_delta
+     */
     RaySeg(const RaySeg &other, double dst_delta)
         : RaySeg(other.p, other.d, other.dst + dst_delta, other.nrml) {}
 
     std::string toString() const;
 };
 
+/**
+ * Ray and optical path length, plus wavelength
+ */
 /**
  * A traced ray and its optical path length.
  *
@@ -68,12 +89,30 @@ public:
  */
 class RayPkg {
 public:
+    /**
+     * List of RaySegs
+     */
     std::vector<RaySeg> ray;
+    /**
+     * optical path length between pupils
+     */
     double op_delta;
+    /**
+     * wavelength (in nm) that the ray was traced in
+     */
     double wvl;
+    /**
+     *  readonly coy of the field as at the time of tracing
+     */
     /** Null unless the ray was traced for a specific field. */
     std::shared_ptr<const specs::ReadOnlyField> fld;
+    /**
+     * Input pupil
+     */
     std::optional<mathlib::Vector2> input_pupil;
+    /**
+     * Vignetted pupil
+     */
     std::optional<mathlib::Vector2> vig_pupil;
 
     RayPkg(std::vector<RaySeg> ray_, double op_delta_, double wvl_)
@@ -94,7 +133,13 @@ public:
 /** A point and a direction cosine. */
 class RayData {
 public:
+    /**
+     * intersection point with interface
+     */
     mathlib::Vector3 pt;
+    /**
+     * direction cosine exiting the interface
+     */
     mathlib::Vector3 dir;
 
     RayData(const mathlib::Vector3 &pt_, const mathlib::Vector3 &dir_)
@@ -123,14 +168,35 @@ public:
           ref_sphere_radius(ref_sphere_radius_), lcl_tfrm_last(lcl_tfrm_last_) {}
 };
 
+/**
+ * cr_exp_seg: chief ray exit pupil segment (pt, dir, dist)
+ */
 class ChiefRayExitPupilSegment {
 public:
+    /**
+     * Chief ray intersection with exit pupil plane
+     */
     mathlib::Vector3 exp_pt;
+    /**
+     * direction cosine of the chief ray in exit pupil space
+     */
     mathlib::Vector3 exp_dir;
+    /**
+     * distance from interface to the exit pupil point
+     */
     double exp_dst;
+    /**
+     * exiting interface for the path sequence, i.e. last surface before image plane
+     */
     /** Shared with the SequentialModel's interface list. */
     std::shared_ptr<seq::Interface> ifc;
+    /**
+     * ray intersection pt wrt image gap coordinates
+     */
     mathlib::Vector3 b4_pt;
+    /**
+     * ray direction cosine wrt image gap coordinates
+     */
     mathlib::Vector3 b4_dir;
 
     ChiefRayExitPupilSegment(const mathlib::Vector3 &exp_pt_,
@@ -200,6 +266,10 @@ public:
 
 class RayResultWithZEnp {
 public:
+    /**
+     * Entrance pupil distance wrt the 1st interface, or null if no pupil
+     * location could be found for the field. Upstream returns None here.
+     */
     std::optional<double> z_enp;
     RayResult rr;
 
@@ -211,6 +281,7 @@ class AimInfo {
 public:
     /** aim_pt is used for paraxial aiming */
     std::vector<double> aim_pt;
+    /** z_enp is the actual entrance pupil distance with respect to 1st ifc for a field */
     /** the actual entrance pupil distance wrt the 1st ifc for a field */
     std::optional<double> z_enp;
 
@@ -220,8 +291,17 @@ public:
 
 class VigResult {
 public:
+    /**
+     * vignetting factor
+     */
     double vig;
+    /**
+     * the index of the limiting interface
+     */
     std::optional<int> clip_indx;
+    /**
+     * the vignetting-limited ray
+     */
     std::shared_ptr<const RayPkg> ray_pkg;
 
     VigResult(double vig_, std::optional<int> clip_indx_,
@@ -304,6 +384,7 @@ public:
         : wvl(wvl_), grid(std::move(grid_)) {}
 };
 
+/** Three rays used by a contrast-optimization pupil sample. */
 /** Java's `record ContrastRayTriplet(...)`. */
 class ContrastRayTriplet {
 public:
@@ -379,9 +460,18 @@ using ContrastTraceCallback = std::function<T(
 class TraceFanPoints {
 public:
     double wvl;
+    /**
+     * X values - with vignetting applied
+     */
     std::vector<double> fan_x;
+    /**
+     * Aberration result
+     */
     /** Nullable: a traced ray whose callback returned null contributes a null. */
     std::vector<std::optional<double>> fan_y;
+    /**
+     * The actual rays
+     */
     std::vector<GridItem> fan;
 
     TraceFanPoints(double wvl_, std::vector<double> fan_x_,
@@ -397,6 +487,9 @@ public:
     std::optional<RayFanType> type;
     std::shared_ptr<const specs::FieldSnapshot> fld;
     int fi;
+    /**
+     * xy determines whether x (=0) or y (=1) fan
+     */
     int xy;
     std::vector<TraceFanPoints> fans;
     double max_rho_val;

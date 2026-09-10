@@ -22,6 +22,15 @@ using mathlib::Vector3;
 
 const double ExitPupilAiming::ENTRANCE_STEP = 1.0e-4;
 
+/**
+ * Physical separation on the finite reference sphere corresponding to an
+ * image-space spatial frequency.
+ *
+ * Two image-space ray directions form fringes of frequency nu when
+ * n*|delta d| = lambda*nu. On a reference sphere of radius R,
+ * the corresponding pupil-coordinate separation is R*lambda*nu/n.
+ * This avoids converting through the paraxial exit-pupil radius and f-number.
+ */
 double ExitPupilAiming::referenceSphereShift(optical::OpticalModel *opticalModel,
                                              specs::Field &field, double wavelength,
                                              double spatialFrequency) {
@@ -157,6 +166,9 @@ std::optional<Vector3> ExitPupilAiming::sphere_coord(
         return std::nullopt;
     if (M::is_kinda_big(referenceSphere->ref_sphere_radius))
         return std::nullopt;
+    // The checks below are just sanity checks, as they are inadequate.
+    // We assume that chief ray must have reached the image plane or else
+    // we could not have got here.
     auto &chiefRay = chiefRayPkg->chief_ray->ray;
     if (chiefRay.size() < 2)
         return std::nullopt;

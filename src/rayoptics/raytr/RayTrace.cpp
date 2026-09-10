@@ -46,6 +46,32 @@ double RayTrace::eic_distance_from_axis(const Vector3 &p, const Vector3 &d, ZDir
     return e;
 }
 
+/**
+ * fundamental raytrace function
+ *
+ *     Args:
+ *         seq_model: the sequential model to be traced
+ *         pt0: starting point in coords of first interface
+ *         dir0: starting direction cosines in coords of first interface
+ *         wvl: wavelength in nm
+ *         eps: accuracy tolerance for surface intersection calculation
+ *
+ *     Returns:
+ *         (**ray**, **op_delta**, **wvl**)
+ *
+ *         - **ray** is a list for each interface in **path_pkg** of these
+ *           elements: [pt, after_dir, after_dst, normal]
+ *
+ *             - pt: the intersection point of the ray
+ *             - after_dir: the ray direction cosine following the interface
+ *             - after_dst: after_dst: the geometric distance to the next
+ *               interface
+ *             - normal: the surface normal at the intersection point
+ *
+ *         - **op_delta** - optical path wrt equally inclined chords to the
+ *           optical axis
+ *         - **wvl** - wavelength (in nm) that the ray was traced in
+ */
 std::shared_ptr<const RayPkg> RayTrace::trace(seq::SequentialModel *seq_model,
                                               const Vector3 &pt0, const Vector3 &dir0,
                                               double wvl, RayTraceOptions &options) {
@@ -96,6 +122,27 @@ bool in_surface_range(int first_surf, std::optional<int> last_surf, int s) {
 
 } // namespace
 
+/**
+ * Fundamental raytrace function
+ *
+ * @param path    a list containing interfaces and gaps to be traced.
+ *                each component contains: Intfc, Gap, Trfm, Index, Z_Dir
+ * @param pt0     starting point in coords of first interface
+ * @param dir0    starting direction cosines in coords of first interface
+ * @param wvl     wavelength in nm
+ * @param options Options
+ * @return RayPkg containing
+ * - **ray** is a list for each interface in **path** of these
+ * elements: [pt, after_dir, after_dst, normal]
+ *
+ * - pt: the intersection point of the ray
+ * - after_dir: the ray direction cosine following the interface
+ * - after_dst: the geometric distance to the next interface
+ * - normal: the surface normal at the intersection point
+ *
+ * - **op_delta** - optical path wrt equally inclined chords to the optical axis
+ * - **wvl** - wavelength (in nm) that the ray was traced in
+ */
 std::shared_ptr<const RayPkg> RayTrace::trace_raw(const std::vector<PathSeg> &path,
                                                   const Vector3 &pt0,
                                                   const Vector3 &dir0, double wvl,
@@ -185,6 +232,18 @@ std::shared_ptr<const RayPkg> RayTrace::trace_raw(const std::vector<PathSeg> &pa
                 if (!ifc->point_inside(inc_pt.x, inc_pt.y, options.pt_inside_fuzz))
                     throw TraceRayBlockedException(inc_pt);
             }
+            /*
+            # if present, use the phase element to calculate after_dir
+            if hasattr(ifc, 'phase_element'):
+                ifc_cntxt = (z_dir_before, wvl,
+                             before[mc.Indx], after[mc.Indx],
+                             interact_mode)
+                after_dir, phs = phase(ifc, inc_pt, b4_dir, normal, ifc_cntxt)
+                op_delta += phs
+            else:
+             */
+
+            // refract or reflect ray at interface
             // TODO phase element: if present, use it to calculate after_dir
             // refract or reflect ray at interface
             if (interact_mode == InteractMode::REFLECT)
