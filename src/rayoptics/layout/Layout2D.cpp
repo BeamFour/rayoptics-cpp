@@ -73,6 +73,10 @@ std::string Layout2D::renderSvg(optical::OpticalModel *model, double width, doub
     return out;
 }
 
+/**
+ * Builds all requested geometry, fits the viewport around it, and submits
+ * the resulting paths to the supplied renderer.
+ */
 void Layout2D::render(render::RendererViewport &renderer, optical::OpticalModel *model,
                       const LayoutOptions *options_in) {
     LayoutOptions defaults;
@@ -83,6 +87,8 @@ void Layout2D::render(render::RendererViewport &renderer, optical::OpticalModel 
         throw IllegalArgumentException("margin must be >= 0");
     if (options.useTraceFan && options.fanRayCount == 1)
         throw IllegalArgumentException("Trace.trace_fan requires fanRayCount >= 2");
+    // Rays can extend beyond the physical elements, so build every requested
+    // path before calculating the viewport.
     ElementModel elementModel(model);
     std::vector<Polyline> geometry;
     if (options.drawElements)
@@ -111,6 +117,7 @@ void Layout2D::render(render::RendererViewport &renderer, optical::OpticalModel 
 // Elements
 // ---------------------------------------------------------------------------
 
+/** Dispatches inferred physical elements to their geometry builders. */
 void Layout2D::addElements(std::vector<Polyline> &out, optical::OpticalModel *model,
                            ElementModel &elementModel, int samples) {
     seq::SequentialModel *sm = model->seq_model.get();
@@ -149,6 +156,7 @@ void Layout2D::addElements(std::vector<Polyline> &out, optical::OpticalModel *mo
     }
 }
 
+/** Calculates the same per-gap curvature choices used by addLens. */
 Layout2D::LensDrawing Layout2D::lensDrawing(const LensElement &lens) {
     double od1 = semiDiameter(*lens.surface1);
     double od2 = semiDiameter(*lens.surface2);
@@ -160,6 +168,8 @@ Layout2D::LensDrawing Layout2D::lensDrawing(const LensElement &lens) {
     double drawRadius2;
     bool flat1 = false;
     bool flat2 = false;
+    // These cases reproduce Geopter's choice of where a curved optical
+    // profile ends and a vertical mechanical flat must begin.
     if (cv1 > 0.0 && cv2 < 0.0) {
         drawRadius1 = mechanicalRadius;
         drawRadius2 = mechanicalRadius;
@@ -254,6 +264,10 @@ void Layout2D::addCementedElement(std::vector<Polyline> &out, seq::SequentialMod
     }
 }
 
+/**
+ * Samples a surface sag in its local meridional plane and transforms the
+ * samples into global layout coordinates.
+ */
 void Layout2D::addSurface(std::vector<Polyline> &out, seq::SequentialModel *sm, int index,
                           const Surface &surface, double radius, int samples) {
     std::vector<Vector2> points;
@@ -272,6 +286,7 @@ void Layout2D::addSurface(std::vector<Polyline> &out, seq::SequentialModel *sm, 
     flush(out, points, ELEMENT_COLOR);
 }
 
+/** Adds both flats between a clear optical profile and its mechanical radius. */
 void Layout2D::addFlats(std::vector<Polyline> &out, seq::SequentialModel *sm,
                         int surfaceIndex, const Surface &surface, double profileRadius,
                         double mechanicalRadius) {
@@ -281,6 +296,7 @@ void Layout2D::addFlats(std::vector<Polyline> &out, seq::SequentialModel *sm,
     addFlat(out, sm, surfaceIndex, surface, -profileRadius, -mechanicalRadius);
 }
 
+/** Adds one radial flat, anchored at the sag of the optical profile edge. */
 void Layout2D::addFlat(std::vector<Polyline> &out, seq::SequentialModel *sm,
                        int surfaceIndex, const Surface &surface, double fromY,
                        double toY) {
@@ -291,9 +307,11 @@ void Layout2D::addFlat(std::vector<Polyline> &out, seq::SequentialModel *sm,
                                 toLayout(tfm, Vector3(0.0, toY, sag))},
                                ELEMENT_COLOR));
     } catch (const RuntimeException &) {
+        // No flat can be anchored when the profile is invalid at its edge.
     }
 }
 
+/** Adds the upper and lower mechanical rims joining the lens surfaces. */
 void Layout2D::addCommonEdges(std::vector<Polyline> &out, seq::SequentialModel *sm,
                               const LensElement &lensElement, double profileRadius1,
                               double profileRadius2, double mechanicalRadius) {
@@ -302,6 +320,10 @@ void Layout2D::addCommonEdges(std::vector<Polyline> &out, seq::SequentialModel *
                   -mechanicalRadius);
 }
 
+/**
+ * Joins one side of a lens at a common mechanical height, retaining each
+ * surface's sag where its curved profile or flat terminates.
+ */
 void Layout2D::addCommonEdge(std::vector<Polyline> &out, seq::SequentialModel *sm,
                              const LensElement &lensElement, double profileY1,
                              double profileY2, double edgeY) {
@@ -316,21 +338,25 @@ void Layout2D::addCommonEdge(std::vector<Polyline> &out, seq::SequentialModel *s
             Vector3(0.0, edgeY, sag2));
         out.push_back(Polyline({p1, p2}, ELEMENT_COLOR));
     } catch (const RuntimeException &) {
+        // A mechanical aperture outside the valid profile has no drawable rim point.
     }
 }
 
+/** Adds the explicitly designated aperture stop using a heavier stroke. */
 void Layout2D::addStop(std::vector<Polyline> &out, seq::SequentialModel *sm,
                        const Stop &stop) {
     addApertureMarker(out, sm->gbl_tfrms[static_cast<std::size_t>(stop.surfaceIndex)],
                       maxAperture(*stop.referenceSurface), STOP_STROKE_WIDTH);
 }
 
+/** Adds a field or mechanical aperture using the normal element stroke. */
 void Layout2D::addAperture(std::vector<Polyline> &out, seq::SequentialModel *sm,
                            const Aperture &aperture) {
     addApertureMarker(out, sm->gbl_tfrms[static_cast<std::size_t>(aperture.surfaceIndex)],
                       maxAperture(*aperture.referenceSurface), 1.0);
 }
 
+/** Draws the two short bars outside an aperture's open clear diameter. */
 void Layout2D::addApertureMarker(std::vector<Polyline> &out, const math::Tfm3d &tfm,
                                  double radius, double strokeWidth) {
     double outer = radius * 1.2;
@@ -342,6 +368,7 @@ void Layout2D::addApertureMarker(std::vector<Polyline> &out, const math::Tfm3d &
                            STOP_COLOR, strokeWidth));
 }
 
+/** Draws the image interface, spanning at least the paraxial image height. */
 void Layout2D::addImagePlane(std::vector<Polyline> &out, optical::OpticalModel *model,
                              const DummyInterface &image) {
     double radius = maxAperture(*image.surface);
@@ -362,6 +389,10 @@ void Layout2D::addImagePlane(std::vector<Polyline> &out, optical::OpticalModel *
 // Rays
 // ---------------------------------------------------------------------------
 
+/**
+ * Traces chief/marginal reference rays and optional pupil fans for every
+ * configured field, assigning one display color per field.
+ */
 void Layout2D::addRays(std::vector<Polyline> &out, optical::OpticalModel *model,
                        const LayoutOptions &options) {
     auto &fields = model->optical_spec->fov->fields;
@@ -370,6 +401,8 @@ void Layout2D::addRays(std::vector<Polyline> &out, optical::OpticalModel *model,
         specs::Field &field = *fields[fi];
         const Rgb &color = FIELD_COLORS[fi % FIELD_COLOR_COUNT];
         if (options.drawReferenceRays) {
+            // Pupil centre is the chief ray; named +/-Y rays are the
+            // upper and lower meridional pupil boundaries.
             raytr::TraceOptions to = traceOptions(options);
             raytr::RayResult chief =
                 raytr::Trace::trace_ray(model, Vector2(0, 0), field, wavelength, to);
@@ -390,6 +423,7 @@ void Layout2D::addRays(std::vector<Polyline> &out, optical::OpticalModel *model,
     }
 }
 
+/** Traces each normalized pupil coordinate independently, retaining partial failed rays. */
 void Layout2D::addDirectFan(std::vector<Polyline> &out, optical::OpticalModel *model,
                             specs::Field &field, double wavelength, const Rgb &color,
                             const LayoutOptions &options) {
@@ -403,6 +437,10 @@ void Layout2D::addDirectFan(std::vector<Polyline> &out, optical::OpticalModel *m
     }
 }
 
+/**
+ * Uses Trace.trace_fan unchanged. Its current error filter omits rays which
+ * terminate before reaching the image plane.
+ */
 void Layout2D::addTraceFan(std::vector<Polyline> &out, optical::OpticalModel *model,
                            specs::Field &field, double wavelength, const Rgb &color,
                            const LayoutOptions &options) {
@@ -415,6 +453,7 @@ void Layout2D::addTraceFan(std::vector<Polyline> &out, optical::OpticalModel *mo
         addRay(out, model->seq_model.get(), item.ray_pkg, color);
 }
 
+/** Maps layout ray settings onto the tracing subsystem's options. */
 raytr::TraceOptions Layout2D::traceOptions(const LayoutOptions &options) {
     raytr::TraceOptions result;
     result.check_apertures = options.clipRays;
@@ -422,12 +461,14 @@ raytr::TraceOptions Layout2D::traceOptions(const LayoutOptions &options) {
     return result;
 }
 
+/** Converts local traced-ray intersections into one global layout path. */
 void Layout2D::addRay(std::vector<Polyline> &out, seq::SequentialModel *sm,
                       const std::shared_ptr<const raytr::RayPkg> &ray, const Rgb &color) {
     if (ray == nullptr || ray->ray.size() < 2)
         return;
     std::size_t count = std::min(ray->ray.size(), sm->gbl_tfrms.size());
     std::vector<Vector2> points;
+    // Omit the object-to-first-surface segment; infinite conjugates otherwise dominate the view.
     for (std::size_t i = 1; i < count; i++)
         points.push_back(toLayout(sm->gbl_tfrms[i], ray->ray[i].p));
     flush(out, points, color);
@@ -437,10 +478,12 @@ void Layout2D::addRay(std::vector<Polyline> &out, seq::SequentialModel *sm,
 // Geometry helpers
 // ---------------------------------------------------------------------------
 
+/** Beam43 max_aperture corresponds to Geopter's traced SemiDiameter. */
 double Layout2D::semiDiameter(const seq::Interface &surface) {
     return std::fmax(std::abs(surface.max_aperture), 1.0e-9);
 }
 
+/** Geopter MaxAperture is the larger of semi-diameter and explicit aperture extent. */
 double Layout2D::maxAperture(const seq::Interface &surface) {
     double radius = semiDiameter(surface);
     try {
@@ -452,21 +495,28 @@ double Layout2D::maxAperture(const seq::Interface &surface) {
     return radius;
 }
 
+/** Returns the radial extent used to draw or bound a standalone surface. */
 double Layout2D::surfaceRadius(const seq::Interface &surface) {
     return maxAperture(surface);
 }
 
+/**
+ * Transforms a local point to global coordinates, then projects it onto
+ * the layout's z-horizontal/y-vertical meridional plane.
+ */
 Vector2 Layout2D::toLayout(const math::Tfm3d &tfm, const Vector3 &local) {
     Vector3 global = tfm.rt->multiply(local).add(tfm.t);
     return Vector2(global.z, global.y);
 }
 
+/** Stores a sampled path when it contains at least one drawable segment. */
 void Layout2D::flush(std::vector<Polyline> &out, const std::vector<Vector2> &points,
                      const Rgb &color) {
     if (points.size() >= 2)
         out.push_back(Polyline(points, color));
 }
 
+/** Calculates an axis-aligned box around all generated paths. */
 Layout2D::Bounds Layout2D::bounds(const std::vector<Polyline> &lines) {
     Bounds b;
     for (const Polyline &line : lines)
@@ -475,6 +525,7 @@ Layout2D::Bounds Layout2D::bounds(const std::vector<Polyline> &lines) {
     return b;
 }
 
+/** Supplies physical-model bounds when no requested geometry was generated. */
 Layout2D::Bounds Layout2D::modelBounds(optical::OpticalModel *model) {
     Bounds b;
     seq::SequentialModel *sm = model->seq_model.get();

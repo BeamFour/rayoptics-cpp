@@ -8,6 +8,18 @@
 
 namespace redukti::rayoptics::util {
 
+/**
+ * The two meridians a directional result can be expressed in.
+ *
+ * Analyses, fans, MTF curves and optimization goals all encode the choice as the same
+ * 0/1 index - usually spelled xy in this codebase. They share one
+ * definition here rather than each declaring its own or spelling the literal.
+ *
+ * Fields lie on the y axis, which puts the sagittal meridian on x and the tangential
+ * meridian on y. #X and #Y are aliases for code that speaks in ray
+ * coordinates rather than in MTF orientations; they are the same two values, named for
+ * the reader.
+ */
 /** Java's final class with a private constructor becomes a namespace. */
 namespace Orientation {
 

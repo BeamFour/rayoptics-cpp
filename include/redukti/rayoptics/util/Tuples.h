@@ -8,6 +8,9 @@
 
 namespace redukti::rayoptics::util {
 
+/**
+ * Tuple with 2 elements
+ */
 template <typename T1, typename T2> struct Pair {
     T1 first;
     T2 second;
@@ -20,6 +23,9 @@ template <typename T1, typename T2> struct Pair {
     }
 };
 
+/**
+ * Tuple with 3 elements
+ */
 template <typename T1, typename T2, typename T3> struct Triple {
     T1 first;
     T2 second;
@@ -30,6 +36,9 @@ template <typename T1, typename T2, typename T3> struct Triple {
         : first(first_), second(second_), third(third_) {}
 };
 
+/**
+ * Tuple with 4 elements
+ */
 template <typename T1, typename T2, typename T3, typename T4> struct Quad {
     T1 first;
     T2 second;
@@ -41,6 +50,9 @@ template <typename T1, typename T2, typename T3, typename T4> struct Quad {
         : first(first_), second(second_), third(third_), fourth(fourth_) {}
 };
 
+/**
+ * Tuple with 5 elements
+ */
 template <typename T1, typename T2, typename T3, typename T4, typename T5> struct Quint {
     T1 first;
     T2 second;

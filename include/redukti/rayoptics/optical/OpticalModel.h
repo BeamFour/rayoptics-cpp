@@ -23,6 +23,26 @@ class ParaxModel;
 namespace redukti::rayoptics::optical {
 
 /**
+ * Top level container for optical model.
+ *
+ *     The OpticalModel serves as a top level container of model properties.
+ *     Key aspects are built-in element and surface based repesentations of the
+ *     optical surfaces.
+ *     A sequential optical model is a sequence of surfaces and gaps.
+ *     Additionally, it includes optical usage information to specify the
+ *     aperture, field of view, spectrum and focus.
+ *
+ *     Attributes:
+ *         ro_version: current version of rayoptics
+ *         radius_mode: if True output radius, else output curvature
+ *         NYI specsheet: :class:`~rayoptics.parax.specsheet.SpecSheet`
+ *         system_spec: :class:`.SystemSpec`
+ *         seq_model: :class:`~rayoptics.seq.sequential.SequentialModel`
+ *         optical_spec: :class:`~rayoptics.raytr.opticalspec.OpticalSpecs`
+ *         NYI parax_model: :class:`~rayoptics.parax.paraxialdesign.ParaxialModel`
+ *         NYI ele_model: :class:`~rayoptics.elem.elements.ElementModel`
+ */
+/**
  * Top level container for the optical model.
  *
  * The OpticalModel owns its four submodels, and each of them holds an

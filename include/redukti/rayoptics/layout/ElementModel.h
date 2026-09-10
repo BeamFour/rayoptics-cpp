@@ -75,6 +75,7 @@ public:
     ElementType type() const override { return ElementType::AIR_GAP; }
 };
 
+/** A zero-thickness, non-stop aperture interface in air. */
 class Aperture : public Element {
 public:
     int surfaceIndex;
@@ -111,6 +112,7 @@ public:
     ElementType type() const override { return ElementType::STOP; }
 };
 
+/** A material-filled gap bounded by two sequential surfaces. */
 class LensElement : public Element {
 public:
     int firstSurfaceIndex;
@@ -131,6 +133,7 @@ public:
     ElementType type() const override { return ElementType::LENS; }
 };
 
+/** Two or more consecutive material-filled gaps sharing their boundary surfaces. */
 class CementedElement : public Element {
 public:
     std::vector<int> surfaceIndices;
@@ -145,12 +148,14 @@ public:
     ElementType type() const override { return ElementType::CEMENTED_LENS; }
 };
 
+/** Options for a static meridional optical-system layout. */
 class LayoutOptions {
 public:
     bool drawOpticalAxis = true;
     bool drawElements = true;
     bool drawReferenceRays = true;
     int fanRayCount = 0;
+    /** Use Trace.trace_fan rather than tracing each fan pupil coordinate directly. */
     bool useTraceFan = false;
     bool clipRays = false;
     int surfaceSamples = 101;
@@ -174,6 +179,7 @@ public:
     }
 };
 
+/** Static physical-element view of a sequential optical model. */
 class ElementModel {
 public:
     explicit ElementModel(optical::OpticalModel *opticalModel);

@@ -19,9 +19,11 @@
 
 namespace redukti::rayoptics::layout {
 
+/** Draws a static y-z (meridional) view of a rayoptics model. */
 /** Draws a 2D cross-section of the optical system. */
 class Layout2D {
 public:
+    /** Renders a complete layout into a standalone SVG document. */
     std::string renderSvg(optical::OpticalModel *model, double width, double height,
                           const LayoutOptions *options);
 
@@ -29,6 +31,7 @@ public:
                 const LayoutOptions *options);
 
 private:
+    /** A renderer-independent path, retained until the viewport bounds are known. */
     class Polyline {
     public:
         std::vector<mathlib::Vector2> points;
@@ -55,20 +58,29 @@ private:
         double mechanicalRadius;
     };
 
+    /** Mutable bounds accumulator used while fitting the renderer viewport. */
     class Bounds {
     public:
         double minX, minY, maxX, maxY;
 
         Bounds();
+        /** Expands this box to contain a finite point. */
         void add(const mathlib::Vector2 &p);
+        /** Reports whether at least one finite point has been accumulated. */
         bool valid() const { return minX <= maxX && minY <= maxY; }
+        /** Adds a scale-relative margin, with a minimum for degenerate models. */
         void pad(double margin);
     };
 
     void addElements(std::vector<Polyline> &out, optical::OpticalModel *model,
                      ElementModel &elementModel, int samples);
+    /** Implements Geopter's curvature-dependent DrawLens/DrawFlat construction. */
     void addLens(std::vector<Polyline> &out, seq::SequentialModel *sm,
                  const LensElement &lensElement, int samples);
+    /**
+     * Draws a cemented assembly while emitting every shared optical profile
+     * once. Each material gap still receives its own upper and lower rim.
+     */
     void addCementedElement(std::vector<Polyline> &out, seq::SequentialModel *sm,
                             const CementedElement &element, int samples);
     void addSurface(std::vector<Polyline> &out, seq::SequentialModel *sm, int index,
@@ -104,6 +116,7 @@ private:
                 const std::shared_ptr<const raytr::RayPkg> &ray, const render::Rgb &color);
 
     static LensDrawing lensDrawing(const LensElement &lens);
+    /** Combines the drawing requests made for a surface shared by two glass gaps. */
     static void mergeSurfaceDrawing(std::map<int, SurfaceDrawing> &drawings, int index,
                                     const std::shared_ptr<elem::surface::Surface> &surface,
                                     double profileRadius, bool flat,

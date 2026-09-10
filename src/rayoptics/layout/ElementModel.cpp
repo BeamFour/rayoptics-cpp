@@ -51,6 +51,8 @@ void ElementModel::updateModel() {
             next.push_back(std::make_shared<Aperture>(i, ifc));
         }
     }
+    // A run of adjacent glass gaps is one cemented assembly. Keeping it
+    // together records that each internal interface is physically shared.
     for (int i = 0; i < static_cast<int>(sm->gaps.size());) {
         if (isAir(sm->gaps[static_cast<std::size_t>(i)], wvl)) {
             i++;
