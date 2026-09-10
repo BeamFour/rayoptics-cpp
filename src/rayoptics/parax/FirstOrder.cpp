@@ -41,15 +41,20 @@ std::shared_ptr<ParaxData> FirstOrder::compute_first_order(
     double dk1 = n_k * get(q_ray, img).slp;
     Matrix2 Mk1(ak1, bk1, ck1, dk1);
     Matrix2 M1k(dk1, -bk1, -ck1, ak1);
+    // The code below computes the object yu and yu_bar values
     std::optional<int> orig_stop = stop;
     double ybar1 = 0;
     double ubar1 = 0;
     double enp_dist = 0;
     if (!stop.has_value()) {
+        // check for previously computed paraxial data and
+        // use that to float the stop
         if (osp->parax_data != nullptr) {
+            //floating stop surface - use parax_model for starting data
             auto &pr = osp->parax_data->pr_ray;
             enp_dist = -pr[1].ht / (n_0 * pr[0].slp);
         } else {
+            // nothing pre-computed, assume 1st surface
             enp_dist = 0;
             if (M::isZero(sm->gaps[0]->thi)) {
                 for (std::size_t i = 0; i < sm->gaps.size(); i++) {
@@ -71,6 +76,7 @@ std::shared_ptr<ParaxData> FirstOrder::compute_first_order(
         double as1 = get(p_ray, *stop).ht;
         double bs1 = get(q_ray, *stop).ht;
         (void)n_s;
+        // find entrance pupil location w.r.t. first surface
         ybar1 = -bs1;
         ubar1 = as1;
         n_0 = sm->gaps[0]->medium->rindex(wvl);
@@ -82,6 +88,7 @@ std::shared_ptr<ParaxData> FirstOrder::compute_first_order(
         ubar1 = as1;
     }
     double thi0 = sm->gaps[0]->thi;
+    // calculate reduction ratio for given object distance
     double red = dk1 + thi0 * ck1;
     double obj2enp_dist = thi0 + enp_dist;
     auto pupil = osp->pupil.get();
@@ -166,13 +173,16 @@ std::shared_ptr<ParaxData> FirstOrder::compute_first_order(
     ParaxComponent yu_bar(ybar0, slpbar0, 0.0);
     stop = orig_stop;
     auto idx = 0;
+    // We have the starting coordinates, now trace the rays
     auto rays = paraxial_trace(sm->path(wvl, std::nullopt, std::nullopt, 1), idx, yu,
                                yu_bar);
     std::vector<ParaxComponent> ax_ray = rays.first;
     std::vector<ParaxComponent> pr_ray = rays.second;
+    // Calculate the optical invariant
     double opt_inv =
         n_0 * (get(ax_ray, 1).ht * get(pr_ray, 0).slp -
                get(pr_ray, 1).ht * get(ax_ray, 0).slp);
+    //Fill in the contents of the FirstOrderData struct
     FirstOrderData fod;
     fod.opt_inv = opt_inv;
     double obj_dist = fod.obj_dist = sm->gaps[0]->thi;
@@ -228,6 +238,7 @@ std::shared_ptr<ParaxData> FirstOrder::compute_first_order(
         fod.exp_dist = -1e10;
         fod.exp_radius = 1e10;
     }
+    // compute object and image space numerical apertures
     fod.obj_na = n_0 * util::value(get(sm->z_dir, 0)) * get(ax_ray, 0).slp;
     fod.img_na = n_k * util::value(get(sm->z_dir, -1)) * get(ax_ray, -1).slp;
     return std::make_shared<ParaxData>(ax_ray, pr_ray, fod);
@@ -262,6 +273,7 @@ PrincipalPointsInfo FirstOrder::compute_principle_points(
         img = p_ray.size() > 2 ? -2 : -1;
     else
         img = *is_idx;
+    // -1 is Pythonic way to get last element
     double ak1 = get(p_ray, img).ht;
     double bk1 = get(q_ray, img).ht;
     double ck1 = n_k * get(p_ray, img).slp;
@@ -303,6 +315,7 @@ FirstOrder::paraxial_trace(const std::vector<seq::PathSeg> &path, int start,
     ParaxComponent b4_yui = start_yu;
     ParaxComponent b4_yui_bar = start_yu_bar;
     if (start == 1) {
+        // compute object coords from 1st surface data
         double t0 = b4_gap->thi;
         double obj_ht;
         double obj_htb;
@@ -317,12 +330,14 @@ FirstOrder::paraxial_trace(const std::vector<seq::PathSeg> &path, int start,
         b4_yui_bar = ParaxComponent(obj_htb, start_yu_bar.slp, 0);
     }
     double cv = b4_ifc->profile_cv();
+    // calculate angle of incidence (aoi)
     double aoi = b4_yui.slp + b4_yui.ht * cv;
     double aoi_bar = b4_yui_bar.slp + b4_yui_bar.ht * cv;
     b4_yui = ParaxComponent(b4_yui.ht, b4_yui.slp, aoi);
     b4_yui_bar = ParaxComponent(b4_yui_bar.ht, b4_yui_bar.slp, aoi_bar);
     p_ray.push_back(b4_yui);
     p_ray_bar.push_back(b4_yui_bar);
+    // loop over remaining surfaces in path
     while (it < path.size()) {
         const seq::PathSeg &after = path[it++];
         auto ifc = after.ifc;
@@ -335,6 +350,7 @@ FirstOrder::paraxial_trace(const std::vector<seq::PathSeg> &path, int start,
         double cur_htb = b4_yui_bar.ht + t * b4_yui_bar.slp;
         double cur_slp;
         double cur_slpb;
+        // Refraction/Reflection
         if (ifc->interact_mode == seq::InteractMode::DUMMY ||
             ifc->interact_mode == seq::InteractMode::PHANTOM) {
             cur_slp = b4_yui.slp;
@@ -342,12 +358,14 @@ FirstOrder::paraxial_trace(const std::vector<seq::PathSeg> &path, int start,
         } else {
             double n_after = util::value(z_dir_after) > 0 ? rndx : -rndx;
             double k = n_before / n_after;
+            // calculate slope after refraction/reflection
             double pwr = ifc->optical_power();
             cur_slp = k * b4_yui.slp - cur_ht * pwr / n_after;
             cur_slpb = k * b4_yui_bar.slp - cur_htb * pwr / n_after;
             n_before = n_after;
             z_dir_before = z_dir_after;
         }
+        // calculate angle of incidence (aoi)
         cv = ifc->profile_cv();
         aoi = cur_slp + cur_ht * cv;
         aoi_bar = cur_slpb + cur_htb * cv;

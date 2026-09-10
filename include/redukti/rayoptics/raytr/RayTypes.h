@@ -459,6 +459,9 @@ using ContrastTraceCallback = std::function<T(
 /** Java's `class TraceFanPoints`. */
 class TraceFanPoints {
 public:
+    /**
+     * Wavelength
+     */
     double wvl;
     /**
      * X values - with vignetting applied

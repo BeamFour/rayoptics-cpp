@@ -18,6 +18,7 @@ void row(std::string &sb, const char *label, double v) {
 } // namespace
 
 void FirstOrderData::toString(std::string &sb) const {
+    // list the first order properties
     row(sb, "efl        ", efl);
     row(sb, "f          ", fl_obj);
     row(sb, "f'         ", fl_img);

@@ -60,6 +60,9 @@ public:
 class ThirdOrder {
 public:
     /**
+     * Compute Seidel aberration coefficents.
+     */
+    /**
      * Seidel surface contributions, keyed by surface index.
      *
      * A std::map, not unordered: the Java uses a TreeMap and callers iterate it
@@ -75,13 +78,22 @@ public:
                                              double n_before, double n_after,
                                              ThirdOrderData &third_order);
 
+    /**
+     * Convert Seidel coefficients to wavefront aberrations
+     */
     static Seidel_WaveFront seidel_to_wavefront(const ThirdOrderData &seidel,
                                                 double central_wvl);
 
+    /**
+     * Convert Seidel coefficients to transverse ray aberrations
+     */
     static Seidel_Transverse seidel_to_transverse_aberration(const ThirdOrderData &seidel,
                                                              double ref_index,
                                                              double slope);
 
+    /**
+     * Convert Seidel coefficients to astigmatic and Petzval curvatures
+     */
     static Seidel_FieldCurv seidel_to_field_curv(const ThirdOrderData &seidel,
                                                  double ref_index, double opt_inv);
 };

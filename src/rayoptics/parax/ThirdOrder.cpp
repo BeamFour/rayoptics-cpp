@@ -113,11 +113,17 @@ Seidel_WaveFront ThirdOrder::seidel_to_wavefront(const ThirdOrderData &seidel,
 Seidel_Transverse ThirdOrder::seidel_to_transverse_aberration(
     const ThirdOrderData &seidel, double ref_index, double slope) {
     double cnvrt = 1.0 / (2.0 * ref_index * slope);
+    // TSA = transverse spherical aberration
     auto TSA = cnvrt * seidel.SI;
+    // TCO = tangential coma
     auto TCO = cnvrt * 3.0 * seidel.SII;
+    // TAS = tangential astigmatism
     auto TAS = cnvrt * (3.0 * seidel.SIII + seidel.SIV);
+    // SAS = sagittal astigmatism
     auto SAS = cnvrt * (seidel.SIII + seidel.SIV);
+    // PTB = Petzval blur
     auto PTB = cnvrt * seidel.SIV;
+    // DST = distortion
     auto DST = cnvrt * seidel.SV;
     return Seidel_Transverse(TSA, TCO, TAS, SAS, PTB, DST);
 }
@@ -125,8 +131,11 @@ Seidel_Transverse ThirdOrder::seidel_to_transverse_aberration(
 Seidel_FieldCurv ThirdOrder::seidel_to_field_curv(const ThirdOrderData &seidel,
                                                   double ref_index, double opt_inv) {
     double cnvrt = ref_index / (opt_inv * opt_inv);
+    // TCV = curvature of the tangential image surface
     auto TCV = cnvrt * (3.0 * seidel.SIII + seidel.SIV);
+    // SCV = curvature of the sagittal image surface
     auto SCV = cnvrt * (seidel.SIII + seidel.SIV);
+    // PCV = curvature of the Petzval surface
     auto PCV = cnvrt * seidel.SIV;
     return Seidel_FieldCurv(TCV, SCV, PCV);
 }

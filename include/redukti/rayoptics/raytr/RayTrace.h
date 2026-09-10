@@ -24,6 +24,9 @@ namespace redukti::rayoptics::raytr {
 class TraceOptions {
 public:
     std::optional<double> pt_inside_fuzz;
+    /**
+     * if True, do point_inside() test on inc_pt
+     */
     bool check_apertures = false;
     /**
      * if True, apply the `fld` vignetting factors to **pupil**

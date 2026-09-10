@@ -46,9 +46,11 @@ void ParaxModel::update_model() {
         build_lens();
 }
 
+// rebuild the `sys` description from the seq_model path
 void ParaxModel::build_lens() {
     sys = seq_path_to_paraxial_lens(seq_model->path());
 
+    // precalculate the reduced forms of the paraxial axial and chief rays
     auto parax_data = opt_model->optical_spec->parax_data;
     if (parax_data != nullptr) {
         auto &ax_ray = parax_data->ax_ray;
@@ -67,6 +69,7 @@ void ParaxModel::build_lens() {
     }
 }
 
+// Calculate the vignetting factors using paraxial optics.
 util::Pair<util::Pair<double, std::optional<int>>,
            util::Pair<double, std::optional<int>>>
 ParaxModel::paraxial_vignetting(std::optional<double> rel_fov_) {
