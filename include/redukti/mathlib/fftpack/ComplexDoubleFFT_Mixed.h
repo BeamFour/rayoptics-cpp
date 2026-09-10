@@ -28,30 +28,65 @@ public:
     virtual ~ComplexDoubleFFT_Mixed() = default;
 
 protected:
+    /*----------------------------------------------------------------------
+       passf2: Complex FFT's forward/backward processing of factor 2;
+       isign is +1 for backward and -1 for forward transforms
+      ----------------------------------------------------------------------*/
     void passf2(int ido, int l1, std::vector<double> &cc, std::vector<double> &ch,
                 std::vector<double> &wtable, int offset, int isign);
+    /*----------------------------------------------------------------------
+       passf3: Complex FFT's forward/backward processing of factor 3;
+       isign is +1 for backward and -1 for forward transforms
+      ----------------------------------------------------------------------*/
     void passf3(int ido, int l1, std::vector<double> &cc, std::vector<double> &ch,
                 std::vector<double> &wtable, int offset, int isign);
+    /*----------------------------------------------------------------------
+       passf4: Complex FFT's forward/backward processing of factor 4;
+       isign is +1 for backward and -1 for forward transforms
+      ----------------------------------------------------------------------*/
     void passf4(int ido, int l1, std::vector<double> &cc, std::vector<double> &ch,
                 std::vector<double> &wtable, int offset, int isign);
+    /*----------------------------------------------------------------------
+       passf5: Complex FFT's forward/backward processing of factor 5;
+       isign is +1 for backward and -1 for forward transforms
+      ----------------------------------------------------------------------*/
     void passf5(int ido, int l1, std::vector<double> &cc, std::vector<double> &ch,
                 std::vector<double> &wtable, int offset, int isign);
+    /*----------------------------------------------------------------------
+       passfg: Complex FFT's forward/backward processing of general factor;
+       isign is +1 for backward and -1 for forward transforms
+      ----------------------------------------------------------------------*/
     void passfg(std::vector<int> &nac, int ido, int ip, int l1, int idl1,
                 std::vector<double> &cc, std::vector<double> &c1,
                 std::vector<double> &c2, std::vector<double> &ch,
                 std::vector<double> &ch2, std::vector<double> &wtable, int offset,
                 int isign);
 
+    /*---------------------------------------------------------
+       cfftf1: further processing of Complex forward FFT
+      --------------------------------------------------------*/
     void cfftf1(int n, std::vector<double> &c, std::vector<double> &wtable, int isign);
 
+    /*---------------------------------------------------------
+       cfftf: Complex forward FFT
+      --------------------------------------------------------*/
     /** Forward complex transform. */
     void cfftf(int n, std::vector<double> &c, std::vector<double> &wtable);
 
+    /*---------------------------------------------------------
+       cfftb: Complex borward FFT
+      --------------------------------------------------------*/
     /** Backward (unnormalized inverse) complex transform. */
     void cfftb(int n, std::vector<double> &c, std::vector<double> &wtable);
 
+    /*---------------------------------------------------------
+       cffti1: further initialization of Complex FFT
+      --------------------------------------------------------*/
     void cffti1(int n, std::vector<double> &wtable);
 
+    /*---------------------------------------------------------
+       cffti:  Initialization of Real forward FFT
+      --------------------------------------------------------*/
     /** Builds the wavenumber table for size n. */
     void cffti(int n, std::vector<double> &wtable);
 };

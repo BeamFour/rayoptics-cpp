@@ -220,6 +220,7 @@ void LensTool2::addSpotReportToREADME(
 
 void LensTool2::addMTFsToREADME(std::string &sb, const std::string &scenario_filesuffix,
                                 const std::vector<int> &mtf_freqs) {
+    // describe the frequencies actually plotted, not the default ones
     std::string freq_legend = GeoMTFByFieldPlot::freq_legend(mtf_freqs);
     sb += "## Polychromatic Geometric MTF\n";
     sb += "![Polychromatic Geometrical MTF](./mtf" + scenario_filesuffix + ".svg)\n";
@@ -427,6 +428,7 @@ std::unique_ptr<optical::OpticalModel> LensTool2::createLayoutSystem(
 
 void LensTool2::doLayoutDiagrams(const Prescription &prescription, const Args &arguments,
                                  int config, const std::string &filename_suffix) {
+    // First we use rayoptics to get ray starts
     // For very wide angle lenses, blindly spraying rays doesn't work very well,
     // so the layout system is aimed through the pupil.
     auto opm = createLayoutSystem(prescription, config, VigType::SetPupil, true);
@@ -528,6 +530,13 @@ void LensTool2::run(const Args &arguments, const std::string &generated_on) {
                                           arguments.outdir),
             fod.toString());
         doLayoutDiagrams(prescription, arguments, config, scenario_filesuffix);
+        //            StringBuilder buf = new StringBuilder();
+        //            for (int i = 0; i < fields.length; i++) {
+        //                Trace.list_ray(buf,osp.fov.fields[i].chief_ray.chief_ray,null,null);
+        //            }
+        //            System.out.println(buf.toString());
+        //            buf = new StringBuilder();
+                        //System.out.println(Trace.list_ray(buf,Trace.trace_ray(opm, Vector2.vector2_0,osp.fov.fields[4],sm.central_wavelength(),new TraceOptions()).pkg,null,null).toString());
         auto spotAnalysis = generateSpotDiagrams(opm.get(), arguments,
                                                  !arguments.auto_size_spots,
                                                  scenario_filesuffix);

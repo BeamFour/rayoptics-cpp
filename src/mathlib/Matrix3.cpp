@@ -23,6 +23,23 @@ Matrix3 Matrix3::get_rotation_matrix(int axis, double angleInRadians) {
      * matrices.
      *
      * This appears to correspond to xyz convention described in appendix A,
+     * Classical Mechanics, Goldstein, 3rd Ed. 'It appears that most U.S. and
+     * British aerodynamicists and pilots prefer the sequence in which the first
+     * rotation is the yaw angle (phi) about a z-axis, the second is the pitch
+     * angle (theta) about an intermediary y-axis, and the third is a bank or
+     * roll angle (psi) about the final x-axis.'
+     *
+     * Also see https://youtu.be/wg9bI8-Qx2Q
+     */
+    /*
+     * Note on convention used below.
+     *
+     * See https://mathworld.wolfram.com/RotationMatrix.html
+     * coordinate system rotations of the x-, y-, and z-axes in a
+     * counterclockwise direction when looking towards the origin give the
+     * matrices.
+     *
+     * This appears to correspond to xyz convention described in appendix A,
      * Classical Mechanics, Goldstein, 3rd Ed.
      */
     double n00, n01, n02, n10, n11, n12, n20, n21, n22;

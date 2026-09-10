@@ -26,7 +26,18 @@ public:
     bool only_d_line = false;
     bool do_ray_aberrations = false;
     bool do_mono_chrome_mtfs = false;
+    /**
+     * Spatial frequencies in cycles/mm at which the MTF is reported. The
+     * default is what every report under Examples/ uses, so that lenses stay
+     * comparable across reports; override it only when checking a design
+     * against a manufacturer's own choice of frequencies.
+     */
     std::vector<int> mtf_freqs = default_mtf_freqs();
+    /**
+     * Ray pattern used for spot diagrams, one of the
+     * SpotOptions.PATTERN_* constants. Defaults to hexapolar, which is
+     * also SpotOptions' own default.
+     */
     int spot_pattern = 1; // SpotOptions::PATTERN_HEXAPOLAR
     /** Number of samples along each dimension of a rectangular spot grid. */
     int spot_grid_size = 64;
@@ -61,24 +72,35 @@ public:
      */
     std::string optimize_goal = "contrast";
     bool force = false;
+    /**
+     * Vignetting calculation applied once the model is built. Defaults to the
+     * value every tool in this module already hard-codes, so wiring an existing
+     * tool up to this field is a no-op.
+     */
     spec::VigType vig_type = spec::VigType::SetPupil;
     /**
-     * Selects the chief ray aiming algorithm. true aims with a real ray trace at
-     * the entrance pupil (what the model calls a wide angle system), false uses
-     * paraxial aiming. Unset leaves it derived from the half angle of view.
+     * Selects the chief ray aiming algorithm. TRUE aims with a real ray trace
+     * at the entrance pupil (what the model calls a wide angle system), FALSE
+     * uses paraxial aiming. Null leaves it derived from the half angle of view.
      *
      * Real ray aiming is slower but is what makes very wide angle lenses trace
-     * correctly, so it is the default in LensTool2. The Java uses a Boolean
-     * here so "unset" differs from false.
+     * correctly, so it is the default in LensTool2.
      */
+    /** The Java uses a Boolean here so "unset" differs from false; std::optional plays that part. */
     std::optional<bool> real_ray_aiming;
+    /** Emit Java model building code rather than Python. */
     bool generate_java = false;
+    /** Emit the original plotting notebook script rather than a comparison model. */
     bool legacy_notebook = false;
+    /**
+     * Path to the upstream reference values produced by dump_reference.py. When
+     * set, the exporter emits a JUnit regression test instead of a model builder.
+     */
     std::optional<std::string> reference_file;
 
     static Args parseArguments(const std::vector<std::string> &args);
 
-    /** The Glass::IndexLine this maps to. */
+    /** The org.redukti.rayoptics.seq.Glass.IndexLine this maps to. */
     rayoptics::seq::Glass::IndexLine index_line_value() const;
 
     /** Accepts d or e, rejecting anything else rather than defaulting. */
@@ -90,10 +112,32 @@ public:
     /** The MTF frequencies used by every report under Examples/. */
     static std::vector<int> default_mtf_freqs() { return {10, 30, 50}; }
 
+    /**
+     * Parses a comma separated list of spatial frequencies in cycles/mm, e.g.
+     * "10,20,40". As with the other typed options a bad value is rejected
+     * rather than defaulted, since silently reporting the standard 10/30/50
+     * would look like a valid answer to a question that was never asked.
+     */
     static std::vector<int> parse_mtf_freqs(const std::optional<std::string> &value);
+    /**
+     * Accepts either the enum constant (SetPupil) or its kebab-case spelling
+     * (set-pupil), ignoring case and any - or _ separators.
+     *
+     * An unrecognized value is rejected rather than quietly falling back to the
+     * default: the vignetting type changes the model that gets built, so a typo
+     * would otherwise shift every number downstream with nothing to show for it.
+     */
     static spec::VigType parse_vig_type(const std::optional<std::string> &value);
+    /** The accepted --vig-type spellings, for usage and error messages. */
     static std::string vig_type_names();
+    /**
+     * Accepts hex, grid or gaussian, returning the matching
+     * SpotOptions.PATTERN_* constant. As with --vig-type an
+     * unrecognized value is rejected rather than defaulted, since the sampling
+     * pattern changes every spot number it produces.
+     */
     static int parse_spot_pattern(const std::optional<std::string> &value);
+    /** The accepted --use-spot-pattern spellings, for usage and error messages. */
     static std::string spot_pattern_names();
 
 private:

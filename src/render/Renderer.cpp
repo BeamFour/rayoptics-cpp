@@ -49,6 +49,10 @@ void Renderer::set_stroke_width(double width) {
     _stroke_width = width;
 }
 
+    //double _max_intensity; // max ray intensity updated on
+/**********************************************************************
+ * Misc shapes 2d drawing
+ */
 void Renderer::draw_polygon(const std::vector<Vector2> &array, const Rgb &rgb,
                             bool filled, bool closed) {
     (void)filled; // the base renderer draws the outline either way, as in Java
@@ -85,6 +89,9 @@ void Renderer::draw_box(const Vector2Pair &c, const Rgb &rgb) {
     draw_segment(Vector2(c.v0.x, c.v0.y), Vector2(c.v1.x, c.v0.y), rgb);
     draw_segment(Vector2(c.v1.x, c.v1.y), Vector2(c.v1.x, c.v0.y), rgb);
     draw_segment(Vector2(c.v1.x, c.v1.y), Vector2(c.v0.x, c.v1.y), rgb);
+    /**
+     * Current page id
+     */
     draw_segment(Vector2(c.v0.x, c.v0.y), Vector2(c.v0.x, c.v1.y), rgb);
 }
 
@@ -93,6 +100,9 @@ void Renderer::draw_box(const Vector2Pair &c, const Rgb &rgb) {
 // ---------------------------------------------------------------------------
 
 RendererViewport::RendererViewport()
+    /**
+     * Current 2d page window
+     */
     : _window2d_fit(Vector2Pair::vector2_pair_00),
       _window2d(Vector2Pair::vector2_pair_00), _2d_output_res(Vector2::vector2_0),
       _margin_type(margin_type_e::MarginRatio),
@@ -105,30 +115,40 @@ void RendererViewport::set_window(const Vector2 &center, const Vector2 &size,
     if (keep_aspect) {
         double out_ratio = (_2d_output_res.x / _cols) / (_2d_output_res.y / _rows);
         if (std::abs(s.x / s.y) < out_ratio)
+            //s.x () = s.y () * out_ratio;
             s = Vector2(s.y * out_ratio, s.y);
         else
+            //s.y () = s.x () / out_ratio;
             s = Vector2(s.x, s.x / out_ratio);
     }
     Vector2 sby2 = s.divide(2.0);
+    //  (center - s / 2., center + s / 2.)
     _window2d_fit = Vector2Pair(center.minus(sby2), center.plus(sby2));
     Vector2 ms0 = sby2;
     Vector2 ms1 = sby2;
     switch (_margin_type) {
     case margin_type_e::MarginLocal:
+        //                ms[0] = ms[0] + _margin[0];
+        //                ms[1] = ms[1] + _margin[1];
         ms0 = ms0.plus(_margin.v0);
         ms1 = ms1.plus(_margin.v1);
         break;
     case margin_type_e::MarginRatio:
+        //                ms[0] = ms[0] + s.mul (_margin[0]);
+        //                ms[1] = ms[1] + s.mul (_margin[1]);
         ms0 = ms0.plus(s.ebeTimes(_margin.v0));
         ms1 = ms1.plus(s.ebeTimes(_margin.v1));
         break;
     case margin_type_e::MarginOutput:
+        //                ms[0] = ms[0] / (math::vector2_1 - _margin[0] / _2d_output_res * 2);
+        //                ms[1] = ms[1] / (math::vector2_1 - _margin[1] / _2d_output_res * 2);
         ms0 = ms0.ebeDivide(
             Vector2::vector2_1.minus(_margin.v0.ebeDivide(_2d_output_res.times(2.0))));
         ms1 = ms1.ebeDivide(
             Vector2::vector2_1.minus(_margin.v1.ebeDivide(_2d_output_res.times(2.0))));
         break;
     }
+    //(center - ms[0], center + ms[1])
     _window2d = Vector2Pair(center.minus(ms0), center.plus(ms1));
     update_2d_window();
     set_orthographic();
@@ -142,7 +162,10 @@ void RendererViewport::set_window(const Vector2 &center, double radius,
 }
 
 void RendererViewport::set_window(const Vector2Pair &window, bool keep_aspect) {
+    //(window[0] + window[1]) / 2
     Vector2 center = window.v0.plus(window.v1).divide(2.0);
+    //(window[1].x () - window[0].x (),
+    //window[1].y () - window[0].y ());
     Vector2 size(window.v1.x - window.v0.x, window.v1.y - window.v0.y);
     set_window(center, size, keep_aspect);
 }
@@ -249,6 +272,7 @@ void Renderer2d::set_perspective() {
     _eye_dist = 1. / std::tan(mathlib::M::toRadians(_fov) / 2.);
 }
 
+/** project in 2d space */
 Vector2 Renderer2d::project(const Vector3 &v) const {
     switch (_projection_type) {
     case ProjectionType::Perspective:
@@ -258,6 +282,7 @@ Vector2 Renderer2d::project(const Vector3 &v) const {
     }
 }
 
+/** project in 2d space and scale for ploting to 2d output */
 Vector2 Renderer2d::project_scale(const Vector3 &v) const {
     Vector2 v2d = project(v);
     return Vector2(x_trans_pos(v2d.x), y_trans_pos(v2d.y));

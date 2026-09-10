@@ -17,6 +17,7 @@ namespace redukti::plotter {
 
 class Colors {
 public:
+    /** get rgb color associated with wavelen */
     /** Maps a wavelength in nm to the colour it is drawn in. */
     static render::Rgb get_wavelen_color(double wl);
 };
@@ -30,6 +31,12 @@ public:
         const rayoptics::analysis::SpotAnalysisResult::SpotResultsForField &result_)
         : result(&result_) {}
 
+    /**
+     * Supply a radius for the plt - if not supplied this is set to
+     * 1000 * computed max_radius.
+     * Example value is 600. that covers most lenses, past and present
+     * but modern lenses tend to have much smaller spot diagrams.
+     */
     /** Java takes a nullable Double; absent means "use the spot's max radius". */
     std::string plot(std::optional<double> radius) const;
 };
@@ -57,8 +64,14 @@ public:
 
     GeoMTFByFieldPlot(std::vector<rayoptics::analysis::MTFResultByFreq> mtfs_by_freq_,
                       const std::vector<double> &fields_)
+        // Names of the above, in the same order, for describing the plot in text
         : mtfs_by_freq(std::move(mtfs_by_freq_)), fields(fields_) {}
 
+    /**
+     * Describes which color the plot gives each frequency, e.g. for the default
+     * frequencies "10=red,30=blue,50=black". Kept next to FREQ_COLORS so a
+     * report can never claim a color the plot did not actually use.
+     */
     static std::string freq_legend(const std::vector<int> &freqs);
 
     std::string plot() const;

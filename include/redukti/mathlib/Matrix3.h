@@ -22,6 +22,15 @@ namespace redukti::mathlib {
 /**
  * Column major 3d matrix where
  *
+ * <pre>
+ *    0=m00 3=m01 6=m02
+ *    1=m10 4=m11 7=m12
+ *    2=m20 5=m21 8=m22
+ * </pre>
+ */
+/**
+ * Column major 3d matrix where
+ *
  *    0=m00 3=m01 6=m02
  *    1=m10 4=m11 7=m12
  *    2=m20 5=m21 8=m22
@@ -125,10 +134,50 @@ public:
         // Do not know the source of following equation
         // Believe it generates a Quaternion representing the rotation
         // of vector a to vector b
+        // Closest match of the algo:
+        // https://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
+        // Do not know the source of following equation
+        // Believe it generates a Quaternion representing the rotation
+        // of vector a to vector b
         Quaternion q = Quaternion::get_rotation_between(from, to);
         return to_rotation_matrix(q);
     }
 
+    //    /**
+    //     * Create rotation matrix
+    //     *
+    //     * @param zRotation degree in radians
+    //     * @param yRotation degree in radians
+    //     * @param xRotation degree in radians
+    //     * @return Rotation matrix
+    //     */
+    //    public static Matrix3 rotation(double zRotation, double yRotation, double xRotation) {
+    //        double Cx = Math.cos(xRotation);
+    //        double Sx = Math.sin(xRotation);
+    //
+    //        double Cy = Math.cos(yRotation);
+    //        double Sy = Math.sin(yRotation);
+    //
+    //        double Cz = Math.cos(zRotation);
+    //        double Sz = Math.sin(zRotation);
+    //
+    //        double n00 = (Cy * Cz);
+    //        double n01 = -(Cy * Sz);
+    //        double n02 = Sy;
+    //
+    //        double n10 = (Sx * Sy * Cz) + (Cx * Sz);
+    //        double n11 = -(Sx * Sy * Sz) + (Cx * Cz);
+    //        double n12 = -(Sx * Cy);
+    //
+    //        double n20 = -(Cx * Sy * Cz) + (Sx * Sz);
+    //        double n21 = (Cx * Sy * Sz) + (Sx * Cz);
+    //        double n22 = (Cx * Cy);
+    //
+    //        return new Matrix3(
+    //                n00, n01, n02,
+    //                n10, n11, n12,
+    //                n20, n21, n22);
+    //    }
     static Matrix3 euler2mat(double roll_angle, double pitch_angle, double yaw_angle) {
         double si = std::sin(roll_angle), sj = std::sin(pitch_angle),
                sk = std::sin(yaw_angle);
@@ -137,6 +186,13 @@ public:
         double cc = ci * ck, cs = ci * sk;
         double sc = si * ck, ss = si * sk;
 
+        // gamma (roll)
+        // beta (pitch)
+        // alpha (yaw)
+        // see https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
+        // More formally, it is an intrinsic rotation whose Tait–Bryan angles are α, β, γ, about axes z, y, x, respectively.
+        // The formula below corresponds to yaw.multiply(pitch.multiply(roll))
+        // which means roll followed by pitch followed by yaw
         // gamma (roll), beta (pitch), alpha (yaw)
         // see https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
         // More formally, it is an intrinsic rotation whose Tait-Bryan angles are
@@ -162,6 +218,16 @@ public:
         return euler2mat(euler.x, euler.y, euler.z);
     }
 
+    /**
+     * Rotating (intrinsic) frame x-y-z euler angles to a rotation matrix,
+     * i.e. transforms3d's euler2mat(ai, aj, ak, axes='rxyz'), which is
+     * Rx(ai) * Ry(aj) * Rz(ak).
+     *
+     * #euler2mat(Vector3) is the static (extrinsic) frame form,
+     * transforms3d's default axes='sxyz' = Rz(ak) * Ry(aj) * Rx(ai). The two
+     * agree when only one angle is non-zero and differ for compound rotations.
+     * They are related by rxyz(e) == sxyz(-e).transpose().
+     */
     /**
      * Rotating (intrinsic) frame x-y-z euler angles to a rotation matrix,
      * i.e. the transforms3d euler2mat(ai, aj, ak, axes=rxyz), which is
@@ -207,6 +273,14 @@ public:
      */
     static Matrix3 get_rotation_matrix(int axis, double angleInRadians);
 
+    /**
+     * rotate v1 into v2 using equivalent angle rotation.
+     *
+     * Compute a rotation matrix from v1 to v2.
+     * Take the cross product of the input vectors to get
+     * the rotation axis. The eqivalent angle rotation is
+     * equation 2.80 from Introduction to Robotics, 2nd ed, by John J Craig.
+     */
     /**
      * rotate v1 into v2 using equivalent angle rotation.
      *

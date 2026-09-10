@@ -42,6 +42,7 @@ public:
     }
 
     double pl_ln_intersect_scale(const Vector3Pair &line) const {
+        // See https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
         // See https://en.wikipedia.org/wiki/Line-plane_intersection
         return (origin().dot(normal()) - normal().dot(line.origin())) /
                (line.normal().dot(normal()));

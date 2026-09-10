@@ -28,6 +28,7 @@ using render::PlotStyleMask;
 using render::Renderer;
 using render::RendererSvg;
 using render::Rgb;
+// Distinct colors cycled per frequency (10, 30, 50, ...)
 namespace Orientation = rayoptics::util::Orientation;
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,9 @@ namespace Orientation = rayoptics::util::Orientation;
 // ---------------------------------------------------------------------------
 
 Rgb Colors::get_wavelen_color(double wl) {
+    // based on algorithm from Dan Bruton
+    // (www.physics.sfasu.edu/astro/color.html)
+    // http://www.physics.sfasu.edu/astro/color/spectra.html
     if (wl < 380.0 || wl > 780.0)
         return Rgb::rgb_black;
     double s = 1.0;
@@ -45,19 +49,25 @@ Rgb Colors::get_wavelen_color(double wl) {
     if (wl < 510.0) {
         if (wl < 490.0) {
             if (wl < 440.0)
+                // 380 to 440
                 return Rgb(s * -(wl - 440.0) / 60.0, 0.0, s, 1.0);
             else
+                // 440 to 490
                 return Rgb(0.0, s * (wl - 440.0) / 50.0, s, 1.0);
         } else {
+            // 490 to 510
             return Rgb(0.0, s, s * -(wl - 510.0) / 20.0, 1.0);
         }
     } else {
         if (wl < 645.0) {
             if (wl < 580.0)
+                // 510 to 580
                 return Rgb(s * (wl - 510.0) / 70.0, s, 0.0, 1.0);
             else
+                // 580 to 645
                 return Rgb(s, s * -(wl - 645.0) / 65.0, 0.0, 1.0);
         } else {
+            // 645 to 780
             return Rgb(s, 0.0, 0.0, 1.0);
         }
     }
@@ -177,11 +187,14 @@ std::string GeoMTFByFieldPlot::plot() const {
     plot.set_title("MTF");
     plot.get_axes().set_position(Vector3::vector3_0);
     plot.get_axes().set_range(Range(0, 1.0), PlotAxes::AxisMask::X);
+    // MTF is plotted as a percentage on a 0-100 scale
     plot.get_axes().set_range(Range(0, 100.0), PlotAxes::AxisMask::Y);
     std::vector<double> x_data = fields;
     std::vector<std::unique_ptr<DiscreteSet>> sets;
+    // for each freq
     for (std::size_t i = 0; i < mtfs_by_freq.size(); i++) {
         const auto &mtf = mtfs_by_freq[i];
+        // color encodes the frequency
         const Rgb &color = FREQ_COLORS[i % FREQ_COLOR_COUNT];
         for (int xy = 0; xy < Orientation::COUNT; xy++) {
             auto set = std::make_unique<DiscreteSet>();
@@ -189,12 +202,14 @@ std::string GeoMTFByFieldPlot::plot() const {
             const auto &mtf_data = (xy == Orientation::SAGITTAL) ? mtf.sag_mtf_by_field
                                                                  : mtf.tan_mtf_by_field;
             for (std::size_t j = 0; j < mtf_data.size(); j++)
+                // scale 0..1 MTF to a 0..100 percentage
                 set->add_data(x_data[j], mtf_data[j] * 100.0);
             std::string label = df().format(mtf.freq) +
                                 (xy == Orientation::SAGITTAL ? " Sagittal" : " Tangential");
             PlotData *pd =
                 plot.add_plot_data(set.get(), color, label,
                                    static_cast<int>(PlotStyleMask::InterpolatePlot));
+            // line pattern encodes sagittal vs tangential
             pd->set_line_style(xy == Orientation::SAGITTAL ? PlotData::LineStyle::Solid
                                                            : PlotData::LineStyle::Dashed);
             sets.push_back(std::move(set));
@@ -202,6 +217,7 @@ std::string GeoMTFByFieldPlot::plot() const {
     }
     plot.get_axes().set_label("Fields", PlotAxes::AxisMask::X);
     plot.get_axes().set_label("MTF", PlotAxes::AxisMask::Y);
+    // keep both axes on a plain scale (no x10^n factor)
     plot.get_axes().set_unit("", false, false, 0, PlotAxes::AxisMask::Y);
     plot.get_axes().set_unit("", false, false, 0, PlotAxes::AxisMask::X);
     RendererSvg r(1024, 640);
@@ -221,6 +237,7 @@ std::string GeoMTFByFieldPlot::toString() const {
         sb += df().format(fields[i]);
     }
     sb += "\n";
+    // for each freq
     for (std::size_t i = 0; i < mtfs_by_freq.size(); i++) {
         const auto &mtf = mtfs_by_freq[i];
         for (int xy = 0; xy < Orientation::COUNT; xy++) {
@@ -312,6 +329,9 @@ std::string RayAberrationPlot::plot(const rayoptics::raytr::TraceFanResult &fan_
     }
     plot.get_axes().set_label(x_label, PlotAxes::AxisMask::X);
     plot.get_axes().set_label(y_label, PlotAxes::AxisMask::Y);
+    //plot.get_axes().set_unit("",false,false,0, PlotAxes.AxisMask.X);
+    //plot.get_axes().set_unit("",false,false,0, PlotAxes.AxisMask.Y);
+    //plot.get_axes().set_unit("",true,false,0, PlotAxes.AxisMask.Y);
     RendererSvg r(640, 640);
     PlotRenderer plotRenderer;
     plotRenderer.draw_plot(r, plot);

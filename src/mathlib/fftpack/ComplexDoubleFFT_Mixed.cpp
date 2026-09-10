@@ -17,6 +17,7 @@ constexpr double PI = 3.14159265358979323846;
      void ComplexDoubleFFT_Mixed::passf2(int ido, int l1, std::vector<double> &cc, std::vector<double> &ch, std::vector<double> &wtable, int offset, int isign) 
                   
      {
+     /*isign==+1 for backward transform*/
           int     i, k, ah, ac;
           double  ti2, tr2;
           int iw1;
@@ -189,6 +190,7 @@ constexpr double PI = 3.14159265358979323846;
      void ComplexDoubleFFT_Mixed::passf5(int ido, int l1, std::vector<double> &cc, std::vector<double> &ch, std::vector<double> &wtable, int offset, int isign)
                
      {
+     /*isign==-1 for forward transform and+1 for backward transform*/
     	double tr11=0.309016994374947;
     	double ti11=0.951056516295154;
     	double tr12=-0.809016994374947;

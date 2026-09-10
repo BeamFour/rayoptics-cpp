@@ -57,20 +57,36 @@ inline const Rgb Rgb::rgb_magenta{1.0f, 0.0f, 1.0f, 1.0f};
 inline const Rgb Rgb::rgb_gray{0.5f, 0.5f, 0.5f, 1.0f};
 inline const Rgb Rgb::rgb_white{1.0f, 1.0f, 1.0f, 1.0f};
 
+/**
+ Base class for rendering drivers
+
+ This class define the interface for graphical rendering drivers
+ and provide a default implementation for some functions.
+ */
 /** Java's abstract `Renderer`. */
 class Renderer {
 public:
+    /** Specifies light ray intensity rendering mode */
     enum class IntensityMode {
+        /** light ray intensity is ignored, no blending is performed while rendering
+         ray */
+        /** light ray intensity is used to blend rendered ray */
+        /** light ray intensity logarithm is used to blend rendered ray. This enable
+         faint rays to remain visible. */
         IntensityIgnore,
         IntensityShade,
         IntensityLogShade,
     };
 
+    /** Specifies light ray color rendering */
     enum class RayColorMode {
+        /** Compute ray color from its wavelength */
+        /** Use fixed ray color */
         RayColorWavelen,
         RayColorFixed,
     };
 
+    /** Specifies rendering elements which can have modified colors and style */
     /** The int values are array indices into _styles_color, as in the Java. */
     enum class Style {
         StyleBackground = 0,
@@ -91,23 +107,31 @@ public:
 
     static PointStyle point_style_of(int i);
 
+    /** Specifies rendered text alignment */
     /**
      * Java's `EnumSet<TextAlignMask>` becomes an int of these bits: the enum
      * values are already powers of two and the call sites only ever test
      * membership.
      */
     enum TextAlignMask {
-        TextAlignCenter = 1,
+        TextAlignCenter = 1,  //< Vertically centered
         TextAlignLeft = 2,
         TextAlignRight = 4,
         TextAlignTop = 8,
         TextAlignBottom = 16,
-        TextAlignMiddle = 32,
+        TextAlignMiddle = 32,  //< Horizontally centered
     };
 
     Renderer();
     virtual ~Renderer() = default;
 
+    /**
+     * Set the dash pattern used for subsequently drawn line segments.
+     * Pass null (or an empty string) for a solid line. The value follows
+     * the SVG stroke-dasharray convention, e.g. "6,4" for dashes or
+     * "2,3" for a dotted line. Renderers that do not support dashing
+     * simply ignore this setting.
+     */
     void set_stroke_dasharray(const std::string &dasharray) {
         _stroke_dasharray = dasharray;
         _has_stroke_dasharray = true;
@@ -131,6 +155,7 @@ public:
 
     double get_feature_size() const { return _feature_size; }
 
+    /** Draw a point in 2d */
     virtual void draw_point(const mathlib::Vector2 &p, const Rgb &rgb, PointStyle s) = 0;
     virtual void draw_text(const mathlib::Vector2 &pos, const mathlib::Vector2 &dir,
                            const std::string &str, int a, int size, const Rgb &rgb) = 0;
@@ -143,6 +168,7 @@ public:
 
     void draw_segment(const mathlib::Vector2Pair &s) { draw_segment(s, Rgb::rgb_gray); }
 
+    /**  Draw a line segment in 2d */
     void draw_segment(const mathlib::Vector2 &a, const mathlib::Vector2 &b,
                       const Rgb &rgb) {
         draw_segment(mathlib::Vector2Pair(a, b), rgb);
@@ -170,6 +196,9 @@ public:
     virtual void group_begin(const std::string &name) { (void)name; }
     virtual void group_end() {}
 
+    //    public void set_max_intensity(double v) {
+    //        _max_intensity = v;
+    //    }
     virtual void draw_plot(const Plot &plot) { (void)plot; }
 
 protected:
@@ -177,6 +206,11 @@ protected:
     std::array<Rgb, static_cast<std::size_t>(Style::StyleLast)> _styles_color;
     RayColorMode _ray_color_mode;
     IntensityMode _intensity_mode;
+    /**
+     * Current line dash pattern applied to subsequently drawn segments,
+     * expressed as an SVG-style stroke-dasharray value (e.g. "6,4").
+     * A null or empty value means a solid line.
+     */
     std::string _stroke_dasharray;
     bool _has_stroke_dasharray = false;
     double _stroke_width = 1.0;
@@ -186,6 +220,15 @@ protected:
 class RendererViewport : public Renderer {
 public:
     enum class margin_type_e {
+        /**
+         * _margin contains a size ratio
+         */
+        /**
+         * _margin contains the width in window size units
+         */
+        /**
+         * _margin contains the width in output size units
+         */
         MarginRatio,
         MarginLocal,
         MarginOutput,
@@ -204,7 +247,12 @@ public:
 
     virtual void update_2d_window() {}
 
+    /**
+     * Set 3d projection to orthographic, called from @mref set_window.
+     */
     virtual void set_orthographic() = 0;
+    /** Set 3d perspective projection mode. This function reset the
+     viewport window to (-1,1). @see set_window @see set_fov */
     virtual void set_perspective() = 0;
 
     void set_page(int page);
@@ -238,17 +286,40 @@ public:
     virtual void set_camera_transform(const mathlib::Transform3 &t) = 0;
 
 protected:
+    /**
+     * Current 2d viewport window
+     */
     mathlib::Vector2Pair _window2d_fit;
+    /**
+     * Current 2d viewport window (with margins)
+     */
     mathlib::Vector2Pair _window2d;
+    /**
+     * 2d device resolution
+     */
     mathlib::Vector2 _2d_output_res;
     margin_type_e _margin_type;
+    /**
+     * Margin size or ratio
+     */
     mathlib::Vector2Pair _margin;
+    /**
+     * Current layout rows and columns counts
+     */
     int _rows, _cols;
     int _pageid;
     mathlib::Vector2Pair _page;
     double _fov;
 };
 
+/**
+ Base class for 2d rendering drivers
+
+ This class provide default implementations for 3d projection
+ and 3d drawing primitives. It's designed to be used as a base
+ class for 2d only renderers so that they can perform 3d
+ rendering too.
+*/
 /** Java's abstract `Renderer2d`. */
 class Renderer2d : public RendererViewport {
 public:
@@ -273,9 +344,11 @@ public:
     // The 2D overloads stay reachable alongside the 3D ones above.
     using Renderer::draw_point;
     using Renderer::draw_segment;
+    /** Get reference to 3d camera transform */
     using Renderer::draw_text;
 
     mathlib::Transform3 get_camera_transform() const override { return _cam_transform; }
+    /** Get modifiable reference to 3d camera transform */
     void set_camera_transform(const mathlib::Transform3 &t) override {
         _cam_transform = t;
     }

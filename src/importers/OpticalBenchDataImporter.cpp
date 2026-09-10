@@ -249,8 +249,9 @@ bool OpticalBenchDataImporter::LensSpecifications::parse_buffer(
 
 bool OpticalBenchDataImporter::LensSpecifications::parse_lines(
     const std::vector<std::string> &lines) {
-    const Section *current_section = nullptr;
-    int surface_id = 1;
+    const Section *current_section = nullptr;  // Current section
+    int surface_id = 1;  // We use numeric ids
+    // OptBen uses string ids, so we need to map from string id to our id
     std::map<std::string, int> surfaceIdMap;
     AsphereType asphere_type = AsphereType::Even;
     for (const std::string &line : lines) {
@@ -258,8 +259,10 @@ bool OpticalBenchDataImporter::LensSpecifications::parse_lines(
         if (words.empty())
             continue;
         if (!words[0].empty() && words[0][0] == '#')
+            // comment
             continue;
         if (!words[0].empty() && words[0][0] == '[') {
+            // section name
             current_section = find_section(words[0]);
             continue;
         }
@@ -304,9 +307,10 @@ bool OpticalBenchDataImporter::LensSpecifications::parse_lines(
             if (words.size() < 2)
                 break;
             int id = surface_id++;
-            surfaceIdMap[words[0]] = id;
+            surfaceIdMap[words[0]] = id;  // Map OptBench ID to our ID
             LensSurface surface_data(id);
             SurfaceType type = SurfaceType::surface;
+            /* radius */
             if (words[1] == "AS") {
                 type = SurfaceType::aperture_stop;
                 surface_data.set_radius(0.0);
@@ -323,13 +327,17 @@ bool OpticalBenchDataImporter::LensSpecifications::parse_lines(
                     surface_data.set_radius(parse_double(words[1]));
             }
             surface_data.set_surface_type(type);
+            /* thickness */
             if (words.size() >= 3 && !words[2].empty())
                 parse_thickness(words[2], surface_data);
+            /* refractive index */
             if (words.size() >= 4 && !words[3].empty())
                 surface_data.set_refractive_index(parse_double(words[3]));
+            /* diameter */
             if (words.size() >= 5 && !words[4].empty())
                 parse_diameter(words[4], type == SurfaceType::aperture_stop,
                                surface_data);
+            /* abbe vd */
             if (words.size() >= 6 && !words[5].empty())
                 surface_data.set_abbe_vd(parse_double(words[5]));
             if (words.size() >= 7 && !words[6].empty())
@@ -388,6 +396,7 @@ void OpticalBenchDataImporter::LensSpecifications::parse_thickness(
             for (int i = 0; i < var->num_scenarios(); i++)
                 surface_builder.add_thickness(parse_double(var->get_value(i)));
         } else {
+            //fprintf (stderr, "Variable %s was not found\n", value);
             surface_builder.add_thickness(0.0);
         }
     } else {

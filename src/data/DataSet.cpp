@@ -47,6 +47,11 @@ Range DataSet::get_y_range() const {
     }
 }
 
+/**
+ * Insert data pair in data set. If a pair with the same x
+ * value exists, it will be replaced by the new
+ * value. Derivative value may be provided as well.
+ */
 void DiscreteSetBase::add_data(double x, double y, double d) {
     EntryS e(x, y, d);
     _version++;
@@ -58,6 +63,9 @@ void DiscreteSetBase::add_data(double x, double y, double d) {
     invalidate();
 }
 
+/**
+ * Clear all data
+ */
 void DiscreteSetBase::clear() {
     _data.clear();
     _version++;

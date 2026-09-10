@@ -28,6 +28,11 @@ namespace redukti::mathlib::fftpack {
 class ComplexDoubleFFT : public ComplexDoubleFFT_Mixed {
 public:
     /**
+      * <em>norm_factor</em> can be used to normalize this FFT transform. This is because
+      * a call of forward transform (<em>ft</em>) followed by a call of backward transform
+      * (<em>bt</em>) will multiply the input sequence by <em>norm_factor</em>.
+    */
+    /**
      * norm_factor can be used to normalize this FFT transform: a call of the
      * forward transform (ft) followed by a call of the backward transform (bt)
      * multiplies the input sequence by norm_factor.
@@ -45,6 +50,19 @@ public:
     explicit ComplexDoubleFFT(int n);
 
     /**
+      * Forward complex FFT transform.
+      *
+      * @param x  2*<em>n</em> real double data representing <em>n</em> complex double data.
+      * As an input parameter, <em>x</em> is an array of 2*<em>n</em> real
+      * data representing <em>n</em> complex data. As an output parameter, <em>x</em> represents <em>n</em>
+      * FFT'd complex data. Their relation as follows:
+      * <br>
+      *  x[2*i] is the real part of <em>i</em>-th complex data;
+      * <br>
+      *  x[2*i+1] is the imaginary part of <em>i</em>-the complex data.
+      *
+    */
+    /**
      * Forward complex FFT transform, in place.
      *
      * @param x 2*n reals representing n complex data: x[2*i] is the real part
@@ -52,12 +70,37 @@ public:
      */
     void ft(std::vector<double> &x);
 
+    /**
+      * Forward complex FFT transform.
+      *
+      * @param x  an array of <em>n</em> Complex data
+    */
     /** Forward complex FFT transform of n Complex data. */
     void ft(Complex1D &x);
 
+    /**
+      * Backward complex FFT transform. It is the unnormalized inverse transform of <em>ft</em>(double[]).
+      *
+      * @param x  2*<em>n</em> real double data representing <em>n</em> complex double data.
+      *
+      * As an input parameter, <em>x</em> is an array of 2*<em>n</em>
+      * real data representing <em>n</em> complex data. As an output parameter, <em>x</em> represents
+      * <em>n</em> FFT'd complex data. Their relation as follows:
+      * <br>
+      *  x[2*<em>i</em>] is the real part of <em>i</em>-th complex data;
+      * <br>
+      *  x[2*<em>i</em>+1] is the imaginary part of <em>i</em>-the complex data.
+      *
+    */
     /** Backward complex FFT transform; the unnormalized inverse of ft. */
     void bt(std::vector<double> &x);
 
+    /**
+      * Backward complex FFT transform. It is the unnormalized inverse transform of <em>ft</em>(Complex1D[]).
+      *
+      *
+      * @param x  an array of <em>n</em> Complex data
+    */
     /** Backward complex FFT transform of n Complex data. */
     void bt(Complex1D &x);
 

@@ -12,7 +12,45 @@
 
 namespace redukti::data {
 
+/** Specifies data interpolation methods. Availability depends on data
+ * container used. */
 enum class Interpolation {
+    /** 1d and 2d nearest interpolation */
+    /** 1d linear and 2d bilinear interpolations */
+    /** 1d quadratic interpolation */
+    /** 1d cubic piecewise interpolation. It has continuous
+     piecewise first derivative, non-continuous piecewise
+     linear second derivative. Use segments slope as first
+     derivative. Less accurate than other cubic interpolants
+     but requires less computation on data set change. */
+    /** 1d cubic piecewise interpolation. It has smooth first
+     derivative and continuous piecewise linear second
+     derivative. Derivatives for first and last entries are
+     based on first and last segments slope. It uses linear
+     extrapolation (continuous but non-smooth first derivative
+     on both ends). */
+    /** Same interpolation as Cubic, with quadratic extrapolation
+     (continous and smooth first derivative on both ends). */
+    /** Same as Cubic with first derivative prescribed for first
+     and last entries only. */
+    /** Same as Cubic2 with first derivative prescribed for first
+     and last entries only. */
+    /** 1d cubic piecewise interpolation. First derivatives must
+     be provided for all entries. It uses linear extrapolation.*/
+    /** 1d cubic piecewise interpolation. First derivatives must
+     be provided for all entries. It uses quadratic extrapolation.*/
+    /** 2d bicubic interpolation. Use smooth first derivative and
+     continuous piecewise linear second derivative. Use 1d
+     cubic curve to extract gradients (smooth first derivative
+     and continuous piecewise linear second derivative). This
+     is the best 2d interpolation when derivatives are
+     non-prescribed. */
+    /** 2d bicubic interpolation. Use numerical differencing to
+     extract gradients. Less accurate than @ref Bicubic but
+     requires less computation on data set change.*/
+    /** 2d bicubic interpolation. x and y gradients must be
+     provided. This is the best 2d interpolation when
+     derivatives values are available. */
     Nearest,
     Linear,
     Quadratic,
@@ -36,10 +74,13 @@ public:
     virtual double get_x_interval(int x) const = 0;
     virtual double get_x_interval(int x1, int x2) const = 0;
     virtual int get_interval(double x) const = 0;
+    /** Get x data at index n in data set */
     virtual double get_x_value(int n) const = 0;
+    /** Get y data stored at index n in data set */
     virtual double get_y_value(int n) const = 0;
     virtual double get_d_value(int n) const = 0;
     virtual int get_nearest(double x) const = 0;
+    /** Get total number of data stored in data set */
     virtual int get_count() const = 0;
 };
 

@@ -183,6 +183,9 @@ void Plot::set_color(const Rgb &color) {
         i.set_color(color);
 }
 
+/**
+ * Automatically choose different colors for each plot
+ */
 void Plot::set_different_colors() {
     int n = 1;
     for (auto &i : _plots) {
@@ -199,6 +202,9 @@ void Plot::set_style(int style) {
         i.set_style(style);
 }
 
+/**
+ * Set axis position to dataset range
+ */
 void Plot::fit_axes_range() {
     switch (get_dimensions()) {
     case 1:
@@ -215,6 +221,9 @@ void Plot::fit_axes_range() {
     }
 }
 
+/**
+ * Get data sets dimensions, return 0 if inconsistent
+ */
 int Plot::get_dimensions() const {
     int dimension = 0;
     for (const auto &i : _plots) {
@@ -227,6 +236,9 @@ int Plot::get_dimensions() const {
     return dimension;
 }
 
+/**
+ * Get range of x data in sets
+ */
 Range Plot::get_x_data_range(int dimension) const {
     // Double.MIN_VALUE is the smallest positive value, so the upper seed is
     // 4.9e-324; see the note on DataSet::get_y_range.
@@ -242,6 +254,9 @@ Range Plot::get_x_data_range(int dimension) const {
     return r;
 }
 
+/**
+ * Get range of y data in sets
+ */
 Range Plot::get_y_data_range() const {
     Range r(std::numeric_limits<double>::max(),
             std::numeric_limits<double>::denorm_min());
@@ -264,6 +279,7 @@ void PlotRenderer::draw_plot(RendererViewport &r, Plot &plot) {
     case 1: {
         set_2d_plot_window(r, plot);
         draw_axes_2d(r, plot.get_axes());
+        // plot title
         Vector2Pair _window2d = r.get_window2d();
         Vector2Pair _window2d_fit = r.get_window2d_fit();
         r.draw_text(Vector2((_window2d.v0.x + _window2d.v1.x) / 2.,
@@ -284,6 +300,7 @@ void PlotRenderer::draw_plot(RendererViewport &r, Plot &plot) {
 }
 
 void PlotRenderer::draw_plot_data_2d(RendererViewport &r, Set1d &data, PlotData &style) {
+    // spline interpolated curve between points
     Vector2Pair _window2d_fit = r.get_window2d_fit();
     Vector2Pair _window2d = r.get_window2d();
     Vector2 _2d_output_res = r.get_2d_output_res();
@@ -291,38 +308,47 @@ void PlotRenderer::draw_plot_data_2d(RendererViewport &r, Set1d &data, PlotData 
     if (dash != nullptr)
         r.set_stroke_dasharray(dash);
     else
+        // apply the requested line pattern (dashed/dotted) for the curve
         r.clear_stroke_dasharray();
     if ((style.get_style() & static_cast<int>(InterpolatePlot)) != 0) {
         const double x_step = (_window2d.v1.x - _window2d.v0.x) / _2d_output_res.x;
         Range xr = data.get_x_range(0);
         double x_low = std::fmax(_window2d_fit.v0.x, xr.first);
         double x_high = std::fmin(_window2d_fit.v1.x, xr.second);
+        // Build the interpolated curve as a single polyline. Drawing it as
+        // many separate one-pixel segments would restart the dash pattern
+        // on every segment, so dashed/dotted styles would always look
+        // solid. A single polyline lets the dash run across the curve.
         std::vector<Vector2> pts;
         pts.push_back(Vector2(x_low, data.interpolate(x_low)));
         for (double x = x_low + x_step; x < x_high + x_step / 2; x += x_step)
             pts.push_back(Vector2(x, data.interpolate(x)));
         draw_polyline(r, pts, style.get_color());
     }
+    // line plot
     if ((style.get_style() & static_cast<int>(LinePlot)) != 0) {
         std::vector<Vector2> pts;
         for (int j = 0; j < data.get_count(); j++)
             pts.push_back(Vector2(data.get_x_value(j), data.get_y_value(j)));
         draw_polyline(r, pts, style.get_color());
     }
+    // restore solid lines for point markers and subsequent drawing
     r.clear_stroke_dasharray();
+    // draw cross tic for each point
     if ((style.get_style() & static_cast<int>(PointPlot)) != 0) {
         for (int j = 0; j < data.get_count(); j++) {
             Vector2 p(data.get_x_value(j), data.get_y_value(j));
             r.draw_point(p, style.get_color(), Renderer::PointStyle::PointStyleCross);
         }
     }
+    // print value for each point
     if ((style.get_style() & static_cast<int>(ValuePlot)) != 0) {
         for (int j = 0; j < data.get_count(); j++) {
             int a;
             Range p(data.get_x_value(j), data.get_y_value(j));
             double prev = j > 0 ? data.get_y_value(j - 1) : p.second;
             double next = j + 1 < data.get_count() ? data.get_y_value(j + 1) : p.second;
-            if (p.second > prev) {
+            if (p.second > prev) {  // FIXME use derivative to find best text position
                 if (p.second > next)
                     a = Renderer::TextAlignBottom | Renderer::TextAlignCenter;
                 else
@@ -342,6 +368,9 @@ void PlotRenderer::draw_plot_data_2d(RendererViewport &r, Set1d &data, PlotData 
     }
 }
 
+// Draw a connected sequence of points as a single polyline so that the
+// renderer's current line pattern (solid/dashed/dotted) is honoured across
+// the whole curve. Falls back to a plain segment for very short curves.
 void PlotRenderer::draw_polyline(RendererViewport &r, const std::vector<Vector2> &pts,
                                  const Rgb &color) {
     if (pts.size() < 2)
@@ -432,6 +461,7 @@ void PlotRenderer::draw_axes_2d(RendererViewport &renderer, PlotAxes &a) {
                 if (usep10) {
                     char buf[32];
                     std::snprintf(buf, sizeof(buf), "x10^%d", pow10);
+                    //lx += String.format("x10^%i", pow10);
                     lx += buf;
                 }
                 if (useunit && usep10)
@@ -444,23 +474,27 @@ void PlotRenderer::draw_axes_2d(RendererViewport &renderer, PlotAxes &a) {
                                Renderer::TextAlignCenter | Renderer::TextAlignMiddle, 12,
                                renderer.get_style_color(Renderer::Style::StyleForeground));
         }
+        // skip out of range axis
         bool oor = false;
         for (int j = 0; j < N; j++)
             oor |= (j != i && ((p.v(j) <= std::fmin(_window2d_fit.v0.v(j),
                                                     _window2d_fit.v1.v(j))) ||
                                (p.v(j) >= std::fmax(_window2d_fit.v0.v(j),
                                                     _window2d_fit.v1.v(j)))));
+        // draw axis
         if (!oor && ax._axis) {
             Vector2Pair seg(p.set(i, r.first), p.set(i, r.second));
             renderer.draw_segment(seg,
                                   renderer.get_style_color(Renderer::Style::StyleForeground));
         }
+        // draw tics on axis
         if (ax._tics && (ax._axis || a._frame)) {
             for (int j = min[i]; j <= max[i]; j++)
                 draw_axes_tic2(renderer, a, i, pow10, oor, j * s);
         }
     }
     if (a._grid) {
+        // draw grid
         for (int x = min[0]; x <= max[0]; x++)
             for (int y = min[1]; y <= max[1]; y++)
                 renderer.draw_point(
@@ -492,6 +526,7 @@ void PlotRenderer::draw_axes_tic2(RendererViewport &r, PlotAxes &a, int i, int p
         r.draw_point(vtic, r.get_style_color(Renderer::Style::StyleForeground),
                      Renderer::PointStyle::PointStyleCross);
     }
+    // draw tic value text
     if (ax._values) {
         // Java builds three alignments but only ever indexes 0 and 1 here.
         const int alignments[] = {

@@ -47,6 +47,13 @@ public:
     }
 
     /**
+     * The cross product a × b is defined as a vector c that is
+     * perpendicular (orthogonal) to both a and b, with a direction given by the right-hand rule
+     * and a magnitude equal to the area of the parallelogram that the vectors span.
+     *
+     * https://en.wikipedia.org/wiki/Cross_product
+     */
+    /**
      * The cross product a x b is defined as a vector c that is perpendicular
      * (orthogonal) to both a and b, with a direction given by the right-hand
      * rule and a magnitude equal to the area of the parallelogram that the
@@ -146,6 +153,8 @@ inline Vector3 Vector3::normalize() const {
     if (M::isZero(lengthsq)) {
         return ZERO;
     } else {
+        //double factor = 1.0 / Math.sqrt(lengthsq);
+        //return new Vector3(x * factor, y * factor, z * factor);
         double denom = std::sqrt(lengthsq);
         return Vector3(x / denom, y / denom, z / denom);
     }

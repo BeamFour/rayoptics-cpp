@@ -15,9 +15,20 @@
 
 namespace redukti::render {
 
+/**
+ * SVG file rendering driver
+ *
+ * This class implements a SVG graphic output driver.
+ */
 /** Draws into an SVG document held as text. */
 class RendererSvg : public Renderer2d {
 public:
+    /**
+     * Create a new svg renderer with given resolution. The
+     *
+     * write function must be used to write svg to output
+     * stream.
+     */
     RendererSvg(double width, double height, const Rgb &bg);
 
     RendererSvg(double width, double height) : RendererSvg(width, height, Rgb::rgb_white) {}

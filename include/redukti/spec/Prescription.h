@@ -164,6 +164,7 @@ public:
      * @param field fields are relative, 0 for axis to 1 for edge.
      */
     double full_angle_of_view_degrees(double field) const;
+    /** Get angle of view for default configuration */
     double get_half_angle_in_degrees() const { return _angle_of_view_in_degrees / 2.0; }
     /** Get angle of view for default configuration */
     double get_half_angle_of_view_in_radians() const;

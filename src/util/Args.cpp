@@ -321,6 +321,7 @@ std::string Helper::getFilename(const std::string &specfile) {
 std::string Helper::replaceExtension(const std::string &fileName_in,
                                      const std::string &extension) {
     std::string fileName = fileName_in;
+    // Remove extension
     std::size_t dotIndex = fileName.rfind('.');
     if (dotIndex != std::string::npos && dotIndex > 0 && dotIndex < fileName.size() - 1)
         fileName = fileName.substr(0, dotIndex);
@@ -331,6 +332,7 @@ std::string Helper::getOutputPathChangeExt(const std::string &specfile,
                                            const std::string &extension) {
     fs::path path = fs::absolute(fs::path(specfile));
     std::string fileName = path.filename().string();
+    // Remove extension
     std::size_t dotIndex = fileName.rfind('.');
     if (dotIndex != std::string::npos && dotIndex > 0 && dotIndex < fileName.size() - 1)
         fileName = fileName.substr(0, dotIndex);

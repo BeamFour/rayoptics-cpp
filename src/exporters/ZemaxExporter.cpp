@@ -122,6 +122,7 @@ void ZemaxExporter::output_surfaces(const Prescription &prescription, std::strin
         }
         sb += "  DISZ " + d(thickness) + "\n";
         if (s.is_aspheric()) {
+            // For Odd aspheres we have to supply ec, for Even aspheres cc
             double k_conic = s.is_odd_asphere() ? s.get_cc() + 1 : s.get_cc();
             sb += "  CONI " + d(k_conic) + "\n";
         }

@@ -65,9 +65,11 @@ double Interpolated1d::interpolate(double x, int d) {
 void Interpolated1d::compute_cubic_2nd_deriv(cubic_2nd_deriv_init_e de, int n,
                                              std::vector<double> &dd, double d0,
                                              double dn) {
+    // double eq[n][3];
     std::vector<double> eq(static_cast<std::size_t>(n) * 3, 0.0);
     ArrayIndex2D idx(n, 3);
     auto un = static_cast<std::size_t>(n);
+    // first and last tridiag system equations
     switch (de) {
     case cubic_2nd_deriv_init_e::Cubic2ndDerivQuadratic:
         dd[0] = dd[un - 1] = 0.0;
@@ -77,6 +79,7 @@ void Interpolated1d::compute_cubic_2nd_deriv(cubic_2nd_deriv_init_e de, int n,
             eq[static_cast<std::size_t>(idx.i(n - 2, 2))] = -1.0;
         break;
     case cubic_2nd_deriv_init_e::Cubic2ndDerivFirst: {
+        // first derivative is prescribed for first and last point
         double x0 = _data_set->get_x_interval(0);
         double xn = _data_set->get_x_interval(n - 2);
         dd[0] = (_data_set->get_y_value(1) - _data_set->get_y_value(0)) / x0 - d0;
@@ -89,6 +92,7 @@ void Interpolated1d::compute_cubic_2nd_deriv(cubic_2nd_deriv_init_e de, int n,
         break;
     }
     case cubic_2nd_deriv_init_e::Cubic2ndDerivSecond:
+        // second derivative is prescribed for first and last point
         dd[0] = d0;
         dd[un - 1] = dn;
         eq[static_cast<std::size_t>(idx.i(1, 0))] =
@@ -98,6 +102,7 @@ void Interpolated1d::compute_cubic_2nd_deriv(cubic_2nd_deriv_init_e de, int n,
         break;
     }
     int i;
+    // middle tridiag system equations
     for (i = 1; i < n - 1; i++) {
         eq[static_cast<std::size_t>(idx.i(i - 1, 2))] =
             _data_set->get_x_interval(i - 1) / 6.0;
@@ -110,6 +115,8 @@ void Interpolated1d::compute_cubic_2nd_deriv(cubic_2nd_deriv_init_e de, int n,
             (_data_set->get_y_value(i) - _data_set->get_y_value(i - 1)) /
                 _data_set->get_x_interval(i - 1);
     }
+    // solve tridiag system
+    // forward substitution
     for (i = 1; i < n; i++) {
         double f = eq[static_cast<std::size_t>(idx.i(i - 1, 2))] /
                    eq[static_cast<std::size_t>(idx.i(i - 1, 1))];
@@ -117,6 +124,7 @@ void Interpolated1d::compute_cubic_2nd_deriv(cubic_2nd_deriv_init_e de, int n,
             f * eq[static_cast<std::size_t>(idx.i(i, 0))];
         dd[static_cast<std::size_t>(i)] -= f * dd[static_cast<std::size_t>(i - 1)];
     }
+    // backward substitution
     double k = 0;
     for (i = n - 1; i >= 0; i--) {
         double ddi = (dd[static_cast<std::size_t>(i)] - k) /
@@ -165,10 +173,17 @@ void Interpolated1d::set_quadratic_poly(PolyS &p, double px, double py, double d
 
 void Interpolated1d::set_cubic_poly(PolyS &p, double p1x, double p1y, double p2x,
                                     double p2y, double d1, double d2) {
+    /*
+      a=-(-2*y2+2*y1+(d2+d1)*x2+(-d2-d1)*x1)/(-x2^3+3*x1*x2^2-3*x1^2*x2+x1^3),
+      b=(-3*x2*y2+x1*((d2-d1)*x2-3*y2)+(3*x2+3*x1)*y1+(d2+2*d1)*x2^2+(-2*d2-d1)*x1^2)/(-x2^3+3*x1*x2^2-3*x1^2*x2+x1^3),
+      c=-(x1*((2*d2+d1)*x2^2-6*x2*y2)+6*x1*x2*y1+d1*x2^3+(-d2-2*d1)*x1^2*x2-d2*x1^3)/(-x2^3+3*x1*x2^2-3*x1^2*x2+x1^3),
+      d=(x1^2*((d2-d1)*x2^2-3*x2*y2)+x1^3*(y2-d2*x2)+(3*x1*x2^2-x2^3)*y1+d1*x1*x2^3)/(-x2^3+3*x1*x2^2-3*x1^2*x2+x1^3)
+    */
     double x1 = p1x;
     double x2 = p2x;
     double y1 = p1y;
     double y2 = p2y;
+    // FIXME simplify
     p.a = -(2. * y1 - 2. * y2 + (d2 + d1) * x2 - (d2 + d1) * x1) /
           (3. * x1 * x2 * x2 - x2 * x2 * x2 - 3. * x1 * x1 * x2 + x1 * x1 * x1);
     p.b = (x1 * ((d2 - d1) * x2 - 3. * y2) - 3. * x2 * y2 + (3. * x2 + 3. * x1) * y1 +
@@ -184,6 +199,14 @@ void Interpolated1d::set_cubic_poly(PolyS &p, double p1x, double p1y, double p2x
 
 void Interpolated1d::set_cubic_poly2(PolyS &p, double p1x, double p1y, double p2x,
                                      double p2y, double dd1, double dd2) {
+    /*
+      a=(dd1-dd2)/(6*x1-6*x2);
+      b=(dd2*x1-dd1*x2)/(2*x1-2*x2);
+      c=(-6*y2+6*y1+(dd2+2*dd1)*x2^2+(2*dd1-2*dd2)*x1*x2+(-2*dd2-dd1)*x1^2)/(6*x1-6*x2);
+      d=-(x1*((dd2+2*dd1)*x2^2-6*y2)+6*x2*y1+(-2*dd2-dd1)*x1^2*x2)/(6*x1-6*x2);
+    */
+
+          // FIXME simplify
     p.a = (dd1 - dd2) / (6. * p1x - 6. * p2x);
     p.b = (dd2 * p1x - dd1 * p2x) / (2. * p1x - 2. * p2x);
     p.c = (6. * p1y - 6. * p2y + (dd2 + 2. * dd1) * p2x * p2x +
@@ -289,7 +312,9 @@ double Interpolated1d::update_cubic_simple(int d, double x) {
     Vector2 vp1(_data_set->get_x_value(2), _data_set->get_y_value(2));
     double d1 = (v.y - vm1.y) / (v.x - vm1.x);
     double d2 = (vp1.y - vm1.y) / (vp1.x - vm1.x);
+    // extrapolation
     set_linear_poly(_poly[0], vm1.x, vm1.y, d1);
+    // first segment
     set_cubic_poly(_poly[1], vm1.x, vm1.y, v.x, v.y, d1, d2);
     for (int i = 2; i < n - 1; i++) {
         vm2 = vm1;
@@ -303,7 +328,9 @@ double Interpolated1d::update_cubic_simple(int d, double x) {
     (void)vm2; // assigned in the Java loop but never read, as here
     d1 = d2;
     d2 = (vp1.y - v.y) / (vp1.x - v.x);
+    // last segment
     set_cubic_poly(_poly[static_cast<std::size_t>(n - 1)], v.x, v.y, vp1.x, vp1.y, d1, d2);
+    // extrapolation
     set_linear_poly(_poly[static_cast<std::size_t>(n)], vp1.x, vp1.y, d2);
     _invalid = false;
     return interpolate_cubic(d, x);
@@ -362,6 +389,7 @@ double Interpolated1d::update_cubic_deriv_init(int d, double x) {
     if (n < 4)
         throw IllegalStateException("data set doesn't contains enough data");
     resizePoly(n + 1);
+    // double dd[n];
     std::vector<double> dd(static_cast<std::size_t>(n), 0.0);
     double d0 = _data_set->get_d_value(0);
     double dn = _data_set->get_d_value(n - 1);
@@ -384,6 +412,7 @@ double Interpolated1d::update_cubic2_deriv_init(int d, double x) {
     if (n < 4)
         throw IllegalStateException("data set doesn't contains enough data");
     resizePoly(n + 1);
+    // double dd[n];
     std::vector<double> dd(static_cast<std::size_t>(n), 0.0);
     double d0 = _data_set->get_d_value(0);
     double dn = _data_set->get_d_value(n - 1);

@@ -24,6 +24,12 @@ double parse_double(const std::string &s);
 /** Java's `Integer.parseInt` wrapped to answer `defaultValue` on rejection. */
 int parse_integer(const std::string &s, int defaultValue);
 
+/**
+ * Imports optical prescriptions from a file in optical bench
+ * (https://www.photonstophotos.net/GeneralTopics/Lenses/OpticalBench/OpticalBenchHub.htm)
+ * format. This is tab delimited text file. Many examples can be seen in
+ * the Examples/jfotopix folder.
+ */
 class OpticalBenchDataImporter {
 public:
     /** One named row, which may carry a value per scenario. */
@@ -63,6 +69,9 @@ public:
         Variable *find_variable(const std::string &name);
         const Variable *find_variable(const std::string &name) const;
 
+        /**
+         * Shortcut for finding a variable and extracting 1st value from it
+         */
         /** The empty string when absent, as in the Java. */
         std::string get_value(const std::string &name) const;
 

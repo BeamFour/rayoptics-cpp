@@ -18,6 +18,7 @@ using mathlib::Vector2Pair;
 
 namespace {
 
+//return String.format("%.3f", value);
 /**
  * Java writes System.lineSeparator(), which is "\r\n" on Windows and "\n"
  * elsewhere. The port fixes it to "\n" so an SVG generated here is identical on
@@ -97,20 +98,24 @@ void RendererSvg::svg_end() {
 
 void RendererSvg::clear() {
     _out.clear();
+    // background
     svg_begin_rect(0.0, 0.0, _2d_output_res.x, _2d_output_res.y, false);
     svg_add_fill(get_style_color(Style::StyleBackground));
     svg_end();
+    // dot shaped point
     _out += "<defs>";
     _out += NL;
     _out += "<g id=\"dot\">";
     _out += NL;
     svg_begin_line(1, 1, 0, 0, true);
+    // cross shaped point
     _out += "</g>";
     _out += NL;
     _out += "<g id=\"cross\">";
     _out += NL;
     svg_begin_line(-3, 0, 3, 0, true);
     svg_begin_line(0, -3, 0, 3, true);
+    // square shaped point
     _out += "</g>";
     _out += NL;
     _out += "<g id=\"square\">";
@@ -119,12 +124,14 @@ void RendererSvg::clear() {
     svg_begin_line(-3, 3, 3, 3, true);
     svg_begin_line(3, 3, 3, -3, true);
     svg_begin_line(3, -3, -3, -3, true);
+    // round shaped point
     _out += "</g>";
     _out += NL;
     _out += "<g id=\"round\">";
     _out += NL;
     svg_begin_ellipse(0, 0, 3, 3, false);
     _out += " fill=\"none\" />";
+    // triangle shaped point
     _out += "</g>";
     _out += NL;
     _out += "<g id=\"triangle\">";
@@ -222,6 +229,7 @@ void RendererSvg::draw_text(const Vector2 &v, const Vector2 &dir, const std::str
     double yo = y, xo = x;
     _out += "<text style=\"font-size:" + std::to_string(size) + ";";
     if (a & TextAlignLeft) {
+        //_out << "text-align:left;text-anchor:start;";
         x += margin;
     } else if (a & TextAlignRight) {
         _out += "text-align:right;text-anchor:end;";
@@ -291,6 +299,7 @@ std::string &RendererSvg::write(std::string &s) const {
     s += "version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" ";
     s += "xmlns:xlink=\"http://www.w3.org/1999/xlink\">";
     s += NL;
+    // content
     s += _out;
     s += "</svg>";
     s += NL;

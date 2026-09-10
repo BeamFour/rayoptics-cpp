@@ -24,19 +24,46 @@ public:
     Range(double first_, double second_) : first(first_), second(second_) {}
 };
 
+/**
+ Base class for numerical data sets.
+
+ This class is a base class for all numerical data sets
+ implementations. It defines an interface to access data in a
+ way independent from data storage and dimensions count.
+
+ Each data set implementation may define a alternative specific
+ interface to access their data.
+
+ Here x is seen as value used to access the container.
+ Containers with more than one dimension will require x0, x1,
+ ..., xn known parameters to access the stored y value.
+ */
 /** Java's abstract `DataSet`, the n-dimensional base. */
 class DataSet {
 public:
     virtual ~DataSet() = default;
 
+    /** Get total number of dimensions */
     virtual int get_dimensions() const = 0;
+    /** Get total number of data stored for dimension n in data set */
     virtual int get_count(int dim) const = 0;
+    /** Get data stored at position n on dimension dim in data set */
     virtual double get_x_value(int n, int dim) const = 0;
+    /** Get y data stored at position (x0, x1, ...) in data set */
     virtual double get_y_value(const std::vector<int> &x) const = 0;
+    /** Interpolate y value corresponding to given x value(s) in data set. */
     virtual double interpolate(const std::vector<double> &x) = 0;
+    /** Interpolate y value corresponding to given x value in data
+     set. data may be differentiated several times along the requested
+     dimension.
+     @param deriv Differentiation count, 0 means y value, 1 means 1st derivative...
+     @param dim Differentiation dimension
+     */
     virtual double interpolate(const std::vector<double> &x, int deriv, int dim) = 0;
+    /** Get minimal and maximal x values on dimension n found in data set */
     virtual Range get_x_range(int dim) const = 0;
 
+    /** Get minimal and maximal y values found in data set */
     Range get_y_range() const;
 
     int get_version() const { return _version; }
@@ -46,14 +73,26 @@ protected:
     Interpolation _interpolation = Interpolation::Linear;
 };
 
+/**
+ Base class for 1d y = f(x) numerical data set
+ */
 /** Java's abstract `Set1d`: a DataSet that is one-dimensional. */
 class Set1d : public DataSet {
 public:
+    /** Get total number of data stored in data set */
     virtual int get_count() const = 0;
+    /** Get x data at index n in data set */
     virtual double get_x_value(int n) const = 0;
+    /** Get y data stored at index n in data set */
     virtual double get_y_value(int n) const = 0;
     virtual double interpolate(double x) = 0;
+    /** Interpolate y value corresponding to given x value in data
+     set. data may be differentiated several times.
+     @param deriv Differentiation count, 0 means y value, 1 means 1st
+     derivative...
+     */
     virtual double interpolate(double x, int deriv) = 0;
+    /** Get minimal and maximal x values on found in data set */
     virtual Range get_x_range() const = 0;
 
     int get_dimensions() const override { return 1; }
@@ -100,12 +139,22 @@ public:
 
     void clear();
 
+    /**
+     * Get stored derivative value at index x
+     */
     // ---- InterpolatableDataSet ----
     double get_d_value(int n) const override { return _data[static_cast<std::size_t>(n)].d; }
+    // inherited from Set1d
     int get_count() const override { return static_cast<int>(_data.size()); }
     double get_x_value(int n) const override { return _data[static_cast<std::size_t>(n)].x; }
     double get_y_value(int n) const override { return _data[static_cast<std::size_t>(n)].y; }
+    /**
+     * find lower bound index of interval containing value
+     */
     int get_interval(double x) const override;
+    /**
+     * find nearest value index
+     */
     int get_nearest(double x) const override;
     double get_x_interval(int x) const override;
     double get_x_interval(int x1, int x2) const override;

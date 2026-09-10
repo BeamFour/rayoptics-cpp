@@ -5,6 +5,15 @@
 
 namespace redukti::mathlib::fftpack {
 
+/**
+  * Construct a wavenumber table with size <em>n</em> for Complex FFT.
+  * The sequences with the same size can share a wavenumber table. The prime
+  * factorization of <em>n</em> together with a tabulation of the trigonometric functions
+  * are computed and stored.
+  *
+  * @param  n  the size of a complex data sequence. When <em>n</em> is a multiplication of small
+  * numbers (4, 2, 3, 5), this FFT transform is very efficient.
+*/
 ComplexDoubleFFT::ComplexDoubleFFT(int n) {
     ndim = n;
     norm_factor = n;

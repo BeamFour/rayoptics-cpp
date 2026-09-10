@@ -62,6 +62,14 @@ public:
     }
 
     /**
+     * Composition. New translation is set to: apply parent's linear transformation on child translation and add parent translation.
+     * New linear matrix -s the product of the parent and child matrices.
+     * TODO check terminology is correct
+     *
+     * @param p Parent component
+     * @param c Child component
+     */
+    /**
      * Composition. New translation is set to: apply parent's linear
      * transformation on child translation and add parent translation. New
      * linear matrix is the product of the parent and child matrices.
