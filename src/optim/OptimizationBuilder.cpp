@@ -131,6 +131,19 @@ OptimizationBuilder &OptimizationBuilder::aimContrastAtExitPupil(bool value) {
     return *this;
 }
 
+/**
+ * Subtract the constant part of each contrast block, so the residuals carry the
+ * variance the OTF modulus depends on rather than the un-centred second moment.
+ *
+ * A constant wavefront difference across the pupil is tilt, which displaces the
+ * image and costs no MTF - but it is reducible, so leaving it in offers the solver
+ * merit reduction that buys nothing. It is identically zero in the sagittal direction
+ * by symmetry and reaches 57% of an outer-field tangential block on the Leica 75/2,
+ * which biases the astigmatic focus split toward tangential.
+ *
+ * Off by default because it changes every contrast residual. See
+ * ContrastAnalysis#center_residuals(ContrastAnalysisResult, int).
+ */
 OptimizationBuilder &OptimizationBuilder::centerContrastResiduals(bool value) {
     centerContrastResiduals_ = value;
     return *this;
@@ -159,6 +172,14 @@ OptimizationBuilder &OptimizationBuilder::varyThicknesses(
     return *this;
 }
 
+/**
+ * Vary every thickness, air spaces and element thicknesses alike. Surfaces with zero
+ * thickness are excluded, being coincident rather than a space to open up.
+ *
+ * The counterpart to #varyAllCurvatures(), and best paired with
+ * #applyThicknessConstraints(double) - with every space free and nothing holding the
+ * layout, the solver will collapse gaps and drive elements through one another.
+ */
 OptimizationBuilder &OptimizationBuilder::varyAllThicknesses() {
     this->allThicknessSurfaces = true;
     return *this;
@@ -282,6 +303,11 @@ OptimizationBuilder &OptimizationBuilder::contrastBalanceGoals(
     return *this;
 }
 
+/**
+ * One aggregate GoalSpotRMS per field, each aiming at a target RMS spot
+ * radius in microns. To minimize spot size rather than hit a number, prefer
+ * #spotDeviationGoals(double...), which takes weights instead.
+ */
 OptimizationBuilder &OptimizationBuilder::spotRmsGoals(
     const std::vector<double> &targets) {
     spotRmsGoals_ = SpotGoals{targets, unitWeightsFor(targets)};
@@ -294,6 +320,15 @@ OptimizationBuilder &OptimizationBuilder::spotRmsGoals(
     return *this;
 }
 
+/**
+ * Minimize RMS spot radius through the individual signed X/Y ray deviations that
+ * make it up, one GoalSpotDeviation per orientation per sampled ray.
+ * Differentiating those exposes far more to the solver than one square-rooted
+ * aggregate does.
+ *
+ * These take <em>weights</em>, not targets - every residual aims at zero. One
+ * weight per field is applied to every wavelength, sample and orientation.
+ */
 OptimizationBuilder &OptimizationBuilder::spotDeviationGoals(
     const std::vector<double> &fieldWeights) {
     this->addSpotDeviationGoals = true;
@@ -342,6 +377,12 @@ OptimizationBuilder &OptimizationBuilder::additionalGoals(
 // Constraints
 // ---------------------------------------------------------------------------
 
+/**
+ * Hold the varied thicknesses near their starting values, at a chosen weight.
+ *
+ * @param weight relative strength; see #NOMINAL_CONSTRAINT_WEIGHT for why the
+ *               nominal value is usually the right one
+ */
 OptimizationBuilder &OptimizationBuilder::applyThicknessConstraints(double weight) {
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
@@ -350,6 +391,16 @@ OptimizationBuilder &OptimizationBuilder::applyThicknessConstraints(double weigh
     return *this;
 }
 
+/**
+ * Hold the varied gaps near their starting edge separations, at a chosen weight.
+ *
+ * Gaps whose starting edge separation is not positive and finite are skipped: a
+ * fractional constraint cannot be formed around zero, and a design that already starts
+ * with coincident or crossed surfaces has nothing useful to anchor to. See
+ * ConstraintEdgeThickness#is_constrainable(Analysis, int).
+ *
+ * @param weight relative strength; see #NOMINAL_CONSTRAINT_WEIGHT
+ */
 OptimizationBuilder &OptimizationBuilder::applyEdgeThicknessConstraints(double weight) {
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
@@ -358,6 +409,11 @@ OptimizationBuilder &OptimizationBuilder::applyEdgeThicknessConstraints(double w
     return *this;
 }
 
+/**
+ * Hold the varied surfaces near their starting curvatures, at a chosen weight.
+ *
+ * @param weight relative strength; see #NOMINAL_CONSTRAINT_WEIGHT
+ */
 OptimizationBuilder &OptimizationBuilder::applyCurvatureConstraints(double weight) {
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
@@ -391,6 +447,23 @@ OptimizationBuilder::OptimizationSetup OptimizationBuilder::build() {
     return OptimizationSetup(std::move(analysis), std::move(variables), std::move(goals));
 }
 
+/**
+ * The gaps whose edge separation some varied parameter can move, sorted and
+ * deduplicated: the gap a varied thickness <em>is</em>, and <em>both</em> gaps beside
+ * a surface whose shape is varied.
+ *
+ * The second half is easy to miss and was missed here originally, in both the
+ * penalty and the bound form. The separation is
+ * gap(h) = t + sag_next(h) - sag_this(h), so moving a radius, conic constant
+ * or aspheric coefficient closes the gap on either side of that surface with no
+ * thickness variable involved anywhere. A setup that varies curvatures and aspherics
+ * but no thicknesses therefore got <em>no</em> edge protection at all, silently -
+ * which is precisely the configuration in which curvature is the only freedom, and
+ * curvature-driven crossing is the failure the edge constraint exists to catch.
+ *
+ * Out-of-range gap indices produced at either end of the surface list are left in
+ * and rejected by the caller's is_constrainable / is_boundable check.
+ */
 std::set<int> OptimizationBuilder::edgeAffectedGaps(
     const std::vector<std::shared_ptr<Var>> &variables) {
     std::set<int> gaps;

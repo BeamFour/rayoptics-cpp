@@ -345,6 +345,12 @@ int LMDerSolver::solve() {
 
     int info = 0;
     if (use_native) {
+        //            try {
+        //                info = MinpackFFM.lmder(fcn, m, n, x, diag,2);
+        //            }
+        //            catch (Throwable t) {
+        //                info = -99;
+        //            }
         // The Java's native MinpackFFM path is commented out there too.
     } else {
         std::vector<double> fvec(static_cast<std::size_t>(m), 0.0); // Results of goals

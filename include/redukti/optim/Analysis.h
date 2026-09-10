@@ -52,10 +52,13 @@ public:
     bool _check_spot_apertures = true;
     int _contrast_num_rings = 3;
     int _contrast_num_spokes = 6;
+    /** See ContrastOptions#calibrate_frequency(boolean); off by default. */
     /** See ContrastOptions::calibrate_frequency(bool); off by default. */
     bool _contrast_calibrate_frequency = false;
+    /** See ContrastOptions#aim_exit_pupil(boolean); off by default. */
     /** See ContrastOptions::aim_exit_pupil(bool); off by default. */
     bool _contrast_aim_exit_pupil = false;
+    /** See ContrastOptions#center_residuals(boolean); off by default. */
     /** See ContrastOptions::center_residuals(bool); off by default. */
     bool _contrast_center_residuals = false;
     bool _compute_spots = true;
@@ -63,11 +66,22 @@ public:
     bool _compute_mtf = true;
     /** How each rebuilt model establishes its vignetting; see vignetting(VigType). */
     spec::VigType _vig_type = spec::VigType::SetPupil;
+    /** See #freezing_vignetting(boolean); off by default. */
     /** See freezing_vignetting(bool); off by default. */
     bool _freeze_vignetting = false;
 
     static constexpr int NUM_TRANSVERSE_RAYS = 10;
 
+    /**
+     * Systems and spot analysis setup for each field
+     * Always has at least 1 field, and first field is always 0.0
+     * i.e. horizontal rays
+     * Additional fields can be added by constructor
+     *
+     * By default, the system[0] system is for parallel rays (field 0)
+     * but if being used to find rays then the angle of view is variable
+     * and set by the optimizer
+     */
     /**
      * Systems and spot analysis setup for each field.
      *
@@ -77,6 +91,16 @@ public:
      */
     std::unique_ptr<rayoptics::optical::OpticalModel> _opt_model;
 
+    /**
+     * When optimizing a prescription that has multiple scenarios configured
+     * use this constructor and set the scenario. At present optimization must
+     * be performed for each scenario independently.
+     *
+     * @param prescription Optical prescription
+     * @param fields    Fields to be computed, values range from 0.0 to 1.0
+     * @param freqs The MTF frequencies to be computed
+     * @param scenario  The scenario to use, defaults to 0
+     */
     /**
      * When optimizing a prescription that has multiple scenarios configured
      * use this constructor and set the scenario. At present optimization must
@@ -114,14 +138,17 @@ public:
         _contrast_num_spokes = num_spokes;
         return *this;
     }
+    /** See ContrastOptions#calibrate_frequency(boolean). */
     Analysis &calibrating_contrast_frequency(bool value) {
         _contrast_calibrate_frequency = value;
         return *this;
     }
+    /** See ContrastOptions#aim_exit_pupil(boolean). */
     Analysis &aiming_contrast_at_exit_pupil(bool value) {
         _contrast_aim_exit_pupil = value;
         return *this;
     }
+    /** See ContrastOptions#center_residuals(boolean). */
     Analysis &centering_contrast_residuals(bool value) {
         _contrast_center_residuals = value;
         return *this;
@@ -133,6 +160,22 @@ public:
         return *this;
     }
 
+    /**
+     * How every rebuilt optical model establishes its vignetting factors.
+     *
+     * VigType#SetPupil is the default and what all existing regression values
+     * were generated under: it resizes the pupil so the axial marginal ray meets the stop
+     * edge, then measures all four factors with real rays. VigType#SetVig measures
+     * the factors the same way without the resize, and agrees closely - within 0.005 of
+     * pupil half-width and 3-4 MTF decimals on both test lenses.
+     *
+     * VigType#Paraxial is cheaper but sets only the <em>y</em> factors: a
+     * paraxial ray is meridional and says nothing about the sagittal pupil, so x comes out
+     * unvignetted at every field. That makes the pupil an ellipse even on axis, where
+     * sagittal and tangential MTF must be equal - measured 0.148 apart at 40 cyc/mm on the
+     * Leica 75/2 and 0.010 on the Otus. It also means sagittal is optimized over a
+     * superset of the real aperture and tangential over a subset.
+     */
     /**
      * How every rebuilt optical model establishes its vignetting factors.
      *

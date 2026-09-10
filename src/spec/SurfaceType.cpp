@@ -86,6 +86,7 @@ std::string &SurfaceType::aspherics_to_opt_bench_str(std::string &sb) const {
     sb += d(_k);
     sb += "\t";
     int start = 0;
+    // Skip the unused params for optical bench format
     if (_asph_type == ASPH_EVEN)
         start = 1;
     else if (_asph_type == ASPH_ODD)
@@ -214,6 +215,7 @@ std::string &SurfaceType::to_markdown_table_row(std::string &sb) const {
 }
 
 std::string SurfaceType::toString() const {
+    // FIXME is last
     std::string sb;
     to_opt_bench_str(sb, false);
     return sb;

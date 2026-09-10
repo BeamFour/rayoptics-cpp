@@ -54,7 +54,7 @@ std::unique_ptr<optical::OpticalModel> RayOpticsModelBuilder::build_optical_mode
             fields);
         osp->fov->value = _prescription._diameter_image_circle / 2.0;
     }
-    osp->fov->is_relative = true;
+    osp->fov->is_relative = true;  // Fields are specified as 0, 0.7, 1.0 etc - without actual sizes
     osp->fov->is_wide_angle = (half_angle_deg > 45.) || use_wideangle_aiming;
     std::vector<specs::WvlWt> wvls;
     for (std::size_t k = 0; k < _prescription._wvls.size(); k++)
@@ -82,11 +82,19 @@ std::unique_ptr<optical::OpticalModel> RayOpticsModelBuilder::build_optical_mode
         opm->update_model();
         break;
     case VigType::SetApertures:
+        // Vignetting first. set_ape sizes each aperture to just pass the
+        // boundary rays, so running it first - against unvignetted rays -
+        // leaves apertures wide enough that nothing clips, and the
+        // vignetting that follows comes out zero on the unclipped side.
         raytr::VigCalc::set_vig(opm.get(), false);
         raytr::VigCalc::set_ape(opm.get());
         opm->update_model();
         break;
     case VigType::SetFnum:
+        // Trust the quoted f/#: size the stop to satisfy it (which
+        // recalculates vignetting), then size everything else to pass
+        // the resulting rays. set_ape re-derives the same stop diameter,
+        // so it does not need excluding.
         raytr::VigCalc::set_stop_aperture(opm.get());
         raytr::VigCalc::set_ape(opm.get());
         opm->update_model();

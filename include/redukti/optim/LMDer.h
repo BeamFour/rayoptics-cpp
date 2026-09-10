@@ -65,7 +65,9 @@ private:
     std::vector<double> weights;
     std::shared_ptr<Analysis> analysis_owner;
     Analysis *analysis;
+    /** number of vars in lmder parlance */
     std::vector<std::shared_ptr<Var>> vars;
+    /** number of functions in lmder parlance */
     std::vector<std::shared_ptr<Goal>> functions;
     bool use_native;
 

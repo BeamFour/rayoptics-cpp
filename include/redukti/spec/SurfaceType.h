@@ -42,8 +42,16 @@ public:
     /** Nullable in the Java. */
     std::optional<std::string> _catalog_name;
     std::optional<std::string> _glass_name;
+    // Aspheric
     int _asph_type;
     double _k = 0.0;
+    /**
+     * Coefficients are stored in  a normalized way
+     * For Even polynomials, first coefficient is 0, as this is the A2 term
+     * For Odd polynomials first 2 coefficients are 0.
+     * But in OpticalBench the data is output so that
+     * these values are skipped
+     */
     std::optional<std::vector<double>> _coeffs;
     std::optional<std::vector<double>> _thickness_by_scenario;
     std::optional<std::vector<double>> _diameter_by_scenario;

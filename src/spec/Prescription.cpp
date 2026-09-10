@@ -208,10 +208,26 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
 
 namespace {
 
+/** Names of the [variable distances] entries a prescription cannot be built without */
 const char *const FOCAL_LENGTH = "Focal Length";
 const char *const F_NUMBER = "F-Number";
 const char *const ANGLE_OF_VIEW = "Angle of View";
 
+/**
+ * Focal length, f-number and angle of view are not optional: the optical model is
+ * built from them, so a prescription that omits one fails much further down with a
+ * NullPointerException that names neither the missing entry nor the file it should
+ * have been in. Checking here reports it while the input is still in hand.
+ *
+ * Image height is deliberately not checked - unlike these three it has a documented
+ * default (35mm), so leaving it out is a legitimate choice rather than an omission.
+ *
+ * @param specs Specs obtained from OpticalBench format
+ * @param name Name of the entry in the [variable distances] section
+ * @param expected What the entry should hold, used in the error message
+ * @param scenario Scenario whose value is wanted
+ * @return The value for that scenario, always positive
+ */
 double require_positive_value(const Prescription::LensSpecifications &specs,
                               const char *name, const char *expected, int scenario) {
     const auto *variable = specs.find_variable(name);
@@ -224,6 +240,8 @@ double require_positive_value(const Prescription::LensSpecifications &specs,
             std::string("The prescription specifies '") + name + "' for " +
             std::to_string(variable->num_values()) + " scenario(s), but scenario " +
             std::to_string(scenario) + " was requested");
+    // Anything unparseable, such as the 'undefined' placeholder these files use for
+    // scenarios that were never filled in, reads back as 0.0 rather than failing
     double value = variable->get_value_as_double(scenario);
     if (!(value > 0.0))
         throw IllegalArgumentException(
@@ -235,11 +253,22 @@ double require_positive_value(const Prescription::LensSpecifications &specs,
 
 } // namespace
 
+/**
+ * Helper to build a Prescription from OpticalBench file.
+ *
+ * @param specs Specs obtained from OpticalBench format
+ * @param use_glass_types If true will use glass types if glass names are provided
+ * @param wvls Wavelengths to use
+ * @param wts Wavelength weights - mainly used for Spot diagrams and MTFs
+ * @param default_scenario Default scenario - use 0 if input has no scenarios
+ */
 Prescription Prescription::build_prescription(const LensSpecifications &specs,
                                               bool use_glass_types,
                                               const std::vector<double> &wvls,
                                               const std::vector<double> &wts,
                                               int default_scenario) {
+    // We use default values variables that can change in a multi-configuration setup.
+    // The defaults are useful as they are the ones that are manipulated during optimization
     Prescription prescription(
         require_positive_value(specs, FOCAL_LENGTH, "the focal length in mm",
                                default_scenario),
@@ -250,6 +279,7 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
     prescription._title = specs.get_descriptive_data().get_value("title");
     const auto &patent_info_n = specs.get_patent_info();
     if (patent_info_n.count() > 0) {
+        // New style
         prescription._patent_country = patent_info_n.get_value("country");
         prescription._patent_number = patent_info_n.get_value("number");
         prescription._patent_example = patent_info_n.get_value("example");
@@ -259,6 +289,7 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
         prescription._current_assignee = patent_info_n.get_value("current assignee");
         prescription._patent_link = patent_info_n.get_value("link");
     } else if (specs.get_descriptive_data().find_variable("patent") != nullptr) {
+        // old style to be deleted
         const auto *patentInfo = specs.get_descriptive_data().find_variable("patent");
         prescription._patent_country = patentInfo->get_value(0);
         prescription._patent_number = patentInfo->get_value(1);
@@ -272,14 +303,18 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
     const auto &report_data = specs.get_report_data();
     std::optional<std::string> lensName;
     if (report_data.count() > 0)
+        // new style
         lensName = report_data.get_value("lens name");
     if (!lensName.has_value()) {
+        // old style - to be removed
         const auto *variable = specs.get_descriptive_data().find_variable("lens name");
         if (variable != nullptr)
             lensName = variable->get_value(0);
     }
     if (lensName.has_value())
         prescription._lens_name = lensName;
+    // If the input file defines a configuration section
+    // then we import the configurations
     prescription.add_configurations(specs);
     const auto &surfaces = specs.get_surfaces();
     for (std::size_t k = 0; k < surfaces.size(); k++) {
@@ -338,6 +373,7 @@ Prescription &Prescription::add_configurations(const LensSpecifications &specs) 
         _angle_of_views_by_scenario.assign(configs.size(), 0.0);
         for (std::size_t k = 0; k < configs.size(); k++) {
             int scenario = configs[k];
+            // every configured scenario needs its own values, not just the default one
             _focal_length_by_scenario[k] =
                 require_positive_value(specs, FOCAL_LENGTH, "the focal length in mm",
                                        scenario);
@@ -359,6 +395,7 @@ namespace {
  */
 double round_to(double value, int decimals) {
     double scale = std::pow(10, decimals);
+    /** Decimal places used when writing computed apertures back. */
     return static_cast<double>(
                static_cast<long long>(std::floor(value * scale + 0.5))) /
            scale;
@@ -398,6 +435,9 @@ int Prescription::update_apertures_from(rayoptics::optical::OpticalModel *opm, i
         double diameter =
             round_to(ifcs[static_cast<std::size_t>(k + 1)]->surface_od() * 2.0, decimals);
         bool modified = false;
+        // Only stops carry per-configuration diameters - a glass element's
+        // aperture is fixed - but some prescriptions vary the stop when
+        // zooming or focusing close, so that entry has to move too.
         if (surface._diameter_by_scenario.has_value()) {
             if (config < 0 ||
                 config >= static_cast<int>(surface._diameter_by_scenario->size()))
@@ -413,6 +453,8 @@ int Prescription::update_apertures_from(rayoptics::optical::OpticalModel *opm, i
                 modified = true;
             }
         }
+        // _diameter is the default-scenario value, which config 0 stands
+        // for, and the only value when there is no per-config array.
         if ((!surface._diameter_by_scenario.has_value() || config == 0) &&
             surface._diameter != diameter) {
             surface._diameter = diameter;
@@ -467,6 +509,7 @@ void Prescription::add_report_section(std::string &sb) const {
     if (_configurations.has_value()) {
         sb += "scenarios";
         for (std::size_t k = 0; k < _configurations->size(); k++)
+            // we change scenarios to be ours
             sb += "\t" + i(static_cast<int>(k));
         sb += "\n";
         sb += "names";
@@ -537,6 +580,7 @@ std::string &Prescription::to_opt_bench_str(std::string &sb) const {
     for (std::size_t k = 0; k < _surface_list.size(); k++) {
         const SurfaceType &surf_k = _surface_list[k];
         if (k < _surface_list.size() - 1 && surf_k._thickness_by_scenario.has_value()) {
+            // last surface already dealt with above
             sb += "d" + surf_k._id;
             for (double v : *surf_k._thickness_by_scenario)
                 sb += "\t" + d(v);

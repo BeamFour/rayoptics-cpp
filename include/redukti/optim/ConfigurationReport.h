@@ -13,6 +13,29 @@
 namespace redukti::optim {
 
 /**
+ * Evaluates every configuration of a prescription, so an optimization aimed at one of
+ * them can be checked against the rest.
+ *
+ * Only the varying spaces of a zoom carry a value per configuration. Curvatures,
+ * aspheric terms and the fixed spaces are shared, so optimizing any of them against a
+ * single configuration is a bet that the others will hold up. Nothing in the merit checks
+ * that bet - the solve never evaluates the configurations it was not pointed at - which
+ * makes the check an after-the-fact measurement rather than something the builder could
+ * enforce.
+ *
+ * Usage is capture, solve, capture, compare:
+ *
+ * <pre>{@code
+ * var before = ConfigurationReport.capture(prescription, fields, frequencies);
+ * solver.solve();
+ * var after = ConfigurationReport.capture(prescription, fields, frequencies);
+ * System.out.println(ConfigurationReport.compare(before, after));
+ * }</pre>
+ *
+ * A single-configuration prescription reports one row, so the same call is harmless
+ * where there is nothing to compare across.
+ */
+/**
  * Evaluates every configuration of a prescription, so an optimization aimed at
  * one of them can be checked against the rest.
  *

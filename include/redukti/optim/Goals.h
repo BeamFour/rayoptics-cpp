@@ -12,6 +12,10 @@ namespace redukti::optim {
 
 /**
  * Paraxial goals are helpful in anchoring the system so that
+ * the optimixer does not make massive changes to focal length etc.
+ */
+/**
+ * Paraxial goals are helpful in anchoring the system so that
  * the optimizer does not make massive changes to focal length etc.
  */
 class GoalParax : public Goal {
@@ -90,6 +94,14 @@ public:
     const int _field;
 
     /**
+     * @param analysis Results from current iteration
+     * @param field Fields start at 1
+     * @param orientation Orientation#SAGITTAL or Orientation#TANGENTIAL
+     * @param freq  MTF frequency
+     * @param target    The goal
+     * @param weight    Weighting
+     */
+    /**
      * @param field Fields start at 1
      * @param orientation Orientation::SAGITTAL or Orientation::TANGENTIAL
      * @param freq  MTF frequency
@@ -137,6 +149,54 @@ public:
     std::string toString() override;
 };
 
+/**
+ * Holds sagittal and tangential contrast in balance at one field and frequency.
+ *
+ * The contrast merit minimizes sum(sagittal^2) + sum(tangential^2), which at a
+ * fixed total barely discriminates how astigmatism is split between the two meridians. A
+ * designer discriminates sharply: on the Leica 75/2 a solve produced 0.156 sagittal
+ * against 0.725 tangential at field 0.8, 50 cyc/mm, while the <em>sum</em> of the two MTFs
+ * stayed within 15% of its value everywhere else across the field. The lens was not worse
+ * in that zone, it was lopsided, and nothing in the merit had an opinion about that.
+ *
+ * This supplies the opinion. The value is the difference between what the two
+ * orientations contribute to the merit,
+ *
+ * <pre>{@code sum_wavelengths w * (
+ *     w_sagittal * sum_samples r_sagittal^2
+ *   - w_tangential * sum_samples r_tangential^2 )}</pre>
+ *
+ * against a target of zero. Defining it on the residuals rather than on the raw
+ * wavefront differences means it automatically follows whatever those residuals already
+ * account for - residual centering, quadrature weights, wavelength and orientation
+ * weights, and the frequency calibration.
+ *
+ * It is smooth and quadratic in the wavefront differences, with no modulus and no
+ * square root, so unlike the phasor MTF goal that was tried and reverted it has no kink to
+ * fall into.
+ *
+ * The orientation weights are the ones the ordinary contrast goals use, so the ratio
+ * w_sagittal / w_tangential <em>is</em> the instruction for how the two meridians
+ * should differ: balance is reached when the weighted contributions match, not when the
+ * two residual energies do. Weights of 0.5 and 0.1 ask for tangential to carry five times
+ * the energy of sagittal, and the goal will deliver that.
+ *
+ * <b>Not meaningful on axis.</b> At field zero the meridians are identical by
+ * rotational symmetry, so there is nothing to balance and the value reduces to
+ * (w_sagittal - w_tangential) * S, where S is the axial residual energy.
+ * Equal weights make that exactly zero and the goal inert; unequal weights turn it into a
+ * second axial contrast goal whose strength is a number that usually fell out of a field
+ * taper rather than a decision. On the Leica 75/2 with weights 8 and 4 it came to 6.3% of
+ * the merit, none of it balance. It is also shaped unlike the goals it shadows - S
+ * is already a sum of squares, so this residual is quadratic where the per-sample ones are
+ * linear, and it fades quadratically as the design improves. Prefer raising the field-zero
+ * contrast weights if axial emphasis is what is wanted.
+ *
+ * Two further things to be clear about. This is a design preference, not a correction:
+ * it tells the optimizer something it cannot infer, rather than fixing an error. And it is
+ * one residual against the thousands in a contrast merit, so its weight has to be set
+ * deliberately - see OptimizationBuilder#contrastBalanceGoals(boolean[], double).
+ */
 /**
  * Holds sagittal and tangential contrast in balance at one field and frequency.
  *

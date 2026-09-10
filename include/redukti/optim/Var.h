@@ -57,6 +57,9 @@ public:
     VarRadius(spec::Prescription *prescription, int surfaceId);
 
     double read_from_prescription() override;
+    /**
+     * Writes unscaled value back to the prescription.
+     */
     void write_to_prescription() override;
     std::string toString() const override;
 };
@@ -66,6 +69,13 @@ public:
     const int _surface_id;
     const int _scenario;
 
+    /**
+     * If the thickness varies by scenario then this constructor should be used
+     *
+     * @param prescription  Lens prescription
+     * @param surfaceId The surface index (0-based)
+     * @param scenario  The scenario number, default is 0
+     */
     /**
      * If the thickness varies by scenario then this constructor should be used.
      *
