@@ -19,6 +19,36 @@ namespace redukti::mathlib {
 
 
 
+    /**
+     * Function dpmpar
+     *
+     * This function provides double precision machine parameters
+     * when the appropriate set of data statements is activated (by
+     * removing the c from column 1) and all other data statements are
+     * rendered inactive. Most of the parameter values were obtained
+     * from the corresponding Bell Laboratories Port Library function.
+     *
+     * The function statement is
+     *
+     * double precision function dpmpar(i)
+     *
+     * where
+     *
+     * @param i is an integer input variable set to 1, 2, or 3 which
+     *          selects the desired machine parameter. If the machine has
+     *          t base b digits and its smallest and largest exponents are
+     *          emin and emax, respectively, then these parameters are
+     *
+     *          dpmpar(1) = b**(1 - t), the machine precision,
+     *
+     *          dpmpar(2) = b**(emin - 1), the smallest magnitude,
+     *
+     *          dpmpar(3) = b**emax*(1 - b**(-t)), the largest magnitude.
+     *
+     *          Argonne National Laboratory. MINPACK Project. November 1996.
+     *          Burton S. Garbow, Kenneth E. Hillstrom, Jorge J. More'
+     * @return precision
+     */
     double MinPack::dpmpar(int i) {
         switch (i) {
             case 1:
@@ -31,6 +61,121 @@ namespace redukti::mathlib {
     }
 
     
+    /**
+
+     subroutine lmder1
+
+     the purpose of lmder1 is to minimize the sum of the squares of
+     m nonlinear functions in n variables by a modification of the
+     levenberg-marquardt algorithm. this is done by using the more
+     general least-squares solver lmder. the user must provide a
+     subroutine which calculates the functions and the jacobian.
+
+     the subroutine statement is
+
+     subroutine lmder1(fcn,m,n,x,fvec,fjac,ldfjac,tol,info,
+     ipvt,wa,lwa)
+
+     where
+
+     fcn is the name of the user-supplied subroutine which
+     calculates the functions and the jacobian. fcn must
+     be declared in an external statement in the user
+     calling program, and should be written as follows.
+
+     subroutine fcn(m,n,x,fvec,fjac,ldfjac,iflag)
+     integer m,n,ldfjac,iflag
+     double precision x(n),fvec(m),fjac(ldfjac,n)
+     ----------
+     if iflag = 1 calculate the functions at x and
+     return this vector in fvec. do not alter fjac.
+     if iflag = 2 calculate the jacobian at x and
+     return this matrix in fjac. do not alter fvec.
+     ----------
+     return
+     end
+
+     the value of iflag should not be changed by fcn unless
+     the user wants to terminate execution of lmder1.
+     in this case set iflag to a negative integer.
+
+     @param m is a positive integer input variable set to the number
+     of functions.
+
+     @param n is a positive integer input variable set to the number
+     of variables. n must not exceed m.
+
+     @param x is an array of length n. on input x must contain
+     an initial estimate of the solution vector. on output x
+     contains the final estimate of the solution vector.
+
+     @param fvec is an output array of length m which contains
+     the functions evaluated at the output x.
+
+     @param fjac is an output m by n array. the upper n by n submatrix
+     of fjac contains an upper triangular matrix r with
+     diagonal elements of nonincreasing magnitude such that
+
+     t     t           t
+     p *(jac *jac)*p = r *r,
+
+     where p is a permutation matrix and jac is the final
+     calculated jacobian. column j of p is column ipvt(j)
+     (see below) of the identity matrix. the lower trapezoidal
+     part of fjac contains information generated during
+     the computation of r.
+
+     @param ldfjac is a positive integer input variable not less than m
+     which specifies the leading dimension of the array fjac.
+
+     @param tol is a nonnegative input variable. termination occurs
+     when the algorithm estimates either that the relative
+     error in the sum of squares is at most tol or that
+     the relative error between x and the solution is at
+     most tol.
+
+     @return  info is an integer output variable. if the user has
+     terminated execution, info is set to the (negative)
+     value of iflag. see description of fcn. otherwise,
+     info is set as follows.
+
+     info = 0  improper input parameters.
+
+     info = 1  algorithm estimates that the relative error
+     in the sum of squares is at most tol.
+
+     info = 2  algorithm estimates that the relative error
+     between x and the solution is at most tol.
+
+     info = 3  conditions for info = 1 and info = 2 both hold.
+
+     info = 4  fvec is orthogonal to the columns of the
+     jacobian to machine precision.
+
+     info = 5  number of calls to fcn with iflag = 1 has
+     reached 100*(n+1).
+
+     info = 6  tol is too small. no further reduction in
+     the sum of squares is possible.
+
+     info = 7  tol is too small. no further improvement in
+     the approximate solution x is possible.
+
+     @param ipvt is an integer output array of length n. ipvt
+     defines a permutation matrix p such that jac*p = q*r,
+     where jac is the final calculated jacobian, q is
+     orthogonal (not stored), and r is upper triangular
+     with diagonal elements of nonincreasing magnitude.
+     column j of p is column ipvt(j) of the identity matrix.
+
+     @param wa is a work array of length lwa.
+
+     @param lwa is a positive integer input variable not less than 5*n+m.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+
+     */
     int MinPack::lmder1(Lmder_Function &fcn, int m, int n, std::vector<double> &x,
                              std::vector<double> &fvec, std::vector<double> &fjac, int ldfjac, double tol,
                              std::vector<int> &ipvt, std::vector<double> &wa, int lwa) {
@@ -38,22 +183,141 @@ namespace redukti::mathlib {
         return lmder1(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, 0.0);
     }
     
+    /**
+
+     subroutine lmder1
+
+     the purpose of lmder1 is to minimize the sum of the squares of
+     m nonlinear functions in n variables by a modification of the
+     levenberg-marquardt algorithm. this is done by using the more
+     general least-squares solver lmder. the user must provide a
+     subroutine which calculates the functions and the jacobian.
+
+     the subroutine statement is
+
+     subroutine lmder1(fcn,m,n,x,fvec,fjac,ldfjac,tol,info,
+     ipvt,wa,lwa)
+
+     where
+
+     fcn is the name of the user-supplied subroutine which
+     calculates the functions and the jacobian. fcn must
+     be declared in an external statement in the user
+     calling program, and should be written as follows.
+
+     subroutine fcn(m,n,x,fvec,fjac,ldfjac,iflag)
+     integer m,n,ldfjac,iflag
+     double precision x(n),fvec(m),fjac(ldfjac,n)
+     ----------
+     if iflag = 1 calculate the functions at x and
+     return this vector in fvec. do not alter fjac.
+     if iflag = 2 calculate the jacobian at x and
+     return this matrix in fjac. do not alter fvec.
+     ----------
+     return
+     end
+
+     the value of iflag should not be changed by fcn unless
+     the user wants to terminate execution of lmder1.
+     in this case set iflag to a negative integer.
+
+     @param m is a positive integer input variable set to the number
+     of functions.
+
+     @param n is a positive integer input variable set to the number
+     of variables. n must not exceed m.
+
+     @param x is an array of length n. on input x must contain
+     an initial estimate of the solution vector. on output x
+     contains the final estimate of the solution vector.
+
+     @param fvec is an output array of length m which contains
+     the functions evaluated at the output x.
+
+     @param fjac is an output m by n array. the upper n by n submatrix
+     of fjac contains an upper triangular matrix r with
+     diagonal elements of nonincreasing magnitude such that
+
+     t     t           t
+     p *(jac *jac)*p = r *r,
+
+     where p is a permutation matrix and jac is the final
+     calculated jacobian. column j of p is column ipvt(j)
+     (see below) of the identity matrix. the lower trapezoidal
+     part of fjac contains information generated during
+     the computation of r.
+
+     @param ldfjac is a positive integer input variable not less than m
+     which specifies the leading dimension of the array fjac.
+
+     @param tol is a nonnegative input variable. termination occurs
+     when the algorithm estimates either that the relative
+     error in the sum of squares is at most tol or that
+     the relative error between x and the solution is at
+     most tol.
+
+     @return  info is an integer output variable. if the user has
+     terminated execution, info is set to the (negative)
+     value of iflag. see description of fcn. otherwise,
+     info is set as follows.
+
+     info = 0  improper input parameters.
+
+     info = 1  algorithm estimates that the relative error
+     in the sum of squares is at most tol.
+
+     info = 2  algorithm estimates that the relative error
+     between x and the solution is at most tol.
+
+     info = 3  conditions for info = 1 and info = 2 both hold.
+
+     info = 4  fvec is orthogonal to the columns of the
+     jacobian to machine precision.
+
+     info = 5  number of calls to fcn with iflag = 1 has
+     reached 100*(n+1).
+
+     info = 6  tol is too small. no further reduction in
+     the sum of squares is possible.
+
+     info = 7  tol is too small. no further improvement in
+     the approximate solution x is possible.
+
+     @param ipvt is an integer output array of length n. ipvt
+     defines a permutation matrix p such that jac*p = q*r,
+     where jac is the final calculated jacobian, q is
+     orthogonal (not stored), and r is upper triangular
+     with diagonal elements of nonincreasing magnitude.
+     column j of p is column ipvt(j) of the identity matrix.
+
+     @param wa is a work array of length lwa.
+
+     @param lwa is a positive integer input variable not less than 5*n+m.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+
+     */
     int MinPack::lmder1(Lmder_Function &fcn, int m, int n, std::vector<double> &x,
                              std::vector<double> &fvec, std::vector<double> &fjac, int ldfjac, double tol,
                              std::vector<int> &ipvt, std::vector<double> &wa, int lwa, double epsfcn) {
         
+        /* Initialized data */
         const double factor = 100.;
 
+        /* Local variables */
         int mode;
         std::vector<int> nfev(1, 0), njev(1, 0);
         double ftol, gtol, xtol;
         int maxfev, nprint;
         int info;
 
+        /*     check the input parameters for errors. */
         if (n <= 0 || m < n || ldfjac < m || tol < 0. || lwa < n * 5 + m) {
             return 0;
         }
 
+        /*     call lmder. */
         maxfev = (n + 1) * 100;
         ftol = tol;
         xtol = tol;
@@ -75,8 +339,176 @@ namespace redukti::mathlib {
         }
         return info;
 
+        /*     last card of subroutine lmder1. */
     }
 
+    /**
+      subroutine lmder
+
+      the purpose of lmder is to minimize the sum of the squares of
+      m nonlinear functions in n variables by a modification of
+      the levenberg-marquardt algorithm. the user must provide a
+      subroutine which calculates the functions and the jacobian.
+
+      the subroutine statement is
+
+        subroutine lmder(fcn,m,n,x,fvec,fjac,ldfjac,ftol,xtol,gtol,
+                         maxfev,diag,mode,factor,nprint,info,nfev,
+                         njev,ipvt,qtf,wa1,wa2,wa3,wa4)
+
+      where
+
+        @param fcn is the name of the user-supplied subroutine which
+          calculates the functions and the jacobian. fcn must
+          be declared in an external statement in the user
+          calling program, and should be written as follows.
+
+          subroutine fcn(m,n,x,fvec,fjac,ldfjac,iflag)
+          integer m,n,ldfjac,iflag
+          double precision x(n),fvec(m),fjac(ldfjac,n)
+          ----------
+          if iflag = 1 calculate the functions at x and
+          return this vector in fvec. do not alter fjac.
+          if iflag = 2 calculate the jacobian at x and
+          return this matrix in fjac. do not alter fvec.
+          ----------
+          return
+          end
+
+          the value of iflag should not be changed by fcn unless
+          the user wants to terminate execution of lmder.
+          in this case set iflag to a negative integer.
+
+        @param m is a positive integer input variable set to the number
+          of functions.
+
+        @param n is a positive integer input variable set to the number
+          of variables. n must not exceed m.
+
+        @param x is an array of length n. on input x must contain
+          an initial estimate of the solution vector. on output x
+          contains the final estimate of the solution vector.
+
+        @param fvec is an output array of length m which contains
+          the functions evaluated at the output x.
+
+        @Param fjac is an output m by n array. the upper n by n submatrix
+          of fjac contains an upper triangular matrix r with
+          diagonal elements of nonincreasing magnitude such that
+
+                 t     t           t
+                p *(jac *jac)*p = r *r,
+
+          where p is a permutation matrix and jac is the final
+          calculated jacobian. column j of p is column ipvt(j)
+          (see below) of the identity matrix. the lower trapezoidal
+          part of fjac contains information generated during
+          the computation of r.
+
+        @param ldfjac is a positive integer input variable not less than m
+          which specifies the leading dimension of the array fjac.
+
+        @param ftol is a nonnegative input variable. termination
+          occurs when both the actual and predicted relative
+          reductions in the sum of squares are at most ftol.
+          therefore, ftol measures the relative error desired
+          in the sum of squares.
+
+        @param xtol is a nonnegative input variable. termination
+          occurs when the relative error between two consecutive
+          iterates is at most xtol. therefore, xtol measures the
+          relative error desired in the approximate solution.
+
+        @param gtol is a nonnegative input variable. termination
+          occurs when the cosine of the angle between fvec and
+          any column of the jacobian is at most gtol in absolute
+          value. therefore, gtol measures the orthogonality
+          desired between the function vector and the columns
+          of the jacobian.
+
+        @param maxfev is a positive integer input variable. termination
+          occurs when the number of calls to fcn with iflag = 1
+          has reached maxfev.
+
+        @param diag is an array of length n. if mode = 1 (see
+          below), diag is internally set. if mode = 2, diag
+          must contain positive entries that serve as
+          multiplicative scale factors for the variables.
+
+        @param mode is an integer input variable. if mode = 1, the
+          variables will be scaled internally. if mode = 2,
+          the scaling is specified by the input diag. other
+          values of mode are equivalent to mode = 1.
+
+        @param factor is a positive input variable used in determining the
+          initial step bound. this bound is set to the product of
+          factor and the euclidean norm of diag*x if nonzero, or else
+          to factor itself. in most cases factor should lie in the
+          interval (.1,100.).100. is a generally recommended value.
+
+        @param nprint is an integer input variable that enables controlled
+          printing of iterates if it is positive. in this case,
+          fcn is called with iflag = 0 at the beginning of the first
+          iteration and every nprint iterations thereafter and
+          immediately prior to return, with x, fvec, and fjac
+          available for printing. fvec and fjac should not be
+          altered. if nprint is not positive, no special calls
+          of fcn with iflag = 0 are made.
+
+        @return info is an integer output variable. if the user has
+          terminated execution, info is set to the (negative)
+          value of iflag. see description of fcn. otherwise,
+          info is set as follows.
+
+          info = 0  improper input parameters.
+
+          info = 1  both actual and predicted relative reductions
+                    in the sum of squares are at most ftol.
+
+          info = 2  relative error between two consecutive iterates
+                    is at most xtol.
+
+          info = 3  conditions for info = 1 and info = 2 both hold.
+
+          info = 4  the cosine of the angle between fvec and any
+                    column of the jacobian is at most gtol in
+                    absolute value.
+
+          info = 5  number of calls to fcn with iflag = 1 has
+                    reached maxfev.
+
+          info = 6  ftol is too small. no further reduction in
+                    the sum of squares is possible.
+
+          info = 7  xtol is too small. no further improvement in
+                    the approximate solution x is possible.
+
+          info = 8  gtol is too small. fvec is orthogonal to the
+                    columns of the jacobian to machine precision.
+
+        @param nfev is an integer output variable set to the number of
+          calls to fcn with iflag = 1.
+
+        @param njev is an integer output variable set to the number of
+          calls to fcn with iflag = 2.
+
+        @param ipvt is an integer output array of length n. ipvt
+          defines a permutation matrix p such that jac*p = q*r,
+          where jac is the final calculated jacobian, q is
+          orthogonal (not stored), and r is upper triangular
+          with diagonal elements of nonincreasing magnitude.
+          column j of p is column ipvt(j) of the identity matrix.
+
+        @param qtf is an output array of length n which contains
+          the first n elements of the vector (q transpose)*fvec.
+
+        @param wa1, wa2, and wa3 are work arrays of length n.
+
+        @param wa4 is a work array of length m.
+
+      @author argonne national laboratory. minpack project. march 1980.
+      @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     int MinPack::lmder(Lmder_Function &fcn, int m, int n, std::vector<double> &x,
                             std::vector<double> &fvec, std::vector<double> &fjac, int ldfjac, double ftol,
                             double xtol, double gtol, int maxfev, std::vector<double> &diag, int mode, double factor, int nprint,
@@ -88,6 +520,173 @@ namespace redukti::mathlib {
                 nfev, njev, ipvt, qtf, wa1, wa2, wa3, wa4, 0.0);
     }
 
+    /**
+     subroutine lmder
+
+     the purpose of lmder is to minimize the sum of the squares of
+     m nonlinear functions in n variables by a modification of
+     the levenberg-marquardt algorithm. the user must provide a
+     subroutine which calculates the functions and the jacobian.
+
+     the subroutine statement is
+
+     subroutine lmder(fcn,m,n,x,fvec,fjac,ldfjac,ftol,xtol,gtol,
+     maxfev,diag,mode,factor,nprint,info,nfev,
+     njev,ipvt,qtf,wa1,wa2,wa3,wa4)
+
+     where
+
+     @param fcn is the name of the user-supplied subroutine which
+     calculates the functions and the jacobian. fcn must
+     be declared in an external statement in the user
+     calling program, and should be written as follows.
+
+     subroutine fcn(m,n,x,fvec,fjac,ldfjac,iflag)
+     integer m,n,ldfjac,iflag
+     double precision x(n),fvec(m),fjac(ldfjac,n)
+     ----------
+     if iflag = 1 calculate the functions at x and
+     return this vector in fvec. do not alter fjac.
+     if iflag = 2 calculate the jacobian at x and
+     return this matrix in fjac. do not alter fvec.
+     ----------
+     return
+     end
+
+     the value of iflag should not be changed by fcn unless
+     the user wants to terminate execution of lmder.
+     in this case set iflag to a negative integer.
+
+     @param m is a positive integer input variable set to the number
+     of functions.
+
+     @param n is a positive integer input variable set to the number
+     of variables. n must not exceed m.
+
+     @param x is an array of length n. on input x must contain
+     an initial estimate of the solution vector. on output x
+     contains the final estimate of the solution vector.
+
+     @param fvec is an output array of length m which contains
+     the functions evaluated at the output x.
+
+     @Param fjac is an output m by n array. the upper n by n submatrix
+     of fjac contains an upper triangular matrix r with
+     diagonal elements of nonincreasing magnitude such that
+
+     t     t           t
+     p *(jac *jac)*p = r *r,
+
+     where p is a permutation matrix and jac is the final
+     calculated jacobian. column j of p is column ipvt(j)
+     (see below) of the identity matrix. the lower trapezoidal
+     part of fjac contains information generated during
+     the computation of r.
+
+     @param ldfjac is a positive integer input variable not less than m
+     which specifies the leading dimension of the array fjac.
+
+     @param ftol is a nonnegative input variable. termination
+     occurs when both the actual and predicted relative
+     reductions in the sum of squares are at most ftol.
+     therefore, ftol measures the relative error desired
+     in the sum of squares.
+
+     @param xtol is a nonnegative input variable. termination
+     occurs when the relative error between two consecutive
+     iterates is at most xtol. therefore, xtol measures the
+     relative error desired in the approximate solution.
+
+     @param gtol is a nonnegative input variable. termination
+     occurs when the cosine of the angle between fvec and
+     any column of the jacobian is at most gtol in absolute
+     value. therefore, gtol measures the orthogonality
+     desired between the function vector and the columns
+     of the jacobian.
+
+     @param maxfev is a positive integer input variable. termination
+     occurs when the number of calls to fcn with iflag = 1
+     has reached maxfev.
+
+     @param diag is an array of length n. if mode = 1 (see
+     below), diag is internally set. if mode = 2, diag
+     must contain positive entries that serve as
+     multiplicative scale factors for the variables.
+
+     @param mode is an integer input variable. if mode = 1, the
+     variables will be scaled internally. if mode = 2,
+     the scaling is specified by the input diag. other
+     values of mode are equivalent to mode = 1.
+
+     @param factor is a positive input variable used in determining the
+     initial step bound. this bound is set to the product of
+     factor and the euclidean norm of diag*x if nonzero, or else
+     to factor itself. in most cases factor should lie in the
+     interval (.1,100.).100. is a generally recommended value.
+
+     @param nprint is an integer input variable that enables controlled
+     printing of iterates if it is positive. in this case,
+     fcn is called with iflag = 0 at the beginning of the first
+     iteration and every nprint iterations thereafter and
+     immediately prior to return, with x, fvec, and fjac
+     available for printing. fvec and fjac should not be
+     altered. if nprint is not positive, no special calls
+     of fcn with iflag = 0 are made.
+
+     @return info is an integer output variable. if the user has
+     terminated execution, info is set to the (negative)
+     value of iflag. see description of fcn. otherwise,
+     info is set as follows.
+
+     info = 0  improper input parameters.
+
+     info = 1  both actual and predicted relative reductions
+     in the sum of squares are at most ftol.
+
+     info = 2  relative error between two consecutive iterates
+     is at most xtol.
+
+     info = 3  conditions for info = 1 and info = 2 both hold.
+
+     info = 4  the cosine of the angle between fvec and any
+     column of the jacobian is at most gtol in
+     absolute value.
+
+     info = 5  number of calls to fcn with iflag = 1 has
+     reached maxfev.
+
+     info = 6  ftol is too small. no further reduction in
+     the sum of squares is possible.
+
+     info = 7  xtol is too small. no further improvement in
+     the approximate solution x is possible.
+
+     info = 8  gtol is too small. fvec is orthogonal to the
+     columns of the jacobian to machine precision.
+
+     @param nfev is an integer output variable set to the number of
+     calls to fcn with iflag = 1.
+
+     @param njev is an integer output variable set to the number of
+     calls to fcn with iflag = 2.
+
+     @param ipvt is an integer output array of length n. ipvt
+     defines a permutation matrix p such that jac*p = q*r,
+     where jac is the final calculated jacobian, q is
+     orthogonal (not stored), and r is upper triangular
+     with diagonal elements of nonincreasing magnitude.
+     column j of p is column ipvt(j) of the identity matrix.
+
+     @param qtf is an output array of length n which contains
+     the first n elements of the vector (q transpose)*fvec.
+
+     @param wa1, wa2, and wa3 are work arrays of length n.
+
+     @param wa4 is a work array of length m.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     int MinPack::lmder(Lmder_Function &fcn, int m, int n, std::vector<double> &x,
                             std::vector<double> &fvec, std::vector<double> &fjac, int ldfjac, double ftol,
                             double xtol, double gtol, int maxfev, std::vector<double> &diag, int mode, double factor, int nprint,
@@ -95,14 +694,17 @@ namespace redukti::mathlib {
                             std::vector<double> &wa1, std::vector<double> &wa2, std::vector<double> &wa3, std::vector<double> &wa4, double epsfcn)
     {
         
+        /* Initialized data */
         const double p1 = .1;
         const double p5 = .5;
         const double p25 = .25;
         const double p75 = .75;
         const double p0001 = 1e-4;
 
+        /* System generated locals */
         double d1, d2;
 
+        /* Local variables */
         int i, j, l;
         std::vector<double> par(1, 0.0);
         double sum;
@@ -115,6 +717,7 @@ namespace redukti::mathlib {
                 epsmch, prered;
         int info;
 
+        /*     epsmch is the machine precision. */
         epsmch = dpmpar(1);
 
         info = 0;
@@ -122,6 +725,7 @@ namespace redukti::mathlib {
         nfev[0] = 0;
         njev[0] = 0;
 
+        /*     check the input parameters for errors. */
         do {
             if (n <= 0 || m < n || ldfjac < m || ftol < 0. || xtol < 0. ||
                     gtol < 0. || maxfev <= 0 || factor <= 0.) {
@@ -135,6 +739,8 @@ namespace redukti::mathlib {
                 }
             }
 
+            /*     evaluate the function at the starting point */
+            /*     and calculate its norm. */
             iflag = fcn.hasJacobian() ?
                     fcn.apply(m, n, x, fvec, fjac, ldfjac, 1) :
                     fcn.apply(m, n, x, fvec, 1);
@@ -144,11 +750,14 @@ namespace redukti::mathlib {
             }
             fnorm = enorm(m, 0, fvec);
 
+            /*     initialize levenberg-marquardt parameter and iteration counter. */
             par[0] = 0.;
             iter = 1;
 
+            /*     beginning of the outer loop. */
             for (; ; ) {
 
+                /*        calculate the jacobian matrix. */
                 iflag = fcn.hasJacobian() ?
                         fcn.apply(m, n, x, fvec, fjac, ldfjac, 2) :
                         fdjac2(fcn, m, n, x, fvec, fjac, ldfjac, epsfcn, wa4);
@@ -157,6 +766,7 @@ namespace redukti::mathlib {
                     goto processing_end;
                 }
 
+                /*        if requested, call fcn to enable printing of iterates. */
                 if (nprint > 0) {
                     iflag = 0;
                     if ((iter - 1) % nprint == 0) {
@@ -169,9 +779,12 @@ namespace redukti::mathlib {
                     }
                 }
 
+                /*        compute the qr factorization of the jacobian. */
                 qrfac(m, n, fjac, ldfjac, 1, ipvt, n,
                         wa1, wa2, wa3);
 
+                /*        on the first iteration and if mode is 1, scale according */
+                /*        to the norms of the columns of the initial jacobian. */
                 if (iter == 1) {
                     if (mode != 2) {
                         for (j = 0; j < n; ++j) {
@@ -182,6 +795,8 @@ namespace redukti::mathlib {
                         }
                     }
 
+                    /*        on the first iteration, calculate the norm of the scaled x */
+                    /*        and initialize the step bound delta. */
                     for (j = 0; j < n; ++j) {
                         wa3[j] = diag[j] * x[j];
                     }
@@ -192,6 +807,8 @@ namespace redukti::mathlib {
                     }
                 }
 
+                /*        form (q transpose)*fvec and store the first n components in */
+                /*        qtf. */
                 for (i = 0; i < m; ++i) {
                     wa4[i] = fvec[i];
                 }
@@ -210,6 +827,7 @@ namespace redukti::mathlib {
                     qtf[j] = wa4[j];
                 }
 
+                /*        compute the norm of the scaled gradient. */
                 gnorm = 0.;
                 if (fnorm != 0.) {
                     for (j = 0; j < n; ++j) {
@@ -220,12 +838,14 @@ namespace redukti::mathlib {
                                 sum += fjac[i + j * ldfjac] * (qtf[i] / fnorm);
                             }
                             
+                            /* Computing MAX */
                             d1 = std::abs(sum / wa2[l]);
                             gnorm = std::max(gnorm, d1);
                         }
                     }
                 }
 
+                /*        test for convergence of the gradient norm. */
                 if (gnorm <= gtol) {
                     info = 4;
                 }
@@ -233,20 +853,25 @@ namespace redukti::mathlib {
                     goto processing_end;
                 }
 
+                /*        rescale if necessary. */
                 if (mode != 2) {
                     for (j = 0; j < n; ++j) {
                         
+                        /* Computing MAX */
                         d1 = diag[j];
                         d2 = wa2[j];
                         diag[j] = std::max(d1, d2);
                     }
                 }
 
+                /*        beginning of the inner loop. */
                 do {
 
+                    /*           determine the levenberg-marquardt parameter. */
                     lmpar (n, fjac, ldfjac, ipvt, diag, qtf, delta,
                             par, wa1, wa2, wa3, wa4);
 
+                    /*           store the direction p and x + p. calculate the norm of p. */
                     for (j = 0; j < n; ++j) {
                         wa1[j] = -wa1[j];
                         wa2[j] = x[j] + wa1[j];
@@ -254,10 +879,12 @@ namespace redukti::mathlib {
                     }
                     pnorm = enorm(n, 0, wa3);
 
+                    /*           on the first iteration, adjust the initial step bound. */
                     if (iter == 1) {
                         delta = std::min(delta, pnorm);
                     }
 
+                    /*           evaluate the function at x + p and calculate its norm. */
                     iflag = fcn.hasJacobian() ?
                             fcn.apply(m, n, wa2, wa4, fjac, ldfjac, 1) :
                             fcn.apply(m, n, wa2, wa4, 1);
@@ -267,13 +894,17 @@ namespace redukti::mathlib {
                     }
                     fnorm1 = enorm(m, 0, wa4);
 
+                    /*           compute the scaled actual reduction. */
                     actred = -1.;
                     if (p1 * fnorm1 < fnorm) {
                         
+                        /* Computing 2nd power */
                         d1 = fnorm1 / fnorm;
                         actred = 1 - d1 * d1;
                     }
 
+                    /*           compute the scaled predicted reduction and */
+                    /*           the scaled directional derivative. */
                     for (j = 0; j < n; ++j) {
                         wa3[j] = 0.;
                         l = ipvt[j] - 1;
@@ -287,11 +918,14 @@ namespace redukti::mathlib {
                     prered = temp1 * temp1 + temp2 * temp2 / p5;
                     dirder = -(temp1 * temp1 + temp2 * temp2);
 
+                    /*           compute the ratio of the actual to the predicted */
+                    /*           reduction. */
                     ratio = 0.;
                     if (prered != 0.) {
                         ratio = actred / prered;
                     }
 
+                    /*           update the step bound. */
                     if (ratio <= p25) {
                         if (actred >= 0.) {
                             temp = p5;
@@ -302,6 +936,7 @@ namespace redukti::mathlib {
                             temp = p1;
                         }
                         
+                        /* Computing MIN */
                         d1 = pnorm / p1;
                         delta = temp * std::min(delta, d1);
                         par[0] = par[0] / temp;
@@ -312,8 +947,10 @@ namespace redukti::mathlib {
                         }
                     }
 
+                    /*           test for successful iteration. */
                     if (ratio >= p0001) {
 
+                        /*           successful iteration. update x, fvec, and their norms. */
                         for (j = 0; j < n; ++j) {
                             x[j] = wa2[j];
                             wa2[j] = diag[j] * x[j];
@@ -326,6 +963,7 @@ namespace redukti::mathlib {
                         ++iter;
                     }
 
+                    /*           tests for convergence. */
                     if (std::abs(actred) <= ftol && prered <= ftol && p5 * ratio <= 1.) {
                         info = 1;
                     }
@@ -339,6 +977,7 @@ namespace redukti::mathlib {
                         goto processing_end;
                     }
 
+                    /*           tests for termination and stringent tolerances. */
                     if (nfev[0] >= maxfev){
                         info = 5;
                     }
@@ -355,12 +994,15 @@ namespace redukti::mathlib {
                         goto processing_end;
                     }
 
+                /*           end of the inner loop. repeat if iteration unsuccessful. */
                 } while (ratio < p0001);
 
+                /*        end of the outer loop. */
             }
         } while (false);
         processing_end:;
 
+        /*     termination, either normal or user imposed. */
         if (iflag < 0) {
             info = iflag;
         }
@@ -371,8 +1013,38 @@ namespace redukti::mathlib {
         }
         return info;
 
+        /*     last card of subroutine lmder. */
     }
 
+    /**
+     * function enorm
+     *
+     * given an n-vector x, this function calculates the
+     * euclidean norm of x.
+     *
+     * the euclidean norm is computed by accumulating the sum of
+     * squares in three different sums. the sums of squares for the
+     * small and large components are scaled so that no overflows
+     * occur. non-destructive underflows are permitted. underflows
+     * and overflows do not occur in the computation of the unscaled
+     * sum of squares for the intermediate components.
+     * the definitions of small, intermediate and large components
+     * depend on two constants, rdwarf and rgiant. the main
+     * restrictions on these constants are that rdwarf**2 not
+     * underflow and rgiant**2 not overflow. the constants
+     * given here are suitable for every known computer.
+     *
+     * the function statement is
+     *
+     * double precision function enorm(n,x)
+     *
+     * where
+     *
+     * @param n is a positive integer input variable.
+     * @param x is an input array of length n.
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     double MinPack::enorm(int n, int start, std::vector<double> &x) {
         int i;
         double agiant, floatn, s1, s2, s3, xabs,
@@ -435,14 +1107,76 @@ namespace redukti::mathlib {
         return enorm;
     }
 
+    /**
+     * subroutine qrfac
+     *
+     * this subroutine uses householder transformations with column
+     * pivoting (optional) to compute a qr factorization of the
+     * m by n matrix a. that is, qrfac determines an orthogonal
+     * matrix q, a permutation matrix p, and an upper trapezoidal
+     * matrix r with diagonal elements of nonincreasing magnitude,
+     * such that a*p = q*r. the householder transformation for
+     * column k, k = 1,2,...,min(m,n), is of the form
+     *
+     * <pre>
+     *                 t
+     * i - (1/u(k))*u*u
+     * </pre>
+     *
+     * where u has zeros in the first k-1 positions. the form of
+     * this transformation and the method of pivoting first
+     * appeared in the corresponding linpack subroutine.
+     *
+     * the subroutine statement is
+     *
+     * subroutine qrfac(m,n,a,lda,pivot,ipvt,lipvt,rdiag,acnorm,wa)
+     *
+     * where
+     *
+     * @param m      is a positive integer input variable set to the number
+     *               of rows of a.
+     * @param n      is a positive integer input variable set to the number
+     *               of columns of a.
+     * @param a      is an m by n array. on input a contains the matrix for
+     *               which the qr factorization is to be computed. on output
+     *               the strict upper trapezoidal part of a contains the strict
+     *               upper trapezoidal part of r, and the lower trapezoidal
+     *               part of a contains a factored form of q (the non-trivial
+     *               elements of the u vectors described above).
+     * @param lda    is a positive integer input variable not less than m
+     *               which specifies the leading dimension of the array a.
+     * @param pivot  is a logical input variable. if pivot is set true,
+     *               then column pivoting is enforced. if pivot is set false,
+     *               then no column pivoting is done.
+     * @param ipvt   is an integer output array of length lipvt. ipvt
+     *               defines the permutation matrix p such that a*p = q*r.
+     *               column j of p is column ipvt(j) of the identity matrix.
+     *               if pivot is false, ipvt is not referenced.
+     * @param lipvt  is a positive integer input variable. if pivot is false,
+     *               then lipvt may be as small as 1. if pivot is true, then
+     *               lipvt must be at least n.
+     * @param rdiag  is an output array of length n which contains the
+     *               diagonal elements of r.
+     * @param acnorm is an output array of length n which contains the
+     *               norms of the corresponding columns of the input matrix a.
+     *               if this information is not needed, then acnorm can coincide
+     *               with rdiag.
+     * @param wa     is a work array of length n. if pivot is false, then wa
+     *               can coincide with rdiag.
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     void MinPack::qrfac(int m, int n, std::vector<double> &a, int lda,
                              int pivot, std::vector<int> &ipvt, int lipvt, std::vector<double> &rdiag,
                              std::vector<double> &acnorm, std::vector<double> &wa) {
         
+        /* Initialized data */
         const double p05 = .05;
 
+        /* System generated locals */
         double d1;
 
+        /* Local variables */
         int i, j, k, jp1;
         double sum;
         double temp;
@@ -450,8 +1184,10 @@ namespace redukti::mathlib {
         double epsmch;
         double ajnorm;
 
+        /* epsmch is the machine precision. */
         epsmch = dpmpar(1);
 
+        /* compute the initial column norms and initialize several arrays. */
         for (j = 0; j < n; ++j) {
             acnorm[j] = enorm(m, j * lda, a);
             rdiag[j] = acnorm[j];
@@ -461,10 +1197,12 @@ namespace redukti::mathlib {
             }
         }
 
+        /* reduce a to r with householder transformations. */
         minmn = std::min(m, n);
         for (j = 0; j < minmn; j++) {
             if (pivot != 0) {
 
+                /* bring the column of largest norm into the pivot position. */
                 int kmax = j;
                 for (k = j; k < n; ++k) {
                     if (rdiag[k] > rdiag[kmax]) {
@@ -485,6 +1223,8 @@ namespace redukti::mathlib {
                 }
             }
 
+            /* compute the householder transformation to reduce the */
+            /* j-th column of a to a multiple of the j-th unit vector. */
             ajnorm = enorm(m - j, j + j * lda, a);
             if (ajnorm != 0.) {
                 if (a[j + j * lda] < 0.) {
@@ -495,6 +1235,8 @@ namespace redukti::mathlib {
                 }
                 a[j + j * lda] += 1;
 
+                /* apply the transformation to the remaining columns */
+                /* and update the norms. */
                 jp1 = j + 1;
                 if (n > jp1) {
                     for (k = jp1; k < n; ++k) {
@@ -509,9 +1251,11 @@ namespace redukti::mathlib {
                         if (pivot != 0 && rdiag[k] != 0.) {
                             temp = a[j + k * lda] / rdiag[k];
                             
+                            /* Computing MAX */
                             d1 = 1 - temp * temp;
                             rdiag[k] *= std::sqrt((std::max(0., d1)));
                             
+                            /* Computing 2nd power */
                             d1 = rdiag[k] / wa[k];
                             if (p05 * (d1 * d1) <= epsmch) {
                                 rdiag[k] = enorm(m - (j + 1), jp1 + k * lda, a);
@@ -525,18 +1269,85 @@ namespace redukti::mathlib {
         }
     }
 
+    /**
+     * subroutine qrsolv
+     *
+     * given an m by n matrix a, an n by n diagonal matrix d,
+     * and an m-vector b, the problem is to determine an x which
+     * solves the system
+     * <pre>
+     * a*x = b ,     d*x = 0 ,
+     * </pre>
+     * in the least squares sense.
+     *
+     * this subroutine completes the solution of the problem
+     * if it is provided with the necessary information from the
+     * qr factorization, with column pivoting, of a. that is, if
+     * a*p = q*r, where p is a permutation matrix, q has orthogonal
+     * columns, and r is an upper triangular matrix with diagonal
+     * elements of nonincreasing magnitude, then qrsolv expects
+     * the full upper triangle of r, the permutation matrix p,
+     * and the first n components of (q transpose)*b. the system
+     * a*x = b, d*x = 0, is then equivalent to
+     * <pre>
+     * t       t
+     * r*z = q *b ,  p *d*p*z = 0 ,
+     * </pre>
+     * where x = p*z. if this system does not have full rank,
+     * then a least squares solution is obtained. on output qrsolv
+     * also provides an upper triangular matrix s such that
+     * <pre>
+     * t   t               t
+     * p *(a *a + d*d)*p = s *s .
+     * </pre>
+     * s is computed within qrsolv and may be of separate interest.
+     *
+     * the subroutine statement is
+     *
+     * subroutine qrsolv(n,r,ldr,ipvt,diag,qtb,x,sdiag,wa)
+     *
+     * where
+     *
+     * @param n     is a positive integer input variable set to the order of r.
+     * @param r     is an n by n array. on input the full upper triangle
+     *              must contain the full upper triangle of the matrix r.
+     *              on output the full upper triangle is unaltered, and the
+     *              strict lower triangle contains the strict upper triangle
+     *              (transposed) of the upper triangular matrix s.
+     * @param ldr   is a positive integer input variable not less than n
+     *              which specifies the leading dimension of the array r.
+     * @param ipvt  is an integer input array of length n which defines the
+     *              permutation matrix p such that a*p = q*r. column j of p
+     *              is column ipvt(j) of the identity matrix.
+     * @param diag  is an input array of length n which must contain the
+     *              diagonal elements of the matrix d.
+     * @param qtb   is an input array of length n which must contain the first
+     *              n elements of the vector (q transpose)*b.
+     * @param x     is an output array of length n which contains the least
+     *              squares solution of the system a*x = b, d*x = 0.
+     * @param sdiag is an output array of length n which contains the
+     *              diagonal elements of the upper triangular matrix s.
+     * @param wa    is a work array of length n.
+
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     void MinPack::qrsolv(int n, std::vector<double> &r, int ldr,
                               std::vector<int> &ipvt, std::vector<double> &diag, std::vector<double> &qtb, std::vector<double> &x,
                               std::vector<double> &sdiag, std::vector<double> &wa) {
         
+        /* Initialized data */
         const double p5 = .5;
         const double p25 = .25;
 
+        /* Local variables */
         int i, j, k, l;
         double cos, sin, sum, temp;
         int nsing;
         double qtbpj;
 
+        /* copy r and (q transpose)*b to preserve input and initialize s. */
+        /* in particular, save the diagonal elements of r in x. */
         for (j = 0; j < n; ++j) {
             for (i = j; i < n; ++i) {
                 r[i + j * ldr] = r[j + i * ldr];
@@ -545,8 +1356,11 @@ namespace redukti::mathlib {
             wa[j] = qtb[j];
         }
 
+        /* eliminate the diagonal matrix d using a givens rotation. */
         for (j = 0; j < n; ++j) {
 
+            /* prepare the row of d to be eliminated, locating the */
+            /* diagonal element using p from the qr factorization. */
             l = ipvt[j] - 1;
             if (diag[l] != 0.) {
                 for (k = j; k < n; ++k) {
@@ -554,9 +1368,14 @@ namespace redukti::mathlib {
                 }
                 sdiag[j] = diag[l];
 
+                /* the transformations to eliminate the row of d */
+                /* modify only a single element of (q transpose)*b */
+                /* beyond the first n, which is initially zero. */
                 qtbpj = 0.;
                 for (k = j; k < n; ++k) {
 
+                    /* determine a givens rotation which eliminates the */
+                    /* appropriate element in the current row of d. */
                     if (sdiag[k] != 0.) {
                         if (std::abs(r[k + k * ldr]) < std::abs(sdiag[k])) {
                             double cotan;
@@ -570,10 +1389,13 @@ namespace redukti::mathlib {
                             sin = cos * tan;
                         }
 
+                        /* compute the modified diagonal element of r and */
+                        /* the modified element of ((q transpose)*b,0). */
                         temp = cos * wa[k] + sin * qtbpj;
                         qtbpj = -sin * wa[k] + cos * qtbpj;
                         wa[k] = temp;
 
+                        /* accumulate the tranformation in the row of s. */
                         r[k + k * ldr] = cos * r[k + k * ldr] + sin * sdiag[k];
                         if (n > k + 1) {
                             for (i = k + 1; i < n; ++i) {
@@ -586,10 +1408,14 @@ namespace redukti::mathlib {
                 }
             }
 
+            /* store the diagonal element of s and restore */
+            /* the corresponding diagonal element of r. */
             sdiag[j] = r[j + j * ldr];
             r[j + j * ldr] = x[j];
         }
 
+        /* solve the triangular system for z. if the system is */
+        /* singular, then obtain a least squares solution. */
         nsing = n;
         for (j = 0; j < n; ++j) {
             if (sdiag[j] == 0. && nsing == n) {
@@ -612,22 +1438,101 @@ namespace redukti::mathlib {
             }
         }
 
+        /* permute the components of z back to components of x. */
         for (j = 0; j < n; ++j) {
             l = ipvt[j] - 1;
             x[l] = wa[j];
         }
     }
 
+    /**
+     * subroutine lmpar
+     *
+     * given an m by n matrix a, an n by n nonsingular diagonal
+     * matrix d, an m-vector b, and a positive number delta,
+     * the problem is to determine a value for the parameter
+     * par such that if x solves the system
+     * <pre>
+     * a*x = b ,     sqrt(par)*d*x = 0 ,
+     * </pre>
+     * in the least squares sense, and dxnorm is the euclidean
+     * norm of d*x, then either par is zero and
+     * <pre>
+     * (dxnorm-delta) .le. 0.1*delta ,
+     * </pre>
+     * or par is positive and
+     * <pre>
+     * abs(dxnorm-delta) .le. 0.1*delta .
+     * </pre>
+     * this subroutine completes the solution of the problem
+     * if it is provided with the necessary information from the
+     * qr factorization, with column pivoting, of a. that is, if
+     * a*p = q*r, where p is a permutation matrix, q has orthogonal
+     * columns, and r is an upper triangular matrix with diagonal
+     * elements of nonincreasing magnitude, then lmpar expects
+     * the full upper triangle of r, the permutation matrix p,
+     * and the first n components of (q transpose)*b. on output
+     * lmpar also provides an upper triangular matrix s such that
+     * <pre>
+     * t   t                   t
+     * p *(a *a + par*d*d)*p = s *s .
+     * </pre>
+     * s is employed within lmpar and may be of separate interest.
+     *
+     * only a few iterations are generally needed for convergence
+     * of the algorithm. if, however, the limit of 10 iterations
+     * is reached, then the output par will contain the best
+     * value obtained so far.
+     *
+     * the subroutine statement is
+     *
+     * subroutine lmpar(n,r,ldr,ipvt,diag,qtb,delta,par,x,sdiag,
+     * wa1,wa2)
+     *
+     * where
+     *
+     * @param n     is a positive integer input variable set to the order of r.
+     * @param r     is an n by n array. on input the full upper triangle
+     *              must contain the full upper triangle of the matrix r.
+     *              on output the full upper triangle is unaltered, and the
+     *              strict lower triangle contains the strict upper triangle
+     *              (transposed) of the upper triangular matrix s.
+     * @param ldr   is a positive integer input variable not less than n
+     *              which specifies the leading dimension of the array r.
+     * @param ipvt  is an integer input array of length n which defines the
+     *              permutation matrix p such that a*p = q*r. column j of p
+     *              is column ipvt(j) of the identity matrix.
+     * @param diag  is an input array of length n which must contain the
+     *              diagonal elements of the matrix d.
+     * @param qtb   is an input array of length n which must contain the first
+     *              n elements of the vector (q transpose)*b.
+     * @param delta is a positive input variable which specifies an upper
+     *              bound on the euclidean norm of d*x.
+     * @param par   is a nonnegative variable. on input par contains an
+     *              initial estimate of the levenberg-marquardt parameter.
+     *              on output par contains the final estimate.
+     * @param x     is an output array of length n which contains the least
+     *              squares solution of the system a*x = b, sqrt(par)*d*x = 0,
+     *              for the output par.
+     * @param sdiag is an output array of length n which contains the
+     *              diagonal elements of the upper triangular matrix s.
+     * @param wa1   and wa2 are work arrays of length n.
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     void MinPack::lmpar(int n, std::vector<double> &r, int ldr,
                              std::vector<int> &ipvt, std::vector<double> &diag, std::vector<double> &qtb, double delta,
                              std::vector<double> &par, std::vector<double> &x, std::vector<double> &sdiag, std::vector<double> &wa1,
                              std::vector<double> &wa2) {
         
+        /* Initialized data */
         const double p1 = .1;
         const double p001 = .001;
 
+        /* System generated locals */
         double d1, d2;
 
+        /* Local variables */
         int j, l;
         double fp;
         double parc, parl;
@@ -637,8 +1542,11 @@ namespace redukti::mathlib {
         double gnorm;
         double dxnorm;
 
+        /* dwarf is the smallest positive magnitude. */
         dwarf = dpmpar(2);
 
+        /* compute and store in x the gauss-newton direction. if the */
+        /* jacobian is rank-deficient, obtain a least squares solution. */
         nsing = n;
         for (j = 0; j < n; ++j) {
             wa1[j] = qtb[j];
@@ -668,6 +1576,9 @@ namespace redukti::mathlib {
             x[l] = wa1[j];
         }
 
+        /* initialize the iteration counter. */
+        /* evaluate the function at the origin, and test */
+        /* for acceptance of the gauss-newton direction. */
         iter = 0;
         for (j = 0; j < n; ++j) {
             wa2[j] = diag[j] * x[j];
@@ -681,6 +1592,9 @@ namespace redukti::mathlib {
                 goto terminate;
             }
 
+            /* if the jacobian is not rank deficient, the newton */
+            /* step provides a lower bound, parl, for the zero of */
+            /* the function. otherwise set this bound to zero. */
             parl = 0.;
             if (nsing >= n) {
                 for (j = 0; j < n; ++j) {
@@ -701,6 +1615,7 @@ namespace redukti::mathlib {
                 parl = fp / delta / temp / temp;
             }
 
+            /* calculate an upper bound, paru, for the zero of the function. */
             for (j = 0; j < n; ++j) {
                 double sum;
                 int i;
@@ -714,20 +1629,25 @@ namespace redukti::mathlib {
             gnorm = enorm(n, 0, wa1);
             paru = gnorm / delta;
             if (paru == 0.) {
-                paru = dwarf / std::min(delta, p1) ;
+                paru = dwarf / std::min(delta, p1) ;  /* / p001 ??? */;
             }
 
+            /* if the input par lies outside of the interval (parl,paru), */
+            /* set par to the closer endpoint. */
             par[0] = std::max(par[0], parl);
             par[0] = std::min(par[0], paru);
             if (par[0] == 0.) {
                 par[0] = gnorm / dxnorm;
             }
 
+            /* beginning of an iteration. */
             for (; ; ) {
                 ++iter;
 
+                /* evaluate the function at the current value of par. */
                 if (par[0] == 0.) {
                     
+                    /* Computing MAX */
                     d1 = dwarf;
                     d2 = p001 * paru;
                     par[0] = std::max(d1, d2);
@@ -744,10 +1664,14 @@ namespace redukti::mathlib {
                 temp = fp;
                 fp = dxnorm - delta;
 
+                /* if the function is small enough, accept the current value */
+                /* of par. also test for the exceptional cases where parl */
+                /* is zero or the number of iterations has reached 10. */
                 if (std::abs(fp) <= p1 * delta || (parl == 0. && fp <= temp && temp < 0.) || iter == 10) {
                     goto terminate;
                 }
 
+                /* compute the newton correction. */
                 for (j = 0; j < n; ++j) {
                     l = ipvt[j] - 1;
                     wa1[j] = diag[l] * (wa2[l] / dxnorm);
@@ -765,6 +1689,7 @@ namespace redukti::mathlib {
                 temp = enorm(n, 0, wa1);
                 parc = fp / delta / temp / temp;
 
+                /* depending on the sign of the function, update parl or paru. */
                 if (fp > 0.) {
                     parl = std::max(parl, par[0]);
                 }
@@ -772,15 +1697,21 @@ namespace redukti::mathlib {
                     paru = std::min(paru, par[0]);
                 }
 
+                /* compute an improved estimate for par. */
+
+                /* Computing MAX */
                 d1 = parl;
                 d2 = par[0] + parc;
                 par[0] = std::max(d1, d2);
 
+                /* end of an iteration. */
+                // :TERMINATE
             }
         }
         terminate:;
 
 
+        /* termination. */
         if (iter == 0) {
             par[0] = 0.;
         }
@@ -791,11 +1722,13 @@ namespace redukti::mathlib {
                              double epsfcn, std::vector<double> &wa)
     {
         
+        /* Local variables */
         double h;
         int i, j;
         double eps, temp, epsmch;
         int iflag;
 
+        /*     epsmch is the machine precision. */
         epsmch = dpmpar(1);
 
         eps = std::sqrt((std::max(epsfcn,epsmch)));
@@ -807,6 +1740,10 @@ namespace redukti::mathlib {
             }
             x[j] = temp + h;
         
+            /* the last parameter of fcn_mn() is set to 2 to differentiate
+               calls made to compute the function from calls made to compute
+               the Jacobian (see fcn() in examples/lmfdrv.c, and how njev
+               is used to compute the number of Jacobian evaluations) */
             iflag = fcn_mn.apply(m, n, x, wa, 2);
             if (iflag < 0) {
                 return iflag;
@@ -819,10 +1756,56 @@ namespace redukti::mathlib {
         return 0;
     }
 
+    /***********
+
+     subroutine r1mpyq
+
+     given an m by n matrix a, this subroutine computes a*q where
+     q is the product of 2*(n - 1) transformations
+
+     gv(n-1)*...*gv(1)*gw(1)*...*gw(n-1)
+
+     and gv(i), gw(i) are givens rotations in the (i,n) plane which
+     eliminate elements in the i-th and n-th planes, respectively.
+     q itself is not given, rather the information to recover the
+     gv, gw rotations is supplied.
+
+     the subroutine statement is
+
+     subroutine r1mpyq(m,n,a,lda,v,w)
+
+     where
+
+     @param m is a positive integer input variable set to the number
+     of rows of a.
+
+     @param n is a positive integer input variable set to the number
+     of columns of a.
+
+     @param a is an m by n array. on input a must contain the matrix
+     to be postmultiplied by the orthogonal matrix q
+     described above. on output a*q has replaced a.
+
+     @param lda is a positive integer input variable not less than m
+     which specifies the leading dimension of the array a.
+
+     @param v is an input array of length n. v(i) must contain the
+     information necessary to recover the givens rotation gv(i)
+     described above.
+
+     @param w is an input array of length n. w(i) must contain the
+     information necessary to recover the givens rotation gw(i)
+     described above.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+
+    */
     void MinPack::r1mpyq(int m, int n, std::vector<double> &a, int lda, std::vector<double> &v, std::vector<double> &w) {
         double cos,sin,temp;
         int i, j, nmj, nm1;
 
+        /*     apply the first set of givens rotations to a. */
         nm1 = n - 1;
         if (nm1 < 1)
             return;
@@ -842,6 +1825,7 @@ namespace redukti::mathlib {
             }
         }
 
+        /*     apply the second set of givens rotations to a. */
         for (j = 1; j <= nm1; j++) {
             if (std::abs(w[j-1]) > 1.0) {
                 cos = 1.0 / w[j-1];
@@ -858,6 +1842,67 @@ namespace redukti::mathlib {
         }
     }
 
+    /***********
+
+     subroutine r1updt
+
+     given an m by n lower trapezoidal matrix s, an m-vector u,
+     and an n-vector v, the problem is to determine an
+     orthogonal matrix q such that
+
+     t
+     (s + u*v )*q
+
+     is again lower trapezoidal.
+
+     this subroutine determines q as the product of 2*(n - 1)
+     transformations
+
+     gv(n-1)*...*gv(1)*gw(1)*...*gw(n-1)
+
+     where gv(i), gw(i) are givens rotations in the (i,n) plane
+     which eliminate elements in the i-th and n-th planes,
+     respectively. q itself is not accumulated, rather the
+     information to recover the gv, gw rotations is returned.
+
+     the subroutine statement is
+
+     subroutine r1updt(m,n,s,ls,u,v,w,sing)
+
+     where
+
+     @param m is a positive integer input variable set to the number
+     of rows of s.
+
+     @param n is a positive integer input variable set to the number
+     of columns of s. n must not exceed m.
+
+     @param s is an array of length ls. on input s must contain the lower
+     trapezoidal matrix s stored by columns. on output s contains
+     the lower trapezoidal matrix produced as described above.
+
+     @param ls is a positive integer input variable not less than
+     (n*(2*m-n+1))/2.
+
+     @param u is an input array of length m which must contain the
+     vector u.
+
+     @param v is an array of length n. on input v must contain the vector
+     v. on output v(i) contains the information necessary to
+     recover the givens rotation gv(i) described above.
+
+     @param w is an output array of length m. w(i) contains information
+     necessary to recover the givens rotation gw(i) described
+     above.
+
+     @return sing is a logical output variable. sing is set true if any
+     of the diagonal elements of the output s are zero. otherwise
+     sing is set false.
+
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more, john l. nazareth
+     */
     bool MinPack::r1updt(int m, int n, std::vector<double> &s, int ls, std::vector<double> &u, std::vector<double> &v,
                                  std::vector<double> &w) {
         const double p25 = 0.25;
@@ -869,16 +1914,21 @@ namespace redukti::mathlib {
 
         bool sing;
 
+        /*     giant is the largest magnitude. */
         giant = dpmpar(3);
 
+        /*     initialize the diagonal element pointer. */
         jj = (n * (2 * m - n + 1)) / 2 - (m - n);
 
+        /*     move the nontrivial part of the last column of s into w. */
         l = jj;
         for (i = n; i <= m; i++) {
             w[i - 1] = s[l - 1];
             l = l + 1;
         }
 
+        /*     rotate the vector v into a multiple of the n-th unit vector */
+        /*     in such a way that a spike is introduced into w. */
         nm1 = n - 1;
         if (nm1 >= 1) {
             for (int nmj = 1; nmj <= nm1; nmj++) {
@@ -888,6 +1938,8 @@ namespace redukti::mathlib {
 
                 if (v[j - 1] != 0.0) {
 
+                    /*        determine a givens rotation which eliminates the */
+                    /*        j-th element of v. */
                     if (!(std::abs(v[n - 1]) >= std::abs(v[j - 1]))) {
                         cotan = v[n - 1] / v[j - 1];
                         sin = p5 / std::sqrt(p25 + p25 * cotan * cotan);
@@ -903,9 +1955,12 @@ namespace redukti::mathlib {
                         tau = sin;
                     }
 
+                    /*        apply the transformation to v and store the information */
+                    /*        necessary to recover the givens rotation. */
                     v[n - 1] = sin * v[j - 1] + cos * v[n - 1];
                     v[j - 1] = tau;
 
+                    /*        apply the transformation to s and extend the spike in w. */
                     l = jj;
                     for (i = j; i <= m; i++) {
                         temp = cos * s[l - 1] - sin * w[i - 1];
@@ -917,16 +1972,20 @@ namespace redukti::mathlib {
             }
         }
         
+        /*     add the spike from the rank 1 update to w. */
         for (i = 1; i <= m; i++) {
             w[i - 1] = w[i - 1] + v[n - 1] * u[i - 1];
         }
         
+        /*     eliminate the spike. */
         sing = false;
         if (nm1 >= 1) {
             for (j = 1; j <= nm1; j++) {
 
                 if (w[j - 1] != 0.0) {
 
+                    /*        determine a givens rotation which eliminates the */
+                    /*        j-th element of the spike. */
                     if (!(std::abs(s[jj - 1]) >= std::abs(w[j - 1]))) {
                         cotan = s[jj - 1] / w[j - 1];
                         sin = p5 / std::sqrt(p25 + p25 * cotan * cotan);
@@ -942,6 +2001,7 @@ namespace redukti::mathlib {
                         tau = sin;
                     }
 
+                    /*        apply the transformation to s and reduce the spike in w. */
                     l = jj;
                     for (i = j; i <= m; i++) {
                         temp = cos * s[l - 1] + sin * w[i - 1];
@@ -950,9 +2010,12 @@ namespace redukti::mathlib {
                         l = l + 1;
                     }
                     
+                    /*        store the information necessary to recover the */
+                    /*        givens rotation. */
                     w[j - 1] = tau;
                 }
                 
+                /*        test for zero diagonal elements in the output s. */
                 if (s[jj - 1] == 0.0) {
                     sing = true;
                 }
@@ -960,6 +2023,7 @@ namespace redukti::mathlib {
             }
         }
         
+        /*     move w back into the last column of the output s. */
         l = jj;
         for (i = n; i <= m; i++) {
             s[l - 1] = w[i - 1];
@@ -971,14 +2035,67 @@ namespace redukti::mathlib {
         return sing;
     }
 
+    /***********
+
+     subroutine dogleg
+
+     given an m by n matrix a, an n by n nonsingular diagonal
+     matrix d, an m-vector b, and a positive number delta, the
+     problem is to determine the convex combination x of the
+     gauss-newton and scaled gradient directions that minimizes
+     (a*x - b) in the least squares sense, subject to the
+     restriction that the euclidean norm of d*x be at most delta.
+
+     this subroutine completes the solution of the problem
+     if it is provided with the necessary information from the
+     qr factorization of a. that is, if a = q*r, where q has
+     orthogonal columns and r is an upper triangular matrix,
+     then dogleg expects the full upper triangle of r and
+     the first n components of (q transpose)*b.
+
+     the subroutine statement is
+
+     subroutine dogleg(n,r,lr,diag,qtb,delta,x,wa1,wa2)
+
+     where
+
+     @param n is a positive integer input variable set to the order of r.
+
+     @param r is an input array of length lr which must contain the upper
+     triangular matrix r stored by rows.
+
+     @param lr is a positive integer input variable not less than
+     (n*(n+1))/2.
+
+     @param diag is an input array of length n which must contain the
+     diagonal elements of the matrix d.
+
+     @param qtb is an input array of length n which must contain the first
+     n elements of the vector (q transpose)*b.
+
+     @param delta is a positive input variable which specifies an upper
+     bound on the euclidean norm of d*x.
+
+     @param x is an output array of length n which contains the desired
+     convex combination of the gauss-newton direction and the
+     scaled gradient direction.
+
+     @param wa1 and wa2 are work arrays of length n.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+
+     */
     void MinPack::dogleg(int n, std::vector<double> &r, int lr, std::vector<double> &diag, std::vector<double> &qtb,
                               double delta, std::vector<double> &x, std::vector<double> &wa1, std::vector<double> &wa2) {
 
         int i,j,jj,jp1,k,l;
         double alpha,bnorm,epsmch,gnorm,qnorm,sgnorm,sum,temp;
         
+        /*     epsmch is the machine precision. */
         epsmch = dpmpar(1);
         
+        /*     first, calculate the gauss-newton direction. */
         jj = (n * (n + 1)) / 2 + 1;
 
         for (k = 1; k <= n; k++) {
@@ -1008,6 +2125,7 @@ namespace redukti::mathlib {
             x[j - 1] = (qtb[j - 1] - sum) / temp;
         }
         
+        /*     test whether the gauss-newton direction is acceptable. */
         for (j = 1; j <= n; j++) {
             wa1[j-1] = 0.0;
             wa2[j-1] = diag[j-1] * x[j-1];
@@ -1018,6 +2136,8 @@ namespace redukti::mathlib {
             return;
         }
         
+        /*     the gauss-newton direction is not acceptable. */
+        /*     next, calculate the scaled gradient direction. */
         l = 1;
         for (j = 1; j <= n; j++) {
             temp = qtb[j-1];
@@ -1028,12 +2148,16 @@ namespace redukti::mathlib {
             wa1[j-1] = wa1[j-1] / diag[j-1];
         }
 
+        /*     calculate the norm of the scaled gradient and test for */
+        /*     the special case in which the scaled gradient is zero. */
         gnorm = enorm(n, 0, wa1);
         sgnorm = 0.0;
         alpha = delta / qnorm;
 
         if (gnorm != 0.0) {
 
+            /*     calculate the point along the scaled gradient */
+            /*     at which the quadratic is minimized. */
             for (j = 1; j <= n; j++) {
                 wa1[j-1] = (wa1[j-1] / gnorm) / diag[j-1];
             }
@@ -1048,15 +2172,26 @@ namespace redukti::mathlib {
             }
             temp = enorm(n, 0, wa2);
             
+            /* Fix from cminpack
+               Guard temp == 0: a rank-deficient R can map the (nonzero) scaled
+               gradient to ~0, and sgnorm = gnorm/temp/temp would then be +Inf.
+               Setting sgnorm = delta reproduces exactly what the Inf value would
+               yield downstream (sgnorm < delta stays false, so alpha remains 0 and
+               the step length collapses to delta), while avoiding the transient
+               Inf. */
             if (temp == 0.)
                 sgnorm = delta;
             else
                 sgnorm = (gnorm / temp) / temp;
 
+            /*     test whether the scaled gradient direction is acceptable. */
             alpha = 0.0;
 
             if (sgnorm < delta) {
 
+                /*     the scaled gradient direction is not acceptable. */
+                /*     finally, calculate the point along the dogleg */
+                /*     at which the quadratic is minimized. */
                 bnorm = enorm(n, 0, qtb);
                 temp = (bnorm / gnorm) * (bnorm / qnorm) * (sgnorm / delta);
                 temp = temp - (delta / qnorm) * (sgnorm / delta) * (sgnorm / delta)
@@ -1068,16 +2203,51 @@ namespace redukti::mathlib {
             }
         }
         
+        /*     form appropriate convex combination of the gauss-newton */
+        /*     direction and the scaled gradient direction. */
         temp = (1.0 - alpha) * std::min(sgnorm, delta);
         for (j = 1; j <= n; j++) {
             x[j-1] = temp * wa1[j-1] + alpha * x[j-1];
         }
     }
 
+    /***********
+
+     subroutine qform
+
+     this subroutine proceeds from the computed qr factorization of
+     an m by n matrix a to accumulate the m by m orthogonal matrix
+     q from its factored form.
+
+     the subroutine statement is
+
+     subroutine qform(m,n,q,ldq,wa)
+
+     where
+
+     @param m is a positive integer input variable set to the number
+     of rows of a and the order of q.
+
+     @param n is a positive integer input variable set to the number
+     of columns of a.
+
+     @param q is an m by m array. on input the full lower trapezoid in
+     the first min(m,n) columns of q contains the factored form.
+     on output q has been accumulated into a square matrix.
+
+     @param ldq is a positive integer input variable not less than m
+     which specifies the leading dimension of the array q.
+
+     @param wa is a work array of length m.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     void MinPack::qform(int m, int n, std::vector<double> &q, int ldq, std::vector<double> &wa) {
         int i,j,k,minmn;
         double sum,temp;
         
+        /*     zero out upper triangle of q in the first min(m,n) columns. */
         minmn = std::min(m, n);
         if (minmn >= 2) {
             for (j = 2; j <= minmn; j++) {
@@ -1088,6 +2258,7 @@ namespace redukti::mathlib {
             }
         }
         
+        /*     initialize remaining columns to those of the identity matrix. */
         int np1 = n + 1;
         if (m >= np1) {
             for (j = np1; j <= m; j++) {
@@ -1098,6 +2269,7 @@ namespace redukti::mathlib {
             }
         }
 
+        /*     accumulate q from its factored form. */
         for (int l = 1; l <= minmn; l++) {
             k = minmn - l + 1;
             for (i = k; i <= m; i++) {
@@ -1122,17 +2294,98 @@ namespace redukti::mathlib {
     }
 
     
+    /**********
+
+     subroutine fdjac1
+
+     this subroutine computes a forward-difference approximation
+     to the n by n jacobian matrix associated with a specified
+     problem of n functions in n variables. if the jacobian has
+     a banded form, then function evaluations are saved by only
+     approximating the nonzero terms.
+
+     the subroutine statement is
+
+     subroutine fdjac1(fcn,n,x,fvec,fjac,ldfjac,iflag,ml,mu,epsfcn,
+     wa1,wa2)
+
+     where
+
+     @param fcn is the name of the user-supplied subroutine which
+     calculates the functions. fcn must be declared
+     in an external statement in the user calling
+     program, and should be written as follows.
+
+     subroutine fcn(n,x,fvec,iflag)
+     integer n,iflag
+     double precision x(n),fvec(n)
+     ----------
+     calculate the functions at x and
+     return this vector in fvec.
+     ----------
+     return
+     end
+
+     the value of iflag should not be changed by fcn unless
+     the user wants to terminate execution of fdjac1.
+     in this case set iflag to a negative integer.
+
+     @param n is a positive integer input variable set to the number
+     of functions and variables.
+
+     @param x is an input array of length n.
+
+     @param fvec is an input array of length n which must contain the
+     functions evaluated at x.
+
+     @param fjac is an output n by n array which contains the
+     approximation to the jacobian matrix evaluated at x.
+
+     @param ldfjac is a positive integer input variable not less than n
+     which specifies the leading dimension of the array fjac.
+
+     @param iflag is an integer variable which can be used to terminate
+     the execution of fdjac1. see description of fcn.
+
+     @param ml is a nonnegative integer input variable which specifies
+     the number of subdiagonals within the band of the
+     jacobian matrix. if the jacobian is not banded, set
+     ml to at least n - 1.
+
+     @param epsfcn is an input variable used in determining a suitable
+     step length for the forward-difference approximation. this
+     approximation assumes that the relative errors in the
+     functions are of the order of epsfcn. if epsfcn is less
+     than the machine precision, it is assumed that the relative
+     errors in the functions are of the order of the machine
+     precision.
+
+     @param mu is a nonnegative integer input variable which specifies
+     the number of superdiagonals within the band of the
+     jacobian matrix. if the jacobian is not banded, set
+     mu to at least n - 1.
+
+     @param wa1 and wa2 are work arrays of length n. if ml + mu + 1 is at
+     least n, then the jacobian is considered dense, and wa2 is
+     not referenced.
+
+     @author argonne national laboratory. minpack project. march 1980.
+     @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+
+      */
     void MinPack::fdjac1(Hybrd_Function &fcn,
                               int n, std::vector<double> &x, std::vector<double> &fvec, std::vector<double> &fjac, int ldfjac, std::vector<int> &iflag,
                               int ml, int mu, double epsfcn, std::vector<double> &wa1, std::vector<double> &wa2) {
         int i,j,k,msum;
         double eps,epsmch,h,temp;
 
+        /*     epsmch is the machine precision. */
         epsmch = dpmpar(1);
 
         eps = std::sqrt(std::max(epsfcn, epsmch));
         msum = ml + mu + 1;
 
+        /*        computation of dense approximate jacobian. */
         if (msum >= n) {
             for (j = 1; j <= n; j++) {
                 temp = x[j-1];
@@ -1153,6 +2406,7 @@ namespace redukti::mathlib {
             return;
         }
 
+        /*        computation of banded approximate jacobian. */
         for (k = 1; k <= msum; k++) {
             for (j = k; j <= n; j = j + msum) {
                 wa2[j-1] = x[j-1];
@@ -1182,6 +2436,139 @@ namespace redukti::mathlib {
         }
     }
 
+    /**
+     * subroutine hybrd
+     *
+     * the purpose of hybrd is to find a zero of a system of
+     * n nonlinear functions in n variables by a modification
+     * of the powell hybrid method. the user must provide a
+     * subroutine which calculates the functions. the jacobian is
+     * then calculated by a forward-difference approximation.
+     *
+     * the subroutine statement is
+     *
+     * subroutine hybrd(fcn,n,x,fvec,xtol,maxfev,ml,mu,epsfcn,
+     * diag,mode,factor,nprint,info,nfev,fjac,
+     * ldfjac,r,lr,qtf,wa1,wa2,wa3,wa4)
+     *
+     * where
+     *
+     * @param fcn    is the name of the user-supplied subroutine which
+     *               calculates the functions. fcn must be declared
+     *               in an external statement in the user calling
+     *               program, and should be written as follows.
+     *
+     *               subroutine fcn(n,x,fvec,iflag)
+     *               integer n,iflag
+     *               double precision x(n),fvec(n)
+     *               ----------
+     *               calculate the functions at x and
+     *               return this vector in fvec.
+     *               ---------
+     *               return
+     *               end
+     *
+     *               the value of iflag should not be changed by fcn unless
+     *               the user wants to terminate execution of hybrd.
+     *               in this case set iflag to a negative integer.
+     * @param n      is a positive integer input variable set to the number
+     *               of functions and variables.
+     * @param x      is an array of length n. on input x must contain
+     *               an initial estimate of the solution vector. on output x
+     *               contains the final estimate of the solution vector.
+     * @param fvec   is an output array of length n which contains
+     *               the functions evaluated at the output x.
+     * @param xtol   is a nonnegative input variable. termination
+     *               occurs when the relative error between two consecutive
+     *               iterates is at most xtol.
+     * @param maxfev is a positive integer input variable. termination
+     *               occurs when the number of calls to fcn is at least maxfev
+     *               by the end of an iteration.
+     * @param ml     is a nonnegative integer input variable which specifies
+     *               the number of subdiagonals within the band of the
+     *               jacobian matrix. if the jacobian is not banded, set
+     *               ml to at least n - 1.
+     * @param mu     is a nonnegative integer input variable which specifies
+     *               the number of superdiagonals within the band of the
+     *               jacobian matrix. if the jacobian is not banded, set
+     *               mu to at least n - 1.
+     * @param epsfcn is an input variable used in determining a suitable
+     *               step length for the forward-difference approximation. this
+     *               approximation assumes that the relative errors in the
+     *               functions are of the order of epsfcn. if epsfcn is less
+     *               than the machine precision, it is assumed that the relative
+     *               errors in the functions are of the order of the machine
+     *               precision.
+     * @param diag   is an array of length n. if mode = 1 (see
+     *               below), diag is internally set. if mode = 2, diag
+     *               must contain positive entries that serve as
+     *               multiplicative scale factors for the variables.
+     * @param mode   is an integer input variable. if mode = 1, the
+     *               variables will be scaled internally. if mode = 2,
+     *               the scaling is specified by the input diag. other
+     *               values of mode are equivalent to mode = 1.
+     * @param factor is a positive input variable used in determining the
+     *               initial step bound. this bound is set to the product of
+     *               factor and the euclidean norm of diag*x if nonzero, or else
+     *               to factor itself. in most cases factor should lie in the
+     *               interval (.1,100.). 100. is a generally recommended value.
+     * @param nprint is an integer input variable that enables controlled
+     *               printing of iterates if it is positive. in this case,
+     *               fcn is called with iflag = 0 at the beginning of the first
+     *               iteration and every nprint iterations thereafter and
+     *               immediately prior to return, with x and fvec available
+     *               for printing. if nprint is not positive, no special calls
+     *               of fcn with iflag = 0 are made.
+     * @param nfev   is an integer output variable set to the number of
+     *               calls to fcn.
+     * @param fjac   is an output n by n array which contains the
+     *               orthogonal matrix q produced by the qr factorization
+     *               of the final approximate jacobian.
+     * @param ldfjac is a positive integer input variable not less than n
+     *               which specifies the leading dimension of the array fjac.
+     * @param r      is an output array of length lr which contains the
+     *               upper triangular matrix produced by the qr factorization
+     *               of the final approximate jacobian, stored rowwise.
+     * @param lr     is a positive integer input variable not less than
+     *               (n*(n+1))/2.
+     * @param qtf    is an output array of length n which contains
+     *               the vector (q transpose)*fvec.
+     * @param wa1,   wa2, wa3, and wa4 are work arrays of length n.
+     *
+     *               subprograms called
+     *
+     *               user-supplied ...... fcn
+     *
+     *               minpack-supplied ... dogleg,dpmpar,enorm,fdjac1,
+     *               qform,qrfac,r1mpyq,r1updt
+     *
+     *               fortran-supplied ... dabs,dmax1,dmin1,min0,mod
+     * @return info is an integer output variable. if the user has
+     * terminated execution, info is set to the (negative)
+     * value of iflag. see description of fcn. otherwise,
+     * info is set as follows.
+     *
+     * info = 0   improper input parameters.
+     *
+     * info = 1   relative error between two consecutive iterates
+     * is at most xtol.
+     *
+     * info = 2   number of calls to fcn has reached or exceeded
+     * maxfev.
+     *
+     * info = 3   xtol is too small. no further improvement in
+     * the approximate solution x is possible.
+     *
+     * info = 4   iteration is not making good progress, as
+     * measured by the improvement from the last
+     * five jacobian evaluations.
+     *
+     * info = 5   iteration is not making good progress, as
+     * measured by the improvement from the last
+     * ten iterations.
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @athor burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     int MinPack::hybrd(Hybrd_Function &fcn,
                             int n, std::vector<double> &x,
                             std::vector<double> &fvec, double xtol, int maxfev, int ml, int mu, double epsfcn,
@@ -1199,12 +2586,14 @@ namespace redukti::mathlib {
                 prered,ratio,sum,temp,xnorm;
         std::vector<int> iflag_(1, 0);
 
+        /*     epsmch is the machine precision. */
         epsmch = dpmpar(1);
 
         info = 0;
         iflag = 0;
         nfev[0] = 0;
 
+        /*     check the input parameters for errors. */
         if (n <= 0
             ||xtol < 0.0
             ||maxfev <= 0
@@ -1225,6 +2614,8 @@ namespace redukti::mathlib {
             }
         }
 
+        /*     evaluate the function at the starting point */
+        /*     and calculate its norm. */
         iflag = 1;
         iflag_[0] = iflag;
         fcn.apply(n, x, fvec, iflag_);
@@ -1237,8 +2628,11 @@ namespace redukti::mathlib {
 
         fnorm = enorm(n, 0, fvec);
 
+        /*     determine the number of calls to fcn needed to compute */
+        /*     the jacobian matrix. */
         msum = std::min(ml + mu + 1, n);
 
+        /*     initialize iteration counter and monitors. */
         iter = 1;
         ncsuc = 0;
         ncfail = 0;
@@ -1247,9 +2641,11 @@ namespace redukti::mathlib {
         delta = 0;
         xnorm = 0;
 
+        /*     beginning of the outer loop. */
         for (;;) {
             jeval = true;
 
+            /*        calculate the jacobian matrix. */
             iflag = 2;
             iflag_[0] = iflag;
             fdjac1(fcn, n, x, fvec, fjac, ldfjac, iflag_, ml, mu, epsfcn, wa1, wa2);
@@ -1260,8 +2656,11 @@ namespace redukti::mathlib {
                 goto outerloop_end;
             }
 
+            /*        compute the qr factorization of the jacobian. */
             qrfac(n, n, fjac, ldfjac, 0, iwa, 1, wa1, wa2, wa3);
 
+            /*        on the first iteration and if mode is 1, scale according */
+            /*        to the norms of the columns of the initial jacobian. */
             if (iter == 1) {
                 if (mode != 2) {
                     for (j = 1; j <= n; j++) {
@@ -1272,6 +2671,8 @@ namespace redukti::mathlib {
                     }
                 }
 
+                /*        on the first iteration, calculate the norm of the scaled x */
+                /*        and initialize the step bound delta. */
                 for (j = 1; j <= n; j++) {
                     wa3[j - 1] = diag[j - 1] * x[j - 1];
                 }
@@ -1280,6 +2681,7 @@ namespace redukti::mathlib {
                 if (delta == 0.0) delta = factor;
             }
 
+            /*        form (q transpose)*fvec and store in qtf. */
             for (i = 1; i <= n; i++) {
                 qtf[i - 1] = fvec[i - 1];
             }
@@ -1296,6 +2698,7 @@ namespace redukti::mathlib {
                 }
             }
             
+            /*        copy the triangular factor of the qr factorization into r. */
             for (j = 1; j <= n; j++) {
                 l = j;
                 int jm1 = j - 1;
@@ -1311,16 +2714,20 @@ namespace redukti::mathlib {
                 }
             }
 
+            /*        accumulate the orthogonal factor in fjac. */
             qform(n, n, fjac, ldfjac, wa1);
 
+            /*        rescale if necessary. */
             if (mode != 2) {
                 for (j = 1; j <= n; j++) {
                     diag[j - 1] = std::max(diag[j - 1], wa2[j - 1]);
                 }
             }
 
+            /*        beginning of the inner loop. */
             for (; ; ) {
                 
+                /*           if requested, call fcn to enable printing of iterates. */
                 if (nprint > 0) {
                     if ((iter - 1) % nprint == 0) {
                         iflag = 0;
@@ -1333,8 +2740,10 @@ namespace redukti::mathlib {
                     }
                 }
 
+                /*           determine the direction p. */
                 dogleg(n, r, lr, diag, qtf, delta, wa1, wa2, wa3);
 
+                /*           store the direction p and x + p. calculate the norm of p. */
                 for (j = 1; j <= n; j++) {
                     wa1[j - 1] = -wa1[j - 1];
                     wa2[j - 1] = x[j - 1] + wa1[j - 1];
@@ -1342,10 +2751,12 @@ namespace redukti::mathlib {
                 }
                 pnorm = enorm(n, 0, wa3);
 
+                /*           on the first iteration, adjust the initial step bound. */
                 if (iter == 1) {
                     delta = std::min(delta, pnorm);
                 }
 
+                /*           evaluate the function at x + p and calculate its norm. */
                 iflag = 1;
                 iflag_[0] = iflag;
                 fcn.apply(n, wa2, wa4, iflag_);
@@ -1356,11 +2767,13 @@ namespace redukti::mathlib {
                 }
                 fnorm1 = enorm(n, 0, wa4);
 
+                /*           compute the scaled actual reduction. */
                 actred = -1.0;
                 if (fnorm1 < fnorm) {
                     actred = 1.0 - (fnorm1 / fnorm) * (fnorm1 / fnorm);
                 }
 
+                /*           compute the scaled predicted reduction. */
                 l = 1;
                 for (i = 1; i <= n; i++) {
                     sum = 0.0;
@@ -1376,11 +2789,14 @@ namespace redukti::mathlib {
                     prered = 1.0 - (temp / fnorm) * (temp / fnorm);
                 }
 
+                /*           compute the ratio of the actual to the predicted */
+                /*           reduction. */
                 ratio = 0.0;
                 if (prered > 0.0) {
                     ratio = actred / prered;
                 }
 
+                /*           update the step bound. */
                 if (!(ratio >= p1)) {
                     ncsuc = 0;
                     ncfail = ncfail + 1;
@@ -1396,8 +2812,10 @@ namespace redukti::mathlib {
                     }
                 }
                 
+                /*           test for successful iteration. */
                 if (!(ratio < p0001)) {
 
+                    /*           successful iteration. update x, fvec, and their norms. */
                     for (j = 1; j <= n; j++) {
                         x[j - 1] = wa2[j - 1];
                         wa2[j - 1] = diag[j - 1] * x[j - 1];
@@ -1408,22 +2826,30 @@ namespace redukti::mathlib {
                     iter = iter + 1;
                 }
 
+                /*           determine the progress of the iteration. */
                 nslow1 = nslow1 + 1;
                 if (actred >= p001) nslow1 = 0;
                 if (jeval) nslow2 = nslow2 + 1;
                 if (actred >= p1) nslow2 = 0;
                 
+                /*           test for convergence. */
                 if (delta <= xtol * xnorm || fnorm == 0.0) info = 1;
                 if (info != 0) goto outerloop_end;
 
+                /*           tests for termination and stringent tolerances. */
                 if (nfev[0] >= maxfev) info = 2;
                 if (p1 * std::max(p1 * delta, pnorm) <= epsmch * xnorm) info = 3;
                 if (nslow2 == 5) info = 4;
                 if (nslow1 == 10) info = 5;
                 if (info != 0) goto outerloop_end;
 
+                /*           criterion for recalculating jacobian approximation */
+                /*           by forward differences. */
+
                 if (ncfail == 2) goto innerloop_end;
 
+                /*           calculate the rank one modification to the jacobian */
+                /*           and update qtf if necessary. */
                 for (j = 1; j <= n; j++) {
                     sum = 0.0;
                     for (i = 1; i <= n; i++) {
@@ -1436,17 +2862,23 @@ namespace redukti::mathlib {
                     }
                 }
                 
+                /*           compute the qr factorization of the updated jacobian. */
                 r1updt(n, n, r, lr, wa1, wa2, wa3);
                 r1mpyq(n, n, fjac, ldfjac, wa2, wa3);
                 r1mpyq(1, n, qtf, 1, wa2, wa3);
 
                 jeval = false;
+                /* end of the inner loop. */
             }
         innerloop_end:;
             
         }
         outerloop_end:;
 
+        /* end of the outer loop. */
+
+
+        /*     termination, either normal or user imposed. */
         if (iflag < 0) {
             info = iflag;
         }
@@ -1456,14 +2888,151 @@ namespace redukti::mathlib {
         }
         return info;
 
+        /*     last card of subroutine hybrd. */
     }
 
+    /**
+     * subroutine hybrd1
+     *
+     * the purpose of hybrd1 is to find a zero of a system of
+     * n nonlinear functions in n variables by a modification
+     * of the powell hybrid method. this is done by using the
+     * more general nonlinear equation solver hybrd. the user
+     * must provide a subroutine which calculates the functions.
+     * the jacobian is then calculated by a forward-difference
+     * approximation.
+     *
+     * the subroutine statement is
+     *
+     * subroutine hybrd1(fcn,n,x,fvec,tol,info,wa,lwa)
+     *
+     * where
+     *
+     * @param fcn  is the name of the user-supplied subroutine which
+     *             calculates the functions. fcn must be declared
+     *             in an external statement in the user calling
+     *             program, and should be written as follows.
+     *
+     *             subroutine fcn(n,x,fvec,iflag)
+     *             integer n,iflag
+     *             double precision x(n),fvec(n)
+     *             ----------
+     *             calculate the functions at x and
+     *             return this vector in fvec.
+     *             ---------
+     *             return
+     *             end
+     *
+     *             the value of iflag should not be changed by fcn unless
+     *             the user wants to terminate execution of hybrd1.
+     *             in this case set iflag to a negative integer.
+     * @param n    is a positive integer input variable set to the number
+     *             of functions and variables.
+     * @param x    is an array of length n. on input x must contain
+     *             an initial estimate of the solution vector. on output x
+     *             contains the final estimate of the solution vector.
+     * @param fvec is an output array of length n which contains
+     *             the functions evaluated at the output x.
+     * @param tol  is a nonnegative input variable. termination occurs
+     *             when the algorithm estimates that the relative error
+     *             between x and the solution is at most tol.
+     * @param wa   is a work array of length lwa.
+     * @param lwa  is a positive integer input variable not less than
+     *             (n*(3*n+13))/2.
+     * @return info is an integer output variable. if the user has
+     * terminated execution, info is set to the (negative)
+     * value of iflag. see description of fcn. otherwise,
+     * info is set as follows.
+     *
+     * info = 0   improper input parameters.
+     *
+     * info = 1   algorithm estimates that the relative error
+     * between x and the solution is at most tol.
+     *
+     * info = 2   number of calls to fcn has reached or exceeded
+     * 200*(n+1).
+     *
+     * info = 3   tol is too small. no further improvement in
+     * the approximate solution x is possible.
+     *
+     * info = 4   iteration is not making good progress.
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     int MinPack::hybrd1(Hybrd_Function &fcn, int n,
                               std::vector<double> &x, std::vector<double> &fvec, double tol, std::vector<double> &wa, int lwa) {
         // Setting epsfcn to 0 means default machine precision will be used
         return hybrd1(fcn, n, x, fvec, tol, wa, lwa, 0.0);
     }
 
+    /**
+     * subroutine hybrd1
+     *
+     * the purpose of hybrd1 is to find a zero of a system of
+     * n nonlinear functions in n variables by a modification
+     * of the powell hybrid method. this is done by using the
+     * more general nonlinear equation solver hybrd. the user
+     * must provide a subroutine which calculates the functions.
+     * the jacobian is then calculated by a forward-difference
+     * approximation.
+     *
+     * the subroutine statement is
+     *
+     * subroutine hybrd1(fcn,n,x,fvec,tol,info,wa,lwa)
+     *
+     * where
+     *
+     * @param fcn  is the name of the user-supplied subroutine which
+     *             calculates the functions. fcn must be declared
+     *             in an external statement in the user calling
+     *             program, and should be written as follows.
+     *
+     *             subroutine fcn(n,x,fvec,iflag)
+     *             integer n,iflag
+     *             double precision x(n),fvec(n)
+     *             ----------
+     *             calculate the functions at x and
+     *             return this vector in fvec.
+     *             ---------
+     *             return
+     *             end
+     *
+     *             the value of iflag should not be changed by fcn unless
+     *             the user wants to terminate execution of hybrd1.
+     *             in this case set iflag to a negative integer.
+     * @param n    is a positive integer input variable set to the number
+     *             of functions and variables.
+     * @param x    is an array of length n. on input x must contain
+     *             an initial estimate of the solution vector. on output x
+     *             contains the final estimate of the solution vector.
+     * @param fvec is an output array of length n which contains
+     *             the functions evaluated at the output x.
+     * @param tol  is a nonnegative input variable. termination occurs
+     *             when the algorithm estimates that the relative error
+     *             between x and the solution is at most tol.
+     * @param wa   is a work array of length lwa.
+     * @param lwa  is a positive integer input variable not less than
+     *             (n*(3*n+13))/2.
+     * @return info is an integer output variable. if the user has
+     * terminated execution, info is set to the (negative)
+     * value of iflag. see description of fcn. otherwise,
+     * info is set as follows.
+     *
+     * info = 0   improper input parameters.
+     *
+     * info = 1   algorithm estimates that the relative error
+     * between x and the solution is at most tol.
+     *
+     * info = 2   number of calls to fcn has reached or exceeded
+     * 200*(n+1).
+     *
+     * info = 3   tol is too small. no further improvement in
+     * the approximate solution x is possible.
+     *
+     * info = 4   iteration is not making good progress.
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     int MinPack::hybrd1(Hybrd_Function &fcn, int n,
                               std::vector<double> &x, std::vector<double> &fvec, double tol, std::vector<double> &wa, int lwa, double epsfcn )
     {
@@ -1473,11 +3042,17 @@ namespace redukti::mathlib {
 
         info = 0;
 
+        /*
+          Check the input.
+        */
         if ( n <= 0 || tol <= 0.0 || lwa < ( n * ( 3 * n + 13 ) ) / 2 )
         {
             return info;
         }
 
+        /*
+          Call HYBRD.
+        */
         maxfev = 200 * ( n + 1 );
         xtol = tol;
         ml = n - 1;
@@ -1509,19 +3084,86 @@ namespace redukti::mathlib {
         return info;
     }
 
+    /**
+     * subroutine chkder
+     *
+     * this subroutine checks the gradients of m nonlinear functions
+     * in n variables, evaluated at a point x, for consistency with
+     * the functions themselves. the user must call chkder twice,
+     * first with mode = 1 and then with mode = 2.
+     *
+     * mode = 1. on input, x must contain the point of evaluation.
+     * on output, xp is set to a neighboring point.
+     *
+     * mode = 2. on input, fvec must contain the functions and the
+     * rows of fjac must contain the gradients
+     * of the respective functions each evaluated
+     * at x, and fvecp must contain the functions
+     * evaluated at xp.
+     * on output, err contains measures of correctness of
+     * the respective gradients.
+     *
+     * the subroutine does not perform reliably if cancellation or
+     * rounding errors cause a severe loss of significance in the
+     * evaluation of a function. therefore, none of the components
+     * of x should be unusually small (in particular, zero) or any
+     * other value which may cause loss of significance.
+     *
+     * the subroutine statement is
+     *
+     * subroutine chkder(m,n,x,fvec,fjac,ldfjac,xp,fvecp,mode,err)
+     *
+     * where
+     *
+     * @param m      is a positive integer input variable set to the number
+     *               of functions.
+     * @param n      is a positive integer input variable set to the number
+     *               of variables.
+     * @param x      is an input array of length n.
+     * @param fvec   is an array of length m. on input when mode = 2,
+     *               fvec must contain the functions evaluated at x.
+     * @param fjac   is an m by n array. on input when mode = 2,
+     *               the rows of fjac must contain the gradients of
+     *               the respective functions evaluated at x.
+     * @param ldfjac is a positive integer input parameter not less than m
+     *               which specifies the leading dimension of the array fjac.
+     * @param xp     is an array of length n. on output when mode = 1,
+     *               xp is set to a neighboring point of x.
+     * @param fvecp  is an array of length m. on input when mode = 2,
+     *               fvecp must contain the functions evaluated at xp.
+     * @param mode   is an integer input variable set to 1 on the first call
+     *               and 2 on the second. other values of mode are equivalent
+     *               to mode = 1.
+     * @param err    is an array of length m. on output when mode = 2,
+     *               err contains measures of correctness of the respective
+     *               gradients. if there is no severe loss of significance,
+     *               then if err(i) is 1.0 the i-th gradient is correct,
+     *               while if err(i) is 0.0 the i-th gradient is incorrect.
+     *               for values of err between 0.0 and 1.0, the categorization
+     *               is less certain. in general, a value of err(i) greater
+     *               than 0.5 indicates that the i-th gradient is probably
+     *               correct, while a value of err(i) less than 0.5 indicates
+     *               that the i-th gradient is probably incorrect.
+
+     * @author argonne national laboratory. minpack project. march 1980.
+     * @author burton s. garbow, kenneth e. hillstrom, jorge j. more
+     */
     void MinPack::chkder(int m, int n, std::vector<double> &x, std::vector<double> &fvec, std::vector<double> &fjac,
                 int ldfjac, std::vector<double> &xp, std::vector<double> &fvecp, int mode, std::vector<double> &err) {
         
+        /* Local variables */
         int i, j;
         double eps, epsf, temp, epsmch;
         double epslog;
 
         const double factor = 100.0;
 
+        /* epsmch is the machine precision. */
         epsmch = dpmpar(1);
 
         eps = std::sqrt(epsmch);
 
+        /*        mode = 1. */
         if (mode == 1) {
             for (j = 0; j < n; j++) {
                 if (x[j] == 0.0) {
@@ -1534,6 +3176,7 @@ namespace redukti::mathlib {
             return;
         }
         
+        /*        mode = 2. */
         epsf = factor * epsmch;
         epslog = std::log10(eps);
         for (i = 0; i < m; i++) {

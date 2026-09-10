@@ -1,4 +1,7 @@
 // C++ port of SpotOptions, SpotAnalysisResult and SpotAnalysis.
+//
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
 #include "redukti/rayoptics/analysis/SpotAnalysis.h"
 
 #include "redukti/Exceptions.h"

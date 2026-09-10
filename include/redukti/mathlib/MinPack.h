@@ -26,10 +26,29 @@ public:
     virtual ~Lmder_Function() = default;
 
     /**
-     * @param iflag if 1, calculate the functions at x and return them in fvec,
-     *              do not alter fjac; if 2, calculate the jacobian at x and
-     *              return it in fjac, do not alter fvec.
-     * @return a negative value to terminate lmder1/lmder
+     * for lmder1 and lmder
+     * Used if the implementation can generate jacobian
+     *
+     * @param m      is a positive integer input variable set to the number
+     *               of functions
+     * @param n      is a positive integer input variable set to the number
+     *               of variables. n must not exceed m.
+     * @param x      is an array of length n. current estimate of the solution
+     *               vector.
+     * @param fvec   is an output array of length m which contains
+     *               the functions evaluated at the output x.
+     * @param fjac   is an output m by n array. the upper n by n submatrix
+     *               of fjac contains an upper triangular matrix r with
+     *               diagonal elements of nonincreasing magnitude
+     * @param ldfjac is a positive integer input variable not less than m
+     *               which specifies the leading dimension of the array fjac.
+     * @param iflag  flag
+     *               if iflag = 1 calculate the functions at x and
+     *               return this vector in fvec. do not alter fjac.
+     *
+     *               if iflag = 2 calculate the jacobian at x and
+     *               return this matrix in fjac. do not alter fvec.
+     * @return return a negative value to terminate lmder1/lmder
      */
     virtual int apply(int m, int n, std::vector<double> &x, std::vector<double> &fvec,
                       std::vector<double> &fjac, int ldfjac, int iflag) {
@@ -38,8 +57,21 @@ public:
     }
 
     /**
-     * @param iflag if 1, calculate the functions at x and return them in fvec.
-     * @return a negative value to terminate lmder1/lmder
+     * for lmder1 and lmder
+     * Used if the implementation does not generate jacobian
+     *
+     * @param m      is a positive integer input variable set to the number
+     *               of functions
+     * @param n      is a positive integer input variable set to the number
+     *               of variables. n must not exceed m.
+     * @param x      is an array of length n. current estimate of the solution
+     *               vector.
+     * @param fvec   is an output array of length m which contains
+     *               the functions evaluated at the output x.
+     * @param iflag  flag
+     *               if iflag = 1 calculate the functions at x and
+     *               return this vector in fvec.
+     * @return return a negative value to terminate lmder1/lmder
      */
     virtual int apply(int m, int n, std::vector<double> &x, std::vector<double> &fvec,
                       int iflag) {
@@ -50,7 +82,19 @@ public:
     virtual bool hasJacobian() { return false; }
 };
 
-/** Callback for hybrd / hybrd1. */
+/**
+ * Interface for user-supplied subroutine which
+ * calculates the functions. fcn must be declared
+ * in an external statement in the user calling
+ * program, and should be written as follows.
+ *
+ * Calculate the functions at x and
+ * return this vector in fvec.
+ *
+ * the value of iflag should not be changed by fcn unless
+ * the user wants to terminate execution of fdjac1.
+ * in this case set iflag to a negative integer.
+ */
 class Hybrd_Function {
 public:
     virtual ~Hybrd_Function() = default;

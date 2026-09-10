@@ -1,8 +1,11 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+//
 // Bounded cache of computed sequential paths.
 //
-// This has no counterpart in the Java: it exists only because the C++ returns
-// paths by value where the Java returns references, so rebuilding one per ray
-// costs an allocation and a full vector copy. Keeping it here leaves
+// Written for the C++ port and since backported to the Java as
+// org.redukti.rayoptics.seq.PathCache. It exists because rebuilding a path per
+// ray costs an allocation and a full vector copy. Keeping it here leaves
 // SequentialModel::path() looking like the method it was ported from.
 #ifndef REDUKTI_RAYOPTICS_SEQ_PATHCACHE_H
 #define REDUKTI_RAYOPTICS_SEQ_PATHCACHE_H
