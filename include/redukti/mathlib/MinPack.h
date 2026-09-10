@@ -2,6 +2,8 @@
 //
 // argonne national laboratory. minpack project. march 1980.
 // burton s. garbow, kenneth e. hillstrom, jorge j. more
+//
+// See LICENSE-Minpack.txt
 #ifndef REDUKTI_MATHLIB_MINPACK_H
 #define REDUKTI_MATHLIB_MINPACK_H
 

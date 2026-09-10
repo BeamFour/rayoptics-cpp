@@ -1,7 +1,5 @@
+// Portions derived from Goptical, hence is licensed under the GPL.
 // C++ port of org.redukti.rayoptics.seq.Glass
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_SEQ_GLASS_H
 #define REDUKTI_RAYOPTICS_SEQ_GLASS_H
 

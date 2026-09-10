@@ -1,7 +1,4 @@
 // C++ port of org.redukti.util.Args and org.redukti.util.Helper
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_UTIL_ARGS_H
 #define REDUKTI_UTIL_ARGS_H
 

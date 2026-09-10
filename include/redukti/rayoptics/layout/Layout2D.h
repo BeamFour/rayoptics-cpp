@@ -1,7 +1,4 @@
 // C++ port of org.redukti.rayoptics.layout.Layout2D
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_LAYOUT_LAYOUT2D_H
 #define REDUKTI_RAYOPTICS_LAYOUT_LAYOUT2D_H
 

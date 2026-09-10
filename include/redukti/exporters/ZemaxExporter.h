@@ -1,9 +1,6 @@
 // C++ port of org.redukti.exporters.ZemaxExporter
 //
 // Writes a prescription out as a Zemax .zmx sequential lens file.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_EXPORTERS_ZEMAXEXPORTER_H
 #define REDUKTI_EXPORTERS_ZEMAXEXPORTER_H
 

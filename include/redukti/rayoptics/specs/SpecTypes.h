@@ -1,9 +1,11 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // C++ port of the small specs types:
 //   SpecType, ImageKey, ValueKey, ConjugateType, SpecKey, WvlWt, Coord,
 //   SystemSpec, FocusRange.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_SPECS_SPECTYPES_H
 #define REDUKTI_RAYOPTICS_SPECS_SPECTYPES_H
 

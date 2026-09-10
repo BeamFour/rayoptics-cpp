@@ -1,7 +1,8 @@
 // C++ port of org.redukti.mathlib.LMLFunction
 //
 // @author: M.Lampton (c) 2005 Stellar Software
-// Original License: GPL v2
+//
+// Original License: GPL v2; see LICENSE-GPL-2.0.txt
 #ifndef REDUKTI_MATHLIB_LMLFUNCTION_H
 #define REDUKTI_MATHLIB_LMLFUNCTION_H
 

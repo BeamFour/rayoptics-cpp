@@ -1,8 +1,10 @@
-// C++ port of org.redukti.rayoptics.parax.ThirdOrder and the three Seidel
-// result records (Seidel_WaveFront, Seidel_Transverse, Seidel_FieldCurv).
-//
 // Copyright 2017-2025 Michael J. Hayford
 // Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// C++ port of org.redukti.rayoptics.parax.ThirdOrder and the three Seidel
+// result records (Seidel_WaveFront, Seidel_Transverse, Seidel_FieldCurv).
 #ifndef REDUKTI_RAYOPTICS_PARAX_THIRDORDER_H
 #define REDUKTI_RAYOPTICS_PARAX_THIRDORDER_H
 

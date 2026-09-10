@@ -1,3 +1,8 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // Out-of-line members of Field and ReadOnlyField. Defined here rather than in
 // the header because their shared_ptr members point at raytr types that are
 // only forward-declared there.

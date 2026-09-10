@@ -1,9 +1,11 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // C++ port of the parax value types:
 //   Etendue, ParaxComponent, ParaxPathComp, ParaxData, FirstOrderData,
 //   PrincipalPointsInfo, ThirdOrderData.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_PARAX_PARAXTYPES_H
 #define REDUKTI_RAYOPTICS_PARAX_PARAXTYPES_H
 

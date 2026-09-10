@@ -3,9 +3,6 @@
 // Generates the report artifacts that live under Examples/: prescription.txt,
 // the .zmx, the layout and spot SVGs, the MTF SVGs and CSVs, vig/paraxial
 // dumps and README.md.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_TOOLS_LENSTOOL2_H
 #define REDUKTI_TOOLS_LENSTOOL2_H
 

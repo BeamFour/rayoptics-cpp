@@ -1,7 +1,9 @@
-// C++ port of org.redukti.rayoptics.seq.Interface
-//
 // Copyright 2017-2025 Michael J. Hayford
 // Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// C++ port of org.redukti.rayoptics.seq.Interface
 #ifndef REDUKTI_RAYOPTICS_SEQ_INTERFACE_H
 #define REDUKTI_RAYOPTICS_SEQ_INTERFACE_H
 

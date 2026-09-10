@@ -1,8 +1,4 @@
 // C++ port of org.redukti.mathlib.Quaternion
-//
-// The software is ported from Goptical, hence is licensed under the GPL.
-// Copyright (c) 2021 Dibyendu Majumdar
-// Copyright (C) 2010-2011 Free Software Foundation, Inc; Author: Alexandre Becoulet
 #ifndef REDUKTI_MATHLIB_QUATERNION_H
 #define REDUKTI_MATHLIB_QUATERNION_H
 

@@ -1,7 +1,9 @@
-// C++ port of org.redukti.rayoptics.math.Tfm3d
-//
 // Copyright 2017-2025 Michael J. Hayford
 // Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// C++ port of org.redukti.rayoptics.math.Tfm3d
 #ifndef REDUKTI_RAYOPTICS_MATH_TFM3D_H
 #define REDUKTI_RAYOPTICS_MATH_TFM3D_H
 

@@ -1,4 +1,6 @@
 // C++ port of org.redukti.mathlib.LMLSolver
+//
+// Original License: GPL v2; see LICENSE-GPL-2.0.txt
 #include "redukti/mathlib/LMLSolver.h"
 
 #include <cmath>

@@ -1,7 +1,9 @@
-// C++ port of org.redukti.rayoptics.parax.FirstOrderData formatting.
-//
 // Copyright 2017-2025 Michael J. Hayford
 // Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// C++ port of org.redukti.rayoptics.parax.FirstOrderData formatting.
 #include "redukti/rayoptics/parax/ParaxTypes.h"
 
 #include "redukti/Text.h"

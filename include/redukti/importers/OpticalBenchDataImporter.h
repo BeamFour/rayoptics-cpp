@@ -2,9 +2,6 @@
 //
 // Reads the tab-separated OpticalBench prescription format used by the files
 // under Examples/.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_IMPORTERS_OPTICALBENCHDATAIMPORTER_H
 #define REDUKTI_IMPORTERS_OPTICALBENCHDATAIMPORTER_H
 

@@ -1,3 +1,8 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // toString and shared statics for the seq value types.
 #include "redukti/rayoptics/elem/surface/Surface.h"
 #include "redukti/rayoptics/seq/Gap.h"

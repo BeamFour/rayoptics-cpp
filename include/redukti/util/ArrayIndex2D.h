@@ -1,7 +1,4 @@
 // C++ port of org.redukti.util.ArrayIndex2D
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_UTIL_ARRAYINDEX2D_H
 #define REDUKTI_UTIL_ARRAYINDEX2D_H
 

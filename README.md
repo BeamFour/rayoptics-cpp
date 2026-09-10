@@ -27,4 +27,4 @@ to that project. Differences are noted below.
 ## License
 
 The project includes code derived from several opensource projects. See the individual license notices in the source code and in LICENSE notices.
-The overall license is GNU GPL v2.
+The overall license is GNU GPL v3 or later; see [LICENSE-GPL-3.0.txt](LICENSE-GPL-3.0.txt).

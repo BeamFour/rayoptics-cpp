@@ -1,3 +1,10 @@
+// Ported from deriv/deriv.c in GNU Scientific Library
+// Copyright (c) 2021 Dibyendu Majumdar
+// Copyright (C) 2004, 2007 Brian Gough
+// Licensed under the GNU General Public License, version 3 or later; see LICENSE-GPL-3.0.txt
+// The software is ported from Goptical, hence is licensed under the GPL.
+// Goptical: Copyright (C) 2010-2011 Free Software Foundation, Inc; Author: Alexandre Becoulet
+//
 // C++ port of org.redukti.mathlib.Derivatives
 #include "redukti/mathlib/Derivatives.h"
 

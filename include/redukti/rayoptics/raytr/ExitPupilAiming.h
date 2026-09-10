@@ -1,7 +1,4 @@
 // C++ port of org.redukti.rayoptics.raytr.ExitPupilAiming
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_RAYTR_EXITPUPILAIMING_H
 #define REDUKTI_RAYOPTICS_RAYTR_EXITPUPILAIMING_H
 

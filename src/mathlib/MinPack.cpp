@@ -9,6 +9,8 @@
 // in/out parameters. Java's labelled breaks become gotos to a label placed
 // immediately after the loop, and lmpar's try/catch -- which the Java used to
 // emulate Fortran's "go to 220" -- becomes a plain goto.
+//
+// See LICENSE-Minpack.txt
 #include "redukti/mathlib/MinPack.h"
 
 #include <algorithm>

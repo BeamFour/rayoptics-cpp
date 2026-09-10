@@ -1,8 +1,5 @@
 // C++ port of org.redukti.plotter: Colors, SpotDiagram, GeoMTFPlot,
 // GeoMTFByFieldPlot and RayAberrationPlot.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_PLOTTER_PLOTTER_H
 #define REDUKTI_PLOTTER_PLOTTER_H
 

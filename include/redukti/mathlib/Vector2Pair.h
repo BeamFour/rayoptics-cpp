@@ -1,8 +1,9 @@
-// C++ port of org.redukti.mathlib.Vector2Pair
-//
 // The software is ported from Goptical, hence is licensed under the GPL.
 // Copyright (c) 2021 Dibyendu Majumdar
-// Copyright (C) 2010-2011 Free Software Foundation, Inc; Author: Alexandre Becoulet
+// Goptical: Copyright (C) 2010-2011 Free Software Foundation, Inc; Author: Alexandre Becoulet
+// Licensed under the GNU General Public License, version 3 or later; see LICENSE-GPL-3.0.txt
+//
+// C++ port of org.redukti.mathlib.Vector2Pair
 #ifndef REDUKTI_MATHLIB_VECTOR2PAIR_H
 #define REDUKTI_MATHLIB_VECTOR2PAIR_H
 

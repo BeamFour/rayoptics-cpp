@@ -1,7 +1,9 @@
-// C++ port of org.redukti.render.rendering.RendererSvg
+// The software is ported from Goptical, hence is licensed under the GPL.
+// Copyright (c) 2021 Dibyendu Majumdar
+// Goptical: Copyright (C) 2010-2011 Free Software Foundation, Inc; Author: Alexandre Becoulet
+// Licensed under the GNU General Public License, version 3 or later; see LICENSE-GPL-3.0.txt
 //
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
+// C++ port of org.redukti.render.rendering.RendererSvg
 #ifndef REDUKTI_RENDER_RENDERERSVG_H
 #define REDUKTI_RENDER_RENDERERSVG_H
 

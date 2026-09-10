@@ -1,7 +1,9 @@
-// C++ port of org.redukti.rayoptics.raytr.{RayTrace,RayTraceOptions,TraceOptions}
-//
 // Copyright 2017-2025 Michael J. Hayford
 // Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// C++ port of org.redukti.rayoptics.raytr.{RayTrace,RayTraceOptions,TraceOptions}
 #ifndef REDUKTI_RAYOPTICS_RAYTR_RAYTRACE_H
 #define REDUKTI_RAYOPTICS_RAYTR_RAYTRACE_H
 

@@ -1,7 +1,9 @@
-// C++ port of org.redukti.rayoptics.elem.surface.Surface
-//
 // Copyright 2017-2025 Michael J. Hayford
 // Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// C++ port of org.redukti.rayoptics.elem.surface.Surface
 #ifndef REDUKTI_RAYOPTICS_ELEM_SURFACE_SURFACE_H
 #define REDUKTI_RAYOPTICS_ELEM_SURFACE_SURFACE_H
 

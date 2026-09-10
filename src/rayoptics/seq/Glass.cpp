@@ -1,3 +1,4 @@
+// Portions derived from Goptical, hence is licensed under the GPL.
 // C++ port of org.redukti.rayoptics.seq.Glass (code; the catalog data is in
 // GlassCatalog.cpp)
 #include "redukti/rayoptics/seq/Glass.h"

@@ -5,7 +5,8 @@
 // M.Lampton, 1997 Computers In Physics v.11 #10 110-115.
 //
 // @author: M.Lampton (c) 2005 Stellar Software
-// Original License: GPL v2
+//
+// Original License: GPL v2; see LICENSE-GPL-2.0.txt
 #ifndef REDUKTI_MATHLIB_LMLSOLVER_H
 #define REDUKTI_MATHLIB_LMLSOLVER_H
 

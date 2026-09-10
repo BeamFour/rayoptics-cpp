@@ -1,7 +1,4 @@
 // C++ port of org.redukti.rayoptics.analysis.SpotIntercepts
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_ANALYSIS_SPOTINTERCEPTS_H
 #define REDUKTI_RAYOPTICS_ANALYSIS_SPOTINTERCEPTS_H
 

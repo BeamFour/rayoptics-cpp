@@ -1,7 +1,6 @@
-// C++ port of org.redukti.rayoptics.seq.{Medium,Air,InteractMode}
+// Portions derived from Goptical, hence is licensed under the GPL.
 //
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
+// C++ port of org.redukti.rayoptics.seq.{Medium,Air,InteractMode}
 #ifndef REDUKTI_RAYOPTICS_SEQ_MEDIUM_H
 #define REDUKTI_RAYOPTICS_SEQ_MEDIUM_H
 

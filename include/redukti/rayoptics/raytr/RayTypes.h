@@ -1,10 +1,12 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // C++ port of the raytr data types:
 //   RaySeg, RayPkg, RayData, RayDataWithZ_Enp, ReferenceSphere,
 //   ChiefRayExitPupilSegment, ChiefRayPkg, RefSphereCR, RayResult and its
 //   variants, AimInfo, VigResult, GridItem, the trace definitions and enums.
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_RAYOPTICS_RAYTR_RAYTYPES_H
 #define REDUKTI_RAYOPTICS_RAYTR_RAYTYPES_H
 

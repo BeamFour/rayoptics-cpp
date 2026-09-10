@@ -1,7 +1,4 @@
 // C++ port of org.redukti.spec.Prescription, VigType and RayOpticsModelBuilder
-//
-// Copyright 2017-2025 Michael J. Hayford
-// Original software https://github.com/mjhoptics/ray-optics
 #ifndef REDUKTI_SPEC_PRESCRIPTION_H
 #define REDUKTI_SPEC_PRESCRIPTION_H
 
