@@ -57,7 +57,7 @@ Do not catch all `std::exception` at this boundary. That would also hide
 `std::bad_alloc` and unrelated programming errors, potentially turning a broken
 program into a misleading optimizer result.
 
-### P1: `LMLSolver::gaussj()` can overwrite its stack
+### Fixed: `LMLSolver::gaussj()` could overwrite its stack
 
 Location: `src/mathlib/LMLSolver.cpp`, around the fixed `ik[100]` and `jk[100]`
 arrays.
@@ -68,6 +68,11 @@ but Java raises a bounds exception rather than corrupting memory.
 Recommended fix: replace both arrays with `std::vector<int>` sized to `N`.
 Alternatively reject `N > 100` explicitly, although dynamic arrays remove an
 unnecessary limitation.
+
+Resolved by removing `LMLSolver` and `LMLFunction` (derived from Michael
+Lampton's BeamFour): nothing in the port used the solver. Its `BIGVAL`
+invalid-residual sentinel, which the optimizer does use, moved to
+`LMDerMeritFunction::BIGVAL` with the same value.
 
 ### Fixed: analysis results contained fragile borrowed and self-referential pointers
 

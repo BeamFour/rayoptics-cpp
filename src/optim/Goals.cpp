@@ -3,8 +3,8 @@
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
-#include "redukti/mathlib/LMLSolver.h"
 #include "redukti/mathlib/M.h"
+#include "redukti/optim/LMDer.h"
 #include "redukti/optim/ParaxHelper.h"
 #include "redukti/rayoptics/util/Lists.h"
 #include "redukti/rayoptics/util/Orientation.h"
@@ -16,7 +16,6 @@ namespace redukti::optim {
 
 namespace {
 
-using mathlib::LMLSolver;
 namespace Orientation = rayoptics::util::Orientation;
 
 /**
@@ -111,17 +110,17 @@ GoalSpotDeviation::GoalSpotDeviation(Analysis *analysis, int field, int waveleng
 double GoalSpotDeviation::value() {
     if (!_analysis->_spots.has_value() ||
         _field >= static_cast<int>(_analysis->_spots->size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     // The Java also tests the element for null; a Java array of objects can hold
     // one, a std::vector element cannot, and SpotAnalysisResult never stores one.
     const auto &field = (*_analysis->_spots)[static_cast<std::size_t>(_field)];
     if (_wavelength_index >= static_cast<int>(field.intercepts.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     const auto &intercepts =
         field.intercepts[static_cast<std::size_t>(_wavelength_index)];
     if (_sample_index >= static_cast<int>(intercepts.x.size()) ||
         !intercepts.valid[static_cast<std::size_t>(_sample_index)])
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     double deviation = _orientation == Orientation::X
                            ? intercepts.x[static_cast<std::size_t>(_sample_index)]
                            : intercepts.y[static_cast<std::size_t>(_sample_index)];
@@ -167,9 +166,9 @@ double GoalRayAberration::value() {
     const auto *fans = _analysis->_ray_aberrations->get_fans(_field, _orientation, _wvl);
     if (fans != nullptr && _pos < static_cast<int>(fans->fan_x.size())) {
         const auto &result = rayoptics::util::Lists::get(fans->fan_y, _pos);
-        return result.has_value() && std::isfinite(*result) ? *result : LMLSolver::BIGVAL;
+        return result.has_value() && std::isfinite(*result) ? *result : LMDerMeritFunction::BIGVAL;
     }
-    return LMLSolver::BIGVAL;
+    return LMDerMeritFunction::BIGVAL;
 }
 
 std::string GoalRayAberration::toString() {
@@ -271,20 +270,20 @@ GoalContrast::GoalContrast(Analysis *analysis, int contrast_index, int frequency
 
 double GoalContrast::value() {
     if (_contrast_index >= static_cast<int>(_analysis->_contrasts.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     const auto &contrast =
         _analysis->_contrasts[static_cast<std::size_t>(_contrast_index)];
     if (_field >= static_cast<int>(contrast.fields.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     const auto &wavelengths =
         contrast.fields[static_cast<std::size_t>(_field)].wavelengths;
     if (_wavelength_index >= static_cast<int>(wavelengths.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     const auto &wavelength = wavelengths[static_cast<std::size_t>(_wavelength_index)];
     if (_sample_index >= static_cast<int>(wavelength.samples.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     if (!wavelength.samples[static_cast<std::size_t>(_sample_index)].valid)
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     // Read through the block rather than the sample: the residual carries the
     // block's constant offset, which is zero unless residual centering is enabled.
     return _orientation == Orientation::SAGITTAL
@@ -327,15 +326,15 @@ GoalContrastBalance::GoalContrastBalance(Analysis *analysis, int contrast_index,
 
 double GoalContrastBalance::value() {
     if (_contrast_index >= static_cast<int>(_analysis->_contrasts.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     const auto &contrast =
         _analysis->_contrasts[static_cast<std::size_t>(_contrast_index)];
     if (_field >= static_cast<int>(contrast.fields.size()))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     const auto &wavelengths =
         contrast.fields[static_cast<std::size_t>(_field)].wavelengths;
     if (wavelengths.size() > _wavelength_weights.size())
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
 
     double difference = 0.0;
     bool sampled = false;
@@ -358,7 +357,7 @@ double GoalContrastBalance::value() {
                       (_sagittal_weight * sagittal - _tangential_weight * tangential);
     }
     if (!sampled || !std::isfinite(difference))
-        return LMLSolver::BIGVAL;
+        return LMDerMeritFunction::BIGVAL;
     return difference;
 }
 

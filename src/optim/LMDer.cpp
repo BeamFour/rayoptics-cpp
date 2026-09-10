@@ -3,7 +3,6 @@
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
-#include "redukti/mathlib/LMLSolver.h"
 #include "redukti/mathlib/M.h"
 
 #include <algorithm>
@@ -37,8 +36,6 @@ template <typename Evaluation> bool tryEvaluation(Evaluation &&evaluation) {
 }
 
 } // namespace
-
-const double LMDerMeritFunction::BIGVAL = mathlib::LMLSolver::BIGVAL;
 
 LMDerMeritFunction::LMDerMeritFunction(Analysis *analysis,
                                        std::vector<std::shared_ptr<Var>> vars_,

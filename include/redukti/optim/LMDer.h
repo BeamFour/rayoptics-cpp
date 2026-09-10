@@ -58,8 +58,14 @@ public:
 
     double getRMS();
 
+    /**
+     * Residual reported for a goal that cannot be evaluated (a killed ray,
+     * a NaN, an exception in the analysis). Large enough that lmder rejects
+     * the trial step; goals and tests compare against it directly.
+     */
+    static constexpr double BIGVAL = 9.876543e+99;
+
 private:
-    static const double BIGVAL;
     static constexpr int MAX_JACOBIAN_STEP_REDUCTIONS = 8;
 
     std::vector<double> weights;

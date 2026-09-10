@@ -8,7 +8,7 @@
 // that outlives the setup.
 #include "TestHarness.h"
 
-#include "redukti/mathlib/LMLSolver.h"
+#include "redukti/optim/LMDer.h"
 #include "redukti/optim/ConfigurationReport.h"
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/ParaxHelper.h"
@@ -193,7 +193,7 @@ public:
 
     double value() override {
         return analysis->valid ? analysis->value * analysis->value
-                               : redukti::mathlib::LMLSolver::BIGVAL;
+                               : redukti::optim::LMDerMeritFunction::BIGVAL;
     }
 };
 
@@ -252,7 +252,7 @@ TEST(optim_converts_bad_optional_access_to_an_invalid_residual) {
     std::vector<double> residual(1, 0.0);
 
     CHECK_EQ(fixture.merit.apply(1, 1, x, residual, 1), 0);
-    CHECK_EQ(residual[0], redukti::mathlib::LMLSolver::BIGVAL);
+    CHECK_EQ(residual[0], redukti::optim::LMDerMeritFunction::BIGVAL);
 }
 
 TEST(optim_rejects_bad_optional_access_during_a_nudge) {

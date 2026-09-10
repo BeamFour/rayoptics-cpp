@@ -14,7 +14,7 @@
 
 #include "redukti/Text.h"
 #include "redukti/importers/OpticalBenchDataImporter.h"
-#include "redukti/mathlib/LMLSolver.h"
+#include "redukti/optim/LMDer.h"
 #include "redukti/optim/Goals.h"
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/ParaxHelper.h"
@@ -283,7 +283,7 @@ TEST(otus_optimizes_patent_prescription_using_contrast) {
     int invalidContrastGoals = 0;
     for (const auto &goal : setup.goals())
         if (dynamic_cast<GoalContrast *>(goal.get()) != nullptr &&
-            goal->value() >= redukti::mathlib::LMLSolver::BIGVAL)
+            goal->value() >= redukti::optim::LMDerMeritFunction::BIGVAL)
             invalidContrastGoals++;
     // Initial contrast sampling contains failed rays
     CHECK_EQ(invalidContrastGoals, 0);

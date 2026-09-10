@@ -50,7 +50,7 @@ namespace redukti::optim {
  * r=14 beside r=2009. An absolute residual would effectively freeze the small
  * ones and ignore the large.
  *
- * Deliberately never reports LMLSolver::BIGVAL. A goal like this exists to steer
+ * Deliberately never reports LMDerMeritFunction::BIGVAL. A goal like this exists to steer
  * the solver, not to end the run, and a single BIGVAL raised during a Jacobian
  * probe step aborts the whole solve.
  */
