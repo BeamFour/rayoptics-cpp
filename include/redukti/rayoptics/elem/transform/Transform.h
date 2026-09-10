@@ -27,6 +27,17 @@ using IfcGapPair =
 class Transform {
 public:
     /**
+     * Return global surface coordinates (rot, t) wrt surface `glo`.
+
+     *  Args:
+        seq_model: sequential model
+        glo: global reference surface index
+        origin: None | (r_origin, t_origin)
+
+    The tuple (r_origin, t_origin) is the transform from the desired
+    global origin to the global surface `glo`.
+     */
+    /**
      * Return global surface coordinates (rot, t) wrt the `glo` surface.
      *
      * `origin` is the transform from the desired global origin to the global
@@ -43,9 +54,26 @@ public:
     static math::Tfm3d forward_transform(const seq::Interface &s1, double zdist,
                                          const seq::Interface &s2);
 
+    /**
+     * generate transform rotation and translation from
+     * s2 coords to s1 coords, applying transforms in the reverse order
+     */
     static math::Tfm3d reverse_transform(const seq::Interface &s2, double zdist,
                                          const seq::Interface &s1);
 
+    /**
+     * Transform ray_seg from interface to following seg.
+     *
+     *     Args:
+     *         interface: the :class:'~seq.interface.Interface' for the path sequence
+     *         ray_seg: ray segment exiting from **interface**
+     *
+     *     Returns:
+     *         (**b4_pt**, **b4_dir**)
+     *
+     *         - **b4_pt** - ray intersection pt wrt following seg
+     *         - **b4_dir** - ray direction cosine wrt following seg
+     */
     /** Transform a ray segment from after a surface back to before it. */
     static raytr::RayData transform_after_surface(const seq::Interface &ifc,
                                                   const raytr::RayData &ray_seg);

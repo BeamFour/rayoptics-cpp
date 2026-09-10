@@ -45,6 +45,11 @@ public:
         return this;
     }
 
+    /**
+     * Returns the value of the profile surface function at point *p*.
+     *
+     * @param p Point
+     */
     /** Returns the value of the profile surface function at point p. */
     virtual double f(const mathlib::Vector3 &p) const = 0;
 
@@ -60,6 +65,13 @@ public:
     /** Returns the sagitta (z coordinate) of the surface at x, y. */
     virtual double sag(double x, double y) const = 0;
 
+    /**
+     * Return a 2d polyline approximating the surface profile.
+     *
+     * @param sd semi-diameter of the profile (array of length 1 or 2)
+     * @paran dir +1 for profile from neg to positive direction, -1 if otherwise
+     * @param steps number of points to generate
+     */
     /**
      * Return a 2d polyline approximating the surface profile.
      *
@@ -80,6 +92,15 @@ public:
      * @param d direction cosine of the ray in the profile's coordinate system
      * @param eps numeric tolerance for convergence of any iterative procedure
      * @param z_dir +1 if propagation positive direction, -1 if otherwise
+     * @return tuple: distance to intersection point *s1*, intersection point *p*
+     */
+    /**
+     * Intersect a profile, starting from an arbitrary point.
+     *
+     * @param p0 start point of the ray in the profile's coordinate system
+     * @param d direction cosine of the ray in the profile's coordinate system
+     * @param eps numeric tolerance for convergence of any iterative procedure
+     * @param z_dir +1 if propagation positive direction, -1 if otherwise
      */
     virtual surface::IntersectionResult intersect(const mathlib::Vector3 &p0,
                                                   const mathlib::Vector3 &d, double eps,
@@ -93,6 +114,18 @@ private:
     /**
      * Intersect a profile, starting from an arbitrary point.
      *
+     * From Spencer and Murty, `General Ray-Tracing Procedure
+     * <https://doi.org/10.1364/JOSA.52.000672>`_
+     *
+     * @param p0 start point of the ray in the profile's coordinate system
+     * @param d direction cosine of the ray in the profile's coordinate system
+     * @param eps numeric tolerance for convergence of any iterative procedure
+     * @param z_dir +1 if propagation positive direction, -1 if otherwise
+     * @return tuple: distance to intersection point *s1*, intersection point *p*
+     */
+    /**
+     * Intersect a profile, starting from an arbitrary point.
+     *
      * From Spencer and Murty, General Ray-Tracing Procedure
      * https://doi.org/10.1364/JOSA.52.000672
      */
@@ -101,16 +134,19 @@ private:
                                                   util::ZDir z_dir) const {
         (void)z_dir;
         mathlib::Vector3 p = p0;
-        double s1 = -f(p) / d.dot(df(p));
+        double s1 = -f(p) / d.dot(df(p));  // -f(p)/dot(d, df(p))
         double delta = std::abs(s1);
+        // print("intersect", s1)
         int iter = 0;
         while (delta > eps && iter < 1000) {
-            p = p0.add(d.times(s1));
-            double s2 = s1 - f(p) / d.dot(df(p));
+            p = p0.add(d.times(s1));  //  p0 + d*s1
+            double s2 = s1 - f(p) / d.dot(df(p));  // s1 - f(p) / dot(d, df(p))
             delta = std::abs(s2 - s1);
+            // #print("intersect", s1, s2, delta)
             s1 = s2;
             iter++;
         }
+        //# print('intersect iter =', iter)
         return surface::IntersectionResult(s1, p);
     }
 };

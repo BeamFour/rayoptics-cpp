@@ -12,12 +12,50 @@
 
 namespace redukti::rayoptics::elem::profiles {
 
+/**
+ * Even Polynomial asphere, even terms up to 20th order, on base conic.
+ *
+ *     Conics produced for conic constant values:
+ *
+ *         + cc > 0.0: oblate spheroid
+ *         + cc = 0.0: sphere
+ *         + cc < 0.0 and > -1.0: ellipsoid
+ *         + cc = -1.0: paraboloid
+ *         + cc < -1.0: hyperboloid
+ *
+ *     Conics produced for conic asphere values:
+ *
+ *         + ec > 1.0: oblate spheroid
+ *         + ec = 1.0: sphere
+ *         + ec > 0.0 and < 1.0: ellipsoid
+ *         + ec = 0.0: paraboloid
+ *         + ec < 0.0: hyperboloid
+ *
+ *     The conic constant is related to the conic asphere as:
+ *
+ *         + cc = ec - 1
+ *
+ *     The sag :math:`z` is given by:
+ *
+ *     :math:`z(r)=\\dfrac{cr^2}{1+\sqrt[](1-\\textbf{ec } c^2 r^2)}+\sum_{i=1}^{20} a_ir^{2i}`
+ *
+ *     where :math:`r^2=x^2+y^2`
+ */
 class EvenPolynomial : public SurfaceProfile {
 public:
     double cc = 0.0;
     std::vector<double> coefs;
     int max_nonzero_coef = 0;
 
+    /**
+     * initialize a EvenPolynomial profile.
+     *
+     * @param c     curvature
+     * @param cc    conic constant
+     * @param r     radius of curvature. If zero, taken as planar. If r is specified, it overrides any input for c (curvature).
+     * @param ec    conic asphere (= cc + 1). If ec is specified, it overrides any input for the conic constant (cc).
+     * @param coefs a list of even power coefficents, starting with the quadratic term, and not exceeding the 20th order term.
+     */
     /** `r` and `ec` are nullable Doubles in the Java. */
     EvenPolynomial(double c, double cc_, std::optional<double> r_,
                    std::optional<double> ec_, const std::vector<double> &coefs_) {
@@ -110,6 +148,9 @@ public:
         return z_tot;
     }
 
+    /**
+     * Access to coefficients via polynomial order
+     */
     double get_by_order(int i) const { return coefs[static_cast<std::size_t>(i / 2 - 1)]; }
 
     std::vector<mathlib::Vector2> profile(const std::vector<double> &sd, int dir,

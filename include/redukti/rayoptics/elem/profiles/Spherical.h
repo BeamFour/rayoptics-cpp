@@ -21,6 +21,26 @@ public:
     /**
      * surface function for Spherical profile
      *
+     *         This function implements Spencer's eq 25, with kappa=1 (i.e. spherical).
+     *
+     *         To see this, start with the code:
+     *         F = p[2] - 0.5*cv*(np.dot(p, p))
+     *
+     *         Expand np.dot(p, p):
+     *         F = p[2] - 0.5*cv*(p[0]*p[0] + p[1]*p[1] + p[2]*p[2])
+     *
+     *         in Spencer's notation:
+     *         rho**2 = p[0]*p[0] + p[1]*p[1]
+     *         Z = p[2]
+     *
+     *         Substituting notation, the result is:
+     *         F = Z - 0.5*cv*(rho**2 + Z**2)
+     *
+     *         which is Spencer's eq 25.
+     */
+    /**
+     * surface function for Spherical profile
+     *
      * This function implements Spencer's eq 25, with kappa=1 (i.e. spherical).
      *
      * To see this, start with the code:
@@ -51,7 +71,7 @@ public:
             double r = 1.0 / cv; // radius = 1/curvature
             double adj = r * r - x * x - y * y;
             if (adj < 0.0)
-                throw exceptions::TraceMissedSurfaceException();
+                throw exceptions::TraceMissedSurfaceException();  //  (self, (x, y))
             adj = std::sqrt(adj);
             return r * (1.0 - std::abs(adj / r));
         } else {
@@ -79,6 +99,15 @@ public:
     /**
      * Intersection with a sphere, starting from an arbitrary point.
      *
+     * @param p     start point of the ray in the profile's coordinate system
+     * @param d     direction cosine of the ray in the profile's coordinate system
+     * @param eps   numeric tolerance for convergence of any iterative procedure
+     * @param z_dir +1 if propagation positive direction, -1 if otherwise
+     * @return
+     */
+    /**
+     * Intersection with a sphere, starting from an arbitrary point.
+     *
      * Substitute expressions equivalent to Welford's 4.8 and 4.9. For the
      * quadratic ax**2 + bx + c = 0: ax2 = 2a, cx2 = 2c.
      */
@@ -86,6 +115,10 @@ public:
                                           const mathlib::Vector3 &d, double eps,
                                           util::ZDir z_dir) const override {
         (void)eps;
+        //        Substitute expressions equivalent to Welford's 4.8 and 4.9
+        //        For quadratic equation ax**2 + bx + c = 0:
+        //         ax2 = 2a
+        //         cx2 = 2c
         double ax2 = cv;
         double cx2 = cv * p.dot(p) - 2.0 * p.z;
         double b = cv * d.dot(p) - d.z;

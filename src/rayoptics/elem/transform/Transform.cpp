@@ -77,22 +77,28 @@ std::vector<Tfm3d> Transform::compute_global_coords(seq::SequentialModel *seq_mo
                                                     std::optional<int> glo_,
                                                     std::optional<math::Tfm3d> origin_) {
     int glo = glo_.has_value() ? *glo_ : 1;
+    // Initialize origin of global coordinate system.
     std::vector<Tfm3d> tfrms;
     Tfm3d origin = origin_.has_value() ? *origin_
                                        : Tfm3d(Matrix3::IDENTITY, Vector3::ZERO);
     auto tfrm_origin = origin;
     tfrms.push_back(tfrm_origin);
     std::vector<seq::PathSeg> seq;
+    // Compute transforms from global surface to object surface
     if (glo > 0) {
+        // iterate in reverse over the segments before the
+        // global reference surface
         int step = -1;
         seq = seq::SequentialModel::zip_longest(
             util::Lists::slice(seq_model->ifcs, glo, std::nullopt, step),
             util::Lists::slice(seq_model->gaps, glo - 1, std::nullopt, step),
             util::Lists::slice(seq_model->z_dir, glo - 1, std::nullopt, step));
+        // loop of remaining surfaces in path
         accumulate_transforms(seq, 1, seq[0], &Transform::reverse_transform,
                               tfrm_origin, -1, tfrms);
         tfrms = util::Lists::slice(tfrms, std::nullopt, std::nullopt, -1); // reverse
     }
+    // Compute transforms from global surface to image surface
     seq = seq::SequentialModel::zip_longest(
         util::Lists::from(seq_model->ifcs, glo),
         util::Lists::from(seq_model->gaps, glo),
@@ -128,18 +134,24 @@ std::vector<Tfm3d> Transform::compute_local_transforms(
     return tfrms;
 }
 
+/**
+ * generate transform rotation and translation from
+ *         s1 coords to s2 coords
+ */
 Tfm3d Transform::forward_transform(const seq::Interface &s1, double zdist,
                                    const seq::Interface &s2) {
     Vector3 t_orig(0., 0., zdist);
     std::optional<Matrix3> r_after_s1;
     std::optional<Matrix3> r_before_s2;
     if (s1.decenter) {
+        // get transformation info after s1
         auto after = s1.decenter->tform_after_surf();
         r_after_s1 = after.rt;
         auto t_after_s1 = after.t;
         t_orig = t_orig.add(t_after_s1);
     }
     if (s2.decenter) {
+        // get transformation info before s2
         auto before = s2.decenter->tform_before_surf();
         r_before_s2 = before.rt;
         auto t_before_s2 = before.t;
@@ -147,6 +159,7 @@ Tfm3d Transform::forward_transform(const seq::Interface &s1, double zdist,
     }
     auto r_cascade = Matrix3::IDENTITY;
     if (r_after_s1.has_value()) {
+        // rotate the origin of s2 around s1 "after" transformation
         t_orig = r_after_s1->multiply(t_orig);
         r_cascade = *r_after_s1;
         if (r_before_s2.has_value()) {
@@ -193,6 +206,7 @@ raytr::RayData Transform::transform_after_surface(const seq::Interface &ifc,
     Vector3 b4_pt = Vector3::ZERO;
     Vector3 b4_dir = Vector3::ZERO;
     if (ifc.decenter) {
+        // get transformation info after surf
         auto xform = ifc.decenter->tform_after_surf();
         auto r = xform.rt;
         auto t = xform.t;

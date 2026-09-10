@@ -15,6 +15,15 @@
 
 namespace redukti::rayoptics::elem::surface {
 
+/**
+ * Container of profile, extent, position and orientation.
+ *
+ *     Attributes:
+ *         label: optional label
+ *         profile: :class:`~.elem.profiles.SurfaceProfile`
+ *         clear_apertures: list of :class:`Aperture`
+ *         edge_apertures: list of :class:`Aperture`
+ */
 class Surface : public seq::Interface {
 public:
     std::string label;
@@ -77,6 +86,9 @@ public:
             ca->apply_scale_factor(abs_scale_factor);
     }
 
+    /**
+     * Filter obscurations out of the clear_aperture list.
+     */
     std::vector<std::shared_ptr<Aperture>> get_ca_list() const {
         std::vector<std::shared_ptr<Aperture>> result;
         for (const auto &e : clear_apertures)

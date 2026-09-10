@@ -12,6 +12,35 @@
 
 namespace redukti::rayoptics::elem::profiles {
 
+/**
+ * Radial Polynomial asphere, both even and odd terms, on base conic.
+ *
+ *     Conics produced for conic constant values:
+ *
+ *         + cc > 0.0: oblate spheroid
+ *         + cc = 0.0: sphere
+ *         + cc < 0.0 and > -1.0: ellipsoid
+ *         + cc = -1.0: paraboloid
+ *         + cc < -1.0: hyperboloid
+ *
+ *     Conics produced for conic asphere values:
+ *
+ *         + ec > 1.0: oblate spheroid
+ *         + ec = 1.0: sphere
+ *         + ec > 0.0 and < 1.0: ellipsoid
+ *         + ec = 0.0: paraboloid
+ *         + ec < 0.0: hyperboloid
+ *
+ *     The conic constant is related to the conic asphere as:
+ *
+ *         + cc = ec - 1
+ *
+ *     The sag :math:`z` is given by:
+ *
+ *     :math:`z(r)=\\dfrac{cr^2}{1+\sqrt[](1-\\textbf{ec } c^2 r^2)}+\sum_{i=1}^{10} a_ir^i`
+ *
+ *     where :math:`r^2 = x^2+y^2`
+ */
 class RadialPolynomial : public SurfaceProfile {
 public:
     double ec = 1.0;

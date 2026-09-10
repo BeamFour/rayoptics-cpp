@@ -99,6 +99,9 @@ public:
         return !is_obscuration ? ans : !ans;
     }
 
+    /**
+     * Get a target for ray aiming to aperture boundaries.
+     */
     mathlib::Vector2 edge_pt_target(const mathlib::Vector2 &rel_dir) const override {
         return rel_dir.normalize().times(radius);
     }

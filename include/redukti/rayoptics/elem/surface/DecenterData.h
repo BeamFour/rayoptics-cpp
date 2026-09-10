@@ -14,12 +14,29 @@
 
 namespace redukti::rayoptics::elem::surface {
 
+/**
+ * Maintains data and actions for position and orientation changes.
+ *
+ * - 'decenter': pos and orientation applied prior to surface
+ * - 'reverse': pos and orientation applied following surface in reverse
+ * - 'dec and return': pos and orientation applied prior to surface and then returned to initial frame
+ * - 'bend':  used for fold mirrors, orientation applied before and after surface
+ */
 /** Fields are package-private in the Java; public here. */
 class DecenterData {
 public:
     std::string dtype;
+    /**
+     * x, y, z vertex decenter
+     */
     mathlib::Vector3 dec;
+    /**
+     * alpha, beta, gamma euler angles
+     */
     mathlib::Vector3 euler;
+    /**
+     * x, y, z rotation point offset
+     */
     mathlib::Vector3 rot_pt;
     /** Null in the Java when there is no rotation. */
     std::optional<mathlib::Matrix3> rot_mat;
