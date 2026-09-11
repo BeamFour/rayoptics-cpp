@@ -76,12 +76,6 @@ public:
      * @param surfaceId The surface index (0-based)
      * @param scenario  The scenario number, default is 0
      */
-    /**
-     * If the thickness varies by scenario then this constructor should be used.
-     *
-     * @param surfaceId The surface index (0-based)
-     * @param scenario  The scenario number, default is 0
-     */
     VarThickness(spec::Prescription *prescription, int surfaceId, int scenario);
     VarThickness(spec::Prescription *prescription, int surfaceId)
         : VarThickness(prescription, surfaceId, 0) {}
