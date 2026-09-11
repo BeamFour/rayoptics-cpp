@@ -112,9 +112,8 @@ public:
     ConjugateType conjugate_type(std::optional<ImageKey> space);
 
     /**
-     * return the refractive indices in object and image space.
-     */
-    /** Object and image space refractive indices, signed by z_dir. */
+     * return the refractive indices in object and image space,
+     * signed by z_dir. */
     util::Pair<double, double> obj_img_rindex();
 
     /**
