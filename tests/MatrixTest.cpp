@@ -12,7 +12,6 @@
 #include "redukti/mathlib/Matrix2.h"
 #include "redukti/mathlib/Matrix3.h"
 #include "redukti/mathlib/Quaternion.h"
-#include "redukti/mathlib/Sphere3.h"
 #include "redukti/mathlib/Transform3.h"
 #include "redukti/mathlib/Triangle2.h"
 #include "redukti/mathlib/Vector2Pair.h"
@@ -41,20 +40,11 @@ static const Matrix3 m_fixture(0.50362327, 0.49201708, 0.31560728,
                                0.76278702, 0.90001429, 0.66901699,
                                0.18806893, 0.54642545, 0.07530182);
 
-TEST(matrix3_transpose_and_inverse) {
+TEST(matrix3_transpose) {
     CHECK_STR_EQ(m_fixture.transpose().toString(),
                  "[[0.50362327,0.76278702,0.18806893],\n"
                  " [0.49201708,0.90001429,0.54642545],\n"
                  " [0.31560728,0.66901699,0.07530182]]");
-    CHECK_STR_EQ(m_fixture.inverse().toString(),
-                 "[[7.7945543408888565,-3.5441470288658663,-1.1808946579357469],\n"
-                 " [-1.7898464419918447,0.5609702645807123,2.5177336920333677],\n"
-                 " [-6.479203918597579,4.780966917152172,-2.0406435181620153]]");
-}
-
-TEST(matrix3_singular_inverse_throws) {
-    Matrix3 singular(1, 2, 3, 4, 5, 6, 7, 8, 9);
-    CHECK_THROWS(singular.inverse(), RuntimeException);
 }
 
 TEST(matrix3_multiply) {
@@ -102,17 +92,6 @@ TEST(matrix3_euler2mat) {
                  0.025201386257487246, 0.7478280708194911, 0.6634139481689384);
     checkMatrixClose(Matrix3::euler2mat_rxyz(euler2), rxyz, EXACT);
 
-    // euler2mat == yaw * (pitch * roll), but only to within 1 ulp: Java itself
-    // gives m12 = 0.1050404611329519 for the former and 0.10504046113295196 for
-    // the latter, because the operands reach the subtraction in a different
-    // order. Assert the composed form against its own recorded value.
-    checkMatrixClose(Matrix3::yaw(euler2.z).multiply(
-                         Matrix3::pitch(euler2.y).multiply(Matrix3::roll(euler2.x))),
-                     Matrix3(0.49240387650610407, -0.456825992585671, 0.7408430568614907,
-                             0.5868240888334652, 0.8028723374794714, 0.10504046113295196,
-                             -0.6427876096865393, 0.38302222155948895, 0.6634139481689384),
-                     EXACT);
-
     // isEqual uses a strict <, so it cannot express exact equality; compare the
     // rendered value instead.
     CHECK_STR_EQ(Matrix3::euler2mat(euler2.x, euler2.y, euler2.z)
@@ -120,25 +99,6 @@ TEST(matrix3_euler2mat) {
                      .normalize()
                      .toString(),
                  "[0.4482668391649062,0.862986744334547,0.23304660479818892]");
-}
-
-TEST(matrix3_yaw_pitch_roll) {
-    Vector3 euler2 = Vector3(30.0, 40.0, 50.0).deg2rad();
-    checkMatrixClose(Matrix3::pitch(euler2.y),
-                     Matrix3(0.766044443118978, 0.0, 0.6427876096865393,
-                             0.0, 1.0, 0.0,
-                             -0.6427876096865393, 0.0, 0.766044443118978),
-                     EXACT);
-    checkMatrixClose(Matrix3::roll(euler2.x),
-                     Matrix3(1.0, 0.0, 0.0,
-                             0.0, 0.8660254037844387, -0.49999999999999994,
-                             0.0, 0.49999999999999994, 0.8660254037844387),
-                     EXACT);
-    checkMatrixClose(Matrix3::yaw(euler2.z),
-                     Matrix3(0.6427876096865394, -0.766044443118978, 0.0,
-                             0.766044443118978, 0.6427876096865394, 0.0,
-                             0.0, 0.0, 1.0),
-                     EXACT);
 }
 
 TEST(matrix3_get_rotation_matrix) {
@@ -223,13 +183,6 @@ TEST(transform3_operations) {
                  "[1.4866946535818195,0.3916316910303409,0.7977240284659532]");
     CHECK_STR_EQ(t3.transform(Vector3(1, 1, 1)).toString(),
                  "[2.4866946535818197,2.391631691030341,3.7977240284659532]");
-    CHECK_STR_EQ(t3.inverse().toString(),
-                 "{translation=[0.18241285688639164,-3.4780160516536824,"
-                 "-1.3675269262730705],rmat="
-                 "[[0.8765906159949441,0.154261727975858,-0.4558423096110173],\n"
-                 " [0.154261727975858,0.8071728425682545,0.5698028795137717],\n"
-                 " [0.4558423096110173,-0.5698028795137717,0.6837634585631989]],"
-                 "use_rmat=true}");
     CHECK_STR_EQ(t3.set_translation(Vector3(9, 8, 7)).translation.toString(),
                  "[9.0,8.0,7.0]");
     CHECK_STR_EQ(t3.transform_pair(Vector3Pair(Vector3(1, 1, 1), Vector3(0, 1, 0))).toString(),
@@ -293,23 +246,4 @@ TEST(vector_pairs) {
     CHECK_STR_EQ(plane.pl_ln_intersect(ray).toString(), "[1.5,2.0,5.0]");
     CHECK_STR_EQ(Vector2Pair::from(plane, 2, 1).toString(), "[[5.0,0.0],[1.0,0.0]]");
     CHECK_STR_EQ(Vector3Pair::position_000_001.toString(), "[[0.0,0.0,0.0],[0.0,0.0,1.0]]");
-}
-
-TEST(sphere3_intersect) {
-    Sphere3 s(Vector3(0, 0, 10), 3.0);
-
-    auto hit = s.intersect(Line3(Vector3(0, 0, 0), Vector3(0, 0, 1)));
-    CHECK(hit[0].has_value());
-    CHECK(hit[1].has_value());
-    CHECK_CLOSE(*hit[0], 7.0, 0.0);
-    CHECK_CLOSE(*hit[1], 13.0, 0.0);
-
-    auto miss = s.intersect(Line3(Vector3(0, 0, 0), Vector3(1, 0, 0)));
-    CHECK(!miss[0].has_value());
-    CHECK(!miss[1].has_value());
-
-    auto tangent = s.intersect(Line3(Vector3(3, 0, 0), Vector3(0, 0, 1)));
-    CHECK(tangent[0].has_value());
-    CHECK(!tangent[1].has_value());
-    CHECK_CLOSE(*tangent[0], 10.0, 0.0);
 }

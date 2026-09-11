@@ -81,13 +81,6 @@ public:
         return apply_rotation(v).plus(translation);
     }
 
-    /** Create an inverse of the transform */
-    Transform3 inverse() const {
-        Matrix3 rotation_matrix = this->rotation_matrix.inverse();
-        Vector3 translation = rotation_matrix.multiply(this->translation.negate());
-        return Transform3(translation, rotation_matrix, true);
-    }
-
     /**
      * Rotate by x, y, and z axis.
      * @param v Vector with angles per axis

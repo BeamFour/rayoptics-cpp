@@ -14,16 +14,11 @@
 namespace redukti::mathlib::fftpack {
 
 /**
- * This is the only part of the Java fftpack package that anything uses:
  * BaseMTF::compute_fft does `new ComplexDoubleFFT(fft_size).ft(fft)` and that
- * is the whole of it. The RealDoubleFFT family in the Java package has no
- * callers and is not ported.
+ * is the only use of the fftpack package.
  *
  * fft_size is `num_bins * 2` and so is not necessarily a power of two, which
  * is why the mixed-radix implementation is required rather than a radix-2 one.
- *
- * The Java pom also declares a JTransforms dependency, but the only reference
- * to it in BaseMTF is commented out; the C++ port needs no FFT library.
  */
 class ComplexDoubleFFT : public ComplexDoubleFFT_Mixed {
 public:

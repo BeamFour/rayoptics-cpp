@@ -3,11 +3,6 @@
 // Mixed-radix complex FFT, after FFTPACK.
 // @author Baoshe Zhang
 // @author Astronomical Instrument Group of University of Lethbridge.
-//
-// Only the complex transform is ported. The Java package also carries a
-// RealDoubleFFT family (RealDoubleFFT, _Mixed, _Even, _Odd, _Even_Odd,
-// _Odd_Odd -- about 1800 lines); nothing in the codebase references it, so it
-// is deliberately left unported. See the note in ComplexDoubleFFT.h.
 #ifndef REDUKTI_MATHLIB_FFTPACK_COMPLEXDOUBLEFFT_MIXED_H
 #define REDUKTI_MATHLIB_FFTPACK_COMPLEXDOUBLEFFT_MIXED_H
 
