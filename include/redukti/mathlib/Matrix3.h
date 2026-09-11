@@ -22,15 +22,6 @@ namespace redukti::mathlib {
 /**
  * Column major 3d matrix where
  *
- * <pre>
- *    0=m00 3=m01 6=m02
- *    1=m10 4=m11 7=m12
- *    2=m20 5=m21 8=m22
- * </pre>
- */
-/**
- * Column major 3d matrix where
- *
  *    0=m00 3=m01 6=m02
  *    1=m10 4=m11 7=m12
  *    2=m20 5=m21 8=m22
@@ -220,16 +211,6 @@ public:
 
     /**
      * Rotating (intrinsic) frame x-y-z euler angles to a rotation matrix,
-     * i.e. transforms3d's euler2mat(ai, aj, ak, axes='rxyz'), which is
-     * Rx(ai) * Ry(aj) * Rz(ak).
-     *
-     * #euler2mat(Vector3) is the static (extrinsic) frame form,
-     * transforms3d's default axes='sxyz' = Rz(ak) * Ry(aj) * Rx(ai). The two
-     * agree when only one angle is non-zero and differ for compound rotations.
-     * They are related by rxyz(e) == sxyz(-e).transpose().
-     */
-    /**
-     * Rotating (intrinsic) frame x-y-z euler angles to a rotation matrix,
      * i.e. the transforms3d euler2mat(ai, aj, ak, axes=rxyz), which is
      * Rx(ai) * Ry(aj) * Rz(ak).
      *
@@ -273,14 +254,6 @@ public:
      */
     static Matrix3 get_rotation_matrix(int axis, double angleInRadians);
 
-    /**
-     * rotate v1 into v2 using equivalent angle rotation.
-     *
-     * Compute a rotation matrix from v1 to v2.
-     * Take the cross product of the input vectors to get
-     * the rotation axis. The eqivalent angle rotation is
-     * equation 2.80 from Introduction to Robotics, 2nd ed, by John J Craig.
-     */
     /**
      * rotate v1 into v2 using equivalent angle rotation.
      *
