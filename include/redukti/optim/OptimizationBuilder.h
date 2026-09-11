@@ -24,26 +24,6 @@ namespace redukti::optim {
 class OptimizationBuilder {
 public:
     /**
-     * Default strength for #applyThicknessConstraints() and #applyCurvatureConstraints().
-     *
-     * A single number suffices because Constraint residuals are fractions of
-     * each parameter's starting value, so the per-parameter scaling is already handled: a
-     * 0.1mm air gap and a 39mm back focus resist the same <em>proportional</em> change
-     * equally. What this weight sets is only the global trade between optical performance
-     * and preserving the layout.
-     *
-     * Raising it does tighten the design - on a 15-element f/2 with every space free,
-     * the worst thickness excursion fell from 39% to 11% to 3% at weights of 1, 10 and
-     * 100. But the useful range is narrow: past the nominal value the optical cost
-     * outruns the benefit and the constraints start to dominate the Jacobian, stalling
-     * the solver. Both a badly aberrated starting design and a well corrected one
-     * behaved best here.
-     *
-     * For a one-off override on a particular surface, construct the constraint
-     * directly through #additionalGoals(GoalFactory...) rather than shifting the
-     * global weight.
-     */
-    /**
      * Default strength for applyThicknessConstraints() and
      * applyCurvatureConstraints().
      *
@@ -65,20 +45,6 @@ public:
      */
     static constexpr double NOMINAL_CONSTRAINT_WEIGHT = 1.0;
 
-    /**
-     * Default strength for #contrastBalanceGoals(boolean[]).
-     *
-     * Much smaller than #NOMINAL_CONSTRAINT_WEIGHT, and for a concrete reason:
-     * a balance residual is a difference of sums of squares, so it is large where a
-     * per-sample contrast residual is small. Measured on the Leica 75/2 starting design at
-     * 10/30/50 cyc/mm over 11 fields, the balance block at weight 1.0 came to 43.6 against
-     * the contrast block's 52.6 - 83% of the optical merit from 33 residuals against
-     * 14256. It would have run the solve.
-     *
-     * 0.1 puts it near 8% there, which is visible without dominating. It is a starting
-     * point, not a normalization: unlike the constraints, nothing here adapts to the
-     * design. Check the actual share on your own case before trusting it.
-     */
     /**
      * Default strength for contrastBalanceGoals().
      *
