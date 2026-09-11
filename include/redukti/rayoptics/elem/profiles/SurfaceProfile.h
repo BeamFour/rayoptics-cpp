@@ -52,7 +52,6 @@ public:
      *
      * @param p Point
      */
-    /** Returns the value of the profile surface function at point p. */
     virtual double f(const mathlib::Vector3 &p) const = 0;
 
     /** Returns the gradient of the profile surface function at point p. */
@@ -71,13 +70,6 @@ public:
      * Return a 2d polyline approximating the surface profile.
      *
      * @param sd semi-diameter of the profile (array of length 1 or 2)
-     * @paran dir +1 for profile from neg to positive direction, -1 if otherwise
-     * @param steps number of points to generate
-     */
-    /**
-     * Return a 2d polyline approximating the surface profile.
-     *
-     * @param sd semi-diameter of the profile (array of length 1 or 2)
      * @param dir +1 for profile from neg to positive direction, -1 if otherwise
      * @param steps number of points to generate
      */
@@ -87,15 +79,6 @@ public:
     /** Apply scale_factor to the profile definition. */
     virtual void apply_scale_factor(double scale_factor) = 0;
 
-    /**
-     * Intersect a profile, starting from an arbitrary point.
-     *
-     * @param p0 start point of the ray in the profile's coordinate system
-     * @param d direction cosine of the ray in the profile's coordinate system
-     * @param eps numeric tolerance for convergence of any iterative procedure
-     * @param z_dir +1 if propagation positive direction, -1 if otherwise
-     * @return tuple: distance to intersection point *s1*, intersection point *p*
-     */
     /**
      * Intersect a profile, starting from an arbitrary point.
      *
@@ -124,12 +107,6 @@ private:
      * @param eps numeric tolerance for convergence of any iterative procedure
      * @param z_dir +1 if propagation positive direction, -1 if otherwise
      * @return tuple: distance to intersection point *s1*, intersection point *p*
-     */
-    /**
-     * Intersect a profile, starting from an arbitrary point.
-     *
-     * From Spencer and Murty, General Ray-Tracing Procedure
-     * https://doi.org/10.1364/JOSA.52.000672
      */
     surface::IntersectionResult intersect_spencer(const mathlib::Vector3 &p0,
                                                   const mathlib::Vector3 &d, double eps,
