@@ -64,12 +64,12 @@ public:
      * Create a new data plot descriptor which describe the
      * specified dataset.
      */
-    /**
-     * Get the described data set
-     */
     /** Borrowed; the caller owns the data set and outlives the plot. */
     explicit PlotData(data::DataSet *s);
 
+    /**
+     * Get the described data set
+     */
     data::DataSet *get_set() const { return _set; }
 
     /**
