@@ -284,7 +284,6 @@ public:
     /** aim_pt is used for paraxial aiming */
     std::vector<double> aim_pt;
     /** z_enp is the actual entrance pupil distance with respect to 1st ifc for a field */
-    /** the actual entrance pupil distance wrt the 1st ifc for a field */
     std::optional<double> z_enp;
 
     AimInfo(std::vector<double> aim_pt_, std::optional<double> z_enp_)
