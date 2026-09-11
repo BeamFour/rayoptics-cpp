@@ -50,11 +50,6 @@ public:
     /**
      * returns the interpolated refractive index at wv_nm
      * @param wv_nm the wavelength in nm for the refractive index query
-     * @return float: the refractive index at wv_nm
-     */
-    /**
-     * returns the interpolated refractive index at wv_nm
-     * @param wv_nm the wavelength in nm for the refractive index query
      */
     virtual double rindex(double wv_nm) const {
         (void)wv_nm;
