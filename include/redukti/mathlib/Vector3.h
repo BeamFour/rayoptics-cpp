@@ -47,13 +47,6 @@ public:
     }
 
     /**
-     * The cross product a × b is defined as a vector c that is
-     * perpendicular (orthogonal) to both a and b, with a direction given by the right-hand rule
-     * and a magnitude equal to the area of the parallelogram that the vectors span.
-     *
-     * https://en.wikipedia.org/wiki/Cross_product
-     */
-    /**
      * The cross product a x b is defined as a vector c that is perpendicular
      * (orthogonal) to both a and b, with a direction given by the right-hand
      * rule and a magnitude equal to the area of the parallelogram that the
