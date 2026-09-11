@@ -102,7 +102,6 @@ public:
      * @param nm
      * @return
      */
-    /** Convert nm to the system units. */
     double nm_to_sys_units(double nm) const;
 };
 
