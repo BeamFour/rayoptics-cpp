@@ -8,10 +8,26 @@ to that project. Differences are noted below.
 
 * LensTool2 as documented in [LensTool2](https://github.com/BeamFour/Beam42/blob/main/Documentation/LENSTOOL2.md). See exceptions below.
 
+## Building
+
+The build uses CMake and a C++20 compiler, and needs no third-party dependencies beyond the bundled Ryu.
+
+```bash
+cmake -S . -B build
+cmake --build build --config Release
+ctest --test-dir build -C Release
+```
+
+Single-configuration generators (Makefiles, Ninja) default to a Release build. Multi-configuration generators
+such as Visual Studio need the configuration given explicitly, as above.
+
+The tests read the prescriptions under `Examples/`. The optimizer solve tests are slow and off by default;
+set `RAYOPTICS_RUN_SLOW_TESTS=1` to run them.
+
 ## Differences from Beam42
 
 * The LensTool2 utility does not support obtaining prescriptions directly from [PhotonsToPhotos Optical Bench](https://www.photonstophotos.net/GeneralTopics/Lenses/OpticalBench/OpticalBenchHub.htm).
-* The Optimizer is included but not yet documented.
+* The optimizer is included, but at present it is only used internally by LensTool2 to fine tune the prescription.
 * Michael Lampton's BeamFour product is not included.
 * Some utilities used during development and verification are not included.
 
@@ -20,11 +36,18 @@ to that project. Differences are noted below.
 * Beam42 remains the primary development project. Development occurs there first and is then ported here.
 * The C++ port was created using Claude and Codex and aims to be a faithful replica of the Java version, except for details such as memory management.
 * The performance of both projects is comparable. See [Performance](PERFORMANCE.md) doc for details. Extreme performance is not a goal for either project.
-  The portions that are derived from Michael Hayford's RayOptics aim to maintain the same overall structure as the original Python version. This
+* The portions that are derived from Michael Hayford's RayOptics aim to maintain the same overall structure as the original Python version. This
   is to ease verification and maintainability.
 * I tried GraalVM Community Edition as a native code generator for the Java version - unfortunately it produces executables that run 5x slower than the JVM.
 
 ## License
 
-The project includes code derived from several opensource projects. See the individual license notices in the source code and in LICENSE notices.
-The overall license is GNU GPL v3 or later; see [LICENSE-GPL-3.0.txt](LICENSE-GPL-3.0.txt).
+The project includes code derived from several open-source projects. See the individual license notices in the source code
+and the LICENSE files:
+
+* [LICENSE-GPL-3.0.txt](LICENSE-GPL-3.0.txt) - the overall license, and the license of the code derived from Goptical.
+* [LICENSE-ray-optics.txt](LICENSE-ray-optics.txt) - BSD 3-Clause, for the code derived from Michael Hayford's RayOptics.
+* [LICENSE-Minpack.txt](LICENSE-Minpack.txt) - for the code derived from MINPACK.
+* [LICENSE-ryu.txt](LICENSE-ryu.txt) - for the bundled Ryu, used for number formatting (see also `third_party/ryu`).
+
+The overall license is GNU GPL v3 or later.
