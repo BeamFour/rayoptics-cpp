@@ -31,17 +31,6 @@ Matrix3 Matrix3::get_rotation_matrix(int axis, double angleInRadians) {
      *
      * Also see https://youtu.be/wg9bI8-Qx2Q
      */
-    /*
-     * Note on convention used below.
-     *
-     * See https://mathworld.wolfram.com/RotationMatrix.html
-     * coordinate system rotations of the x-, y-, and z-axes in a
-     * counterclockwise direction when looking towards the origin give the
-     * matrices.
-     *
-     * This appears to correspond to xyz convention described in appendix A,
-     * Classical Mechanics, Goldstein, 3rd Ed.
-     */
     double n00, n01, n02, n10, n11, n12, n20, n21, n22;
     switch (axis) {
     case 0:
