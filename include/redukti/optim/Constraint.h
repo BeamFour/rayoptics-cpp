@@ -61,24 +61,6 @@ private:
     static constexpr double UNDEFINED_DEVIATION = 1.0e6;
 
     /**
-     * Fold the fractional normalization into the weight so the starting value can serve
-     * as the target.
-     *
-     * The solver forms (value - target) * sqrt(weight). Holding a parameter to
-     * a <em>fraction</em> of where it started means
-     *
-     * <pre>(v/base - 1) * sqrt(w) = (v - base) * sqrt(w / base^2)</pre>
-     *
-     * so scaling the weight by 1/base^2 is exactly equivalent, and lets
-     * value() report the parameter itself against a target of its starting value -
-     * the same shape as GoalParax - instead of carrying a separate base.
-     *
-     * The consequence is that #_weight is not the number the caller passed. It
-     * is larger for small parameters and smaller for large ones, which is the
-     * normalization doing its job: a 0.1mm air gap and a 39mm back focus then resist a
-     * given <em>proportional</em> change equally.
-     */
-    /**
      * Fold the fractional normalization into the weight so the starting value
      * can serve as the target.
      *
@@ -99,26 +81,6 @@ private:
     static double normalized_weight(double base, double weight);
 };
 
-/**
- * Holds a surface near its starting <em>curvature</em>.
- *
- * Curvature rather than radius, deliberately. The optimizer varies radius through
- * VarRadius, but radius is a poor measure of how much a surface has really
- * changed: on a near-flat surface it runs away towards infinity for a negligible optical
- * change, so constraining it fractionally would barely restrain that surface while
- * over-restraining a strongly curved one. Curvature c = 1/r tracks optical effect.
- *
- * Target and value are therefore both curvatures, and the fractional change the
- * constraint resists is
- *
- * <pre>c/c0 - 1 = (1/r)/(1/r0) - 1 = r0/r - 1</pre>
- *
- * It behaves sensibly at both extremes. As the surface flattens, r -> infinity
- * and the change tends to -1, so fully flattening a surface reads as 100%. As it curves
- * up, r -> 0 and the change grows without bound, which is exactly where strong
- * resistance is wanted. A surface that starts flat has no curvature variable in the first
- * place, so a zero starting radius cannot arise here.
- */
 /**
  * Holds a surface near its starting CURVATURE.
  *
@@ -163,15 +125,6 @@ private:
  * Holds an air space or element thickness near its starting value.
  *
  * This is what stops the solver collapsing a gap or driving elements through one
- * another. Note it constrains the axial (centre) thickness only, so it does not by itself
- * guarantee positive <em>edge</em> separation, which also depends on the sag of the two
- * bounding surfaces. Keeping the layout recognisable is what makes it effective in
- * practice rather than any guarantee.
- */
-/**
- * Holds an air space or element thickness near its starting value.
- *
- * This is what stops the solver collapsing a gap or driving elements through one
  * another. Note it constrains the axial (centre) thickness only, so it does not
  * by itself guarantee positive EDGE separation, which also depends on the sag of
  * the two bounding surfaces. Keeping the layout recognisable is what makes it
@@ -191,28 +144,6 @@ private:
     static double thickness(Analysis *analysis, int surfaceId);
 };
 
-/**
- * Holds the <em>edge</em> separation of a gap near its starting value.
- *
- * ConstraintThickness holds axial centre thickness, which is not the same
- * thing: two surfaces can keep their axial gap and still pass through one another away
- * from the axis, because the separation at height h is
- *
- * <pre>gap(h) = t + sag_next(h) - sag_this(h)</pre>
- *
- * and curvature is free to move. That is how a solve with thickness constraints in
- * place still produced overlapping first and second surfaces on the Leica 75/2. This
- * constraint watches the quantity that actually goes negative.
- *
- * Measured by default at the smaller of the two bounding semi-diameters, which is the
- * outermost height at which both surfaces exist. Pass an explicit height to check
- * somewhere else - a mount land outside the clear aperture, say.
- *
- * Like every Constraint this is a penalty, not a bound. It makes crossing
- * expensive rather than impossible, and it anchors to the starting separation rather than
- * to zero, so it resists <em>change</em> in either direction. A design that needs its
- * edges opened up rather than preserved wants a different goal.
- */
 /**
  * Holds the EDGE separation of a gap near its starting value.
  *
