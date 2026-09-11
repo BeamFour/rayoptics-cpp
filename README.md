@@ -36,9 +36,6 @@ set `RAYOPTICS_RUN_SLOW_TESTS=1` to run them.
 * Beam42 remains the primary development project. Development occurs there first and is then ported here.
 * The C++ port was created using Claude and Codex and aims to be a faithful replica of the Java version, except for details such as memory management.
 * The performance of both projects is comparable. See [Performance](PERFORMANCE.md) doc for details. Extreme performance is not a goal for either project.
-* The portions that are derived from Michael Hayford's RayOptics aim to maintain the same overall structure as the original Python version. This
-  is to ease verification and maintainability.
-* I tried GraalVM Community Edition as a native code generator for the Java version - unfortunately it produces executables that run 5x slower than the JVM.
 
 ## License
 
