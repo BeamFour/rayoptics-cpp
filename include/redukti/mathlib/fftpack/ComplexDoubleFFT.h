@@ -28,11 +28,6 @@ namespace redukti::mathlib::fftpack {
 class ComplexDoubleFFT : public ComplexDoubleFFT_Mixed {
 public:
     /**
-      * <em>norm_factor</em> can be used to normalize this FFT transform. This is because
-      * a call of forward transform (<em>ft</em>) followed by a call of backward transform
-      * (<em>bt</em>) will multiply the input sequence by <em>norm_factor</em>.
-    */
-    /**
      * norm_factor can be used to normalize this FFT transform: a call of the
      * forward transform (ft) followed by a call of the backward transform (bt)
      * multiplies the input sequence by norm_factor.
@@ -62,12 +57,6 @@ public:
       *  x[2*i+1] is the imaginary part of <em>i</em>-the complex data.
       *
     */
-    /**
-     * Forward complex FFT transform, in place.
-     *
-     * @param x 2*n reals representing n complex data: x[2*i] is the real part
-     *          and x[2*i+1] the imaginary part of the i-th datum.
-     */
     void ft(std::vector<double> &x);
 
     /**
@@ -75,7 +64,6 @@ public:
       *
       * @param x  an array of <em>n</em> Complex data
     */
-    /** Forward complex FFT transform of n Complex data. */
     void ft(Complex1D &x);
 
     /**
@@ -92,7 +80,6 @@ public:
       *  x[2*<em>i</em>+1] is the imaginary part of <em>i</em>-the complex data.
       *
     */
-    /** Backward complex FFT transform; the unnormalized inverse of ft. */
     void bt(std::vector<double> &x);
 
     /**
@@ -101,7 +88,6 @@ public:
       *
       * @param x  an array of <em>n</em> Complex data
     */
-    /** Backward complex FFT transform of n Complex data. */
     void bt(Complex1D &x);
 
 private:
