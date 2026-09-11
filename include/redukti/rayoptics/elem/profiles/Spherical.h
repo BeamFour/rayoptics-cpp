@@ -23,26 +23,6 @@ public:
     /**
      * surface function for Spherical profile
      *
-     *         This function implements Spencer's eq 25, with kappa=1 (i.e. spherical).
-     *
-     *         To see this, start with the code:
-     *         F = p[2] - 0.5*cv*(np.dot(p, p))
-     *
-     *         Expand np.dot(p, p):
-     *         F = p[2] - 0.5*cv*(p[0]*p[0] + p[1]*p[1] + p[2]*p[2])
-     *
-     *         in Spencer's notation:
-     *         rho**2 = p[0]*p[0] + p[1]*p[1]
-     *         Z = p[2]
-     *
-     *         Substituting notation, the result is:
-     *         F = Z - 0.5*cv*(rho**2 + Z**2)
-     *
-     *         which is Spencer's eq 25.
-     */
-    /**
-     * surface function for Spherical profile
-     *
      * This function implements Spencer's eq 25, with kappa=1 (i.e. spherical).
      *
      * To see this, start with the code:
