@@ -106,7 +106,6 @@ public:
  *         obj_na: numerical aperture in object space
  *         img_na: numerical aperture in image space
  */
-/** First order properties of the optical model. */
 class FirstOrderData {
 public:
     /**
