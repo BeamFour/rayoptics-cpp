@@ -39,7 +39,6 @@ public:
     /**
      * Calculate transfer matrix and inverse from 1st to kth surface.
      */
-    /** The paraxial ray transfer matrix and its inverse at surface `kth`. */
     static util::Pair<mathlib::Matrix2, mathlib::Matrix2> get_parax_matrix(
         const std::vector<ParaxComponent> &p_ray,
         const std::vector<ParaxComponent> &q_ray, int kth, double n_k);
