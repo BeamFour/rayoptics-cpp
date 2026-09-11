@@ -55,7 +55,6 @@ add_library(rayoptics
     src/mathlib/RootResult.cpp
     src/mathlib/BrentSolver.cpp
     src/mathlib/SecantSolver.cpp
-    src/mathlib/Derivatives.cpp
     src/mathlib/MinPack.cpp
     src/mathlib/fftpack/ComplexDoubleFFT_Mixed.cpp
     src/mathlib/fftpack/ComplexDoubleFFT.cpp

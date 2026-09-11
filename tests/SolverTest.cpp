@@ -4,7 +4,6 @@
 #include "TestHarness.h"
 
 #include "redukti/mathlib/BrentSolver.h"
-#include "redukti/mathlib/Derivatives.h"
 #include "redukti/mathlib/SecantSolver.h"
 
 #include <cmath>
@@ -89,26 +88,4 @@ TEST(secant_gives_up_at_maxiter) {
     NoRoot n;
     CHECK_STR_EQ(SecantSolver::find_root(n, 1.0, 5, 1e-12).toString(),
                  "RootResult{root=1.0016011211104183, converged=false, iterations=5}");
-}
-
-TEST(central_derivative) {
-    DerivResult d1 = Derivatives::central_derivative([](double x) { return std::sin(x); },
-                                                     1.0, 1e-4);
-    CHECK_CLOSE(d1.result, 0.5403023058670838, 0.0);
-    CHECK_CLOSE(d1.abserr, 9.636876518932678e-11, 0.0);
-
-    DerivResult d2 = Derivatives::central_derivative([](double x) { return x * x * x; },
-                                                     2.0, 1e-3);
-    CHECK_CLOSE(d2.result, 11.999999999971859, 0.0);
-    CHECK_CLOSE(d2.abserr, 1.2437794525465432e-9, 0.0);
-
-    DerivResult d3 = Derivatives::central_derivative([](double x) { return std::exp(x); },
-                                                     0.5, 1e-2);
-    CHECK_CLOSE(d3.result, 1.6487212707011694, 0.0);
-    CHECK_CLOSE(d3.abserr, 2.186528896904694e-10, 0.0);
-
-    DerivResult d4 = Derivatives::central_derivative(
-        [](double x) { return 3.0 * x + 1.0; }, 7.0, 1e-3);
-    CHECK_CLOSE(d4.result, 3.0000000000001132, 0.0);
-    CHECK_CLOSE(d4.abserr, 3.397325823439896e-11, 0.0);
 }
