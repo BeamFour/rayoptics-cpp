@@ -40,7 +40,6 @@ public:
      *
      *     The avoid_list idea and implementation was contributed by Quentin Bécar
      */
-    /** Set the clear apertures of the model from traced marginal rays. */
     static void set_clear_apertures(optical::OpticalModel *opt_model,
                                     const std::vector<int> *avoid_list,
                                     const std::vector<int> *include_list);
