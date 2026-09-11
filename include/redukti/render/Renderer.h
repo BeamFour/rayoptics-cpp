@@ -70,19 +70,19 @@ public:
     enum class IntensityMode {
         /** light ray intensity is ignored, no blending is performed while rendering
          ray */
+        IntensityIgnore,
         /** light ray intensity is used to blend rendered ray */
+        IntensityShade,
         /** light ray intensity logarithm is used to blend rendered ray. This enable
          faint rays to remain visible. */
-        IntensityIgnore,
-        IntensityShade,
         IntensityLogShade,
     };
 
     /** Specifies light ray color rendering */
     enum class RayColorMode {
         /** Compute ray color from its wavelength */
-        /** Use fixed ray color */
         RayColorWavelen,
+        /** Use fixed ray color */
         RayColorFixed,
     };
 
@@ -223,14 +223,14 @@ public:
         /**
          * _margin contains a size ratio
          */
+        MarginRatio,
         /**
          * _margin contains the width in window size units
          */
+        MarginLocal,
         /**
          * _margin contains the width in output size units
          */
-        MarginRatio,
-        MarginLocal,
         MarginOutput,
     };
 
