@@ -199,7 +199,7 @@ private:
 };
 
 /** Analysis metadata captured at result creation, with no model dependencies. */
-/** Analysis metadata with no model dependencies; results own it as const. */
+/** Results own it as const. */
 class FieldSnapshot {
 public:
     double x, y, vux, vuy, vlx, vly, wt;
