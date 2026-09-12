@@ -37,7 +37,8 @@ int main(int argc, char **argv) {
         std::cerr << "       [--real-ray-aiming|--paraxial-ray-aiming] [--mtf "
                      "freq,freq,...] \\\n";
         std::cerr << "       [--assign-glass-types [--index-line d|e] [--force] "
-                     "[--update-specfile]] [--optimize [--optimize-goal contrast|mtf]]\n";
+                     "[--update-specfile]] [--optimize [--optimize-goal contrast|mtf] | "
+                     "--optimize trial]\n";
         std::cerr << "       --assign-glass-types matches each surface's nd/vd to a "
                      "catalog glass for this run;\n";
         std::cerr << "         --force re-matches surfaces that already name a glass, "
@@ -48,6 +49,11 @@ int main(int argc, char **argv) {
                      "variable airspaces on a zoom, at the central field\n";
         std::cerr << "       --optimize-goal defaults to contrast; mtf uses the geometric "
                      "MTF directly, which stalls more easily\n";
+        std::cerr << "       --optimize n runs the specfile's [trial n] section, writes "
+                     "the result as <specfile>-trial<n>.txt and reports on it\n";
+        std::cerr << "         a [pipeline n] section runs its trials in order, each "
+                     "starting from the last result, and writes "
+                     "<specfile>-pipeline<n>.txt\n";
         std::cerr << "       --mtf takes spatial frequencies in cycles/mm and defaults to "
                      "10,30,50, which is what the reports under Examples/ use\n";
         std::cerr << "       --real-ray-aiming aims the chief ray by tracing a real ray at "

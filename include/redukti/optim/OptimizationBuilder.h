@@ -9,6 +9,7 @@
 #include "redukti/spec/Prescription.h"
 
 #include <functional>
+#include <string>
 #include <memory>
 #include <optional>
 #include <set>
@@ -72,6 +73,23 @@ public:
     static OptimizationBuilder builder(spec::Prescription *prescription) {
         return OptimizationBuilder(prescription);
     }
+
+    /** The prescription this builder optimizes. */
+    spec::Prescription *prescription() const { return prescription_; }
+
+    /** Free text describing the setup: written into a trial, and shown when it runs. */
+    OptimizationBuilder &description(const std::optional<std::string> &description);
+
+    /** Empty when the setup has no description; the Java field is a nullable String. */
+    const std::optional<std::string> &description() const { return _description; }
+
+    /**
+     * Where LensTool2 puts the output of a run of this setup as a trial, relative to
+     * the prescription's file unless absolute. Only a trial uses it.
+     */
+    OptimizationBuilder &outdir(const std::optional<std::string> &outdir);
+
+    const std::optional<std::string> &outdir() const { return _outdir; }
 
     // ------------------------------------------------------------------
     // Configuration - what gets evaluated, and how finely
@@ -208,6 +226,12 @@ public:
      */
     OptimizationBuilder &varyAllCurvatures();
 
+    /**
+     * Vary every surface varyAllCurvatures() would, apart from the listed ones.
+     * Saves spelling out a long list when only a few surfaces are to stay as they are.
+     */
+    OptimizationBuilder &varyAllCurvaturesExcept(const std::vector<int> &surfaces);
+
     OptimizationBuilder &varyThicknesses(const std::vector<int> &surfaces);
 
     /**
@@ -222,6 +246,9 @@ public:
      */
     OptimizationBuilder &varyAllThicknesses();
 
+    /** Vary every thickness varyAllThicknesses() would, apart from the listed surfaces'. */
+    OptimizationBuilder &varyAllThicknessesExcept(const std::vector<int> &surfaces);
+
     /**
      * Vary the conic constants and polynomial coefficients already present in
      * the prescription. Only nonzero terms become variables, so a spherical
@@ -230,6 +257,30 @@ public:
      */
     OptimizationBuilder &varyExistingAspherics() { return varyExistingAspherics(true); }
     OptimizationBuilder &varyExistingAspherics(bool include);
+
+    /**
+     * Vary a surface's conic constant, making the surface an asphere if it is not one.
+     * A surface given explicit terms, here or through varyAsphericCoefficient(int, int),
+     * is left to them rather than to varyExistingAspherics().
+     */
+    OptimizationBuilder &varyConic(int surface);
+
+    /**
+     * Vary one aspheric coefficient, `_coeffs[index]` of the surface: on an even asphere
+     * the coefficient of r^(2(index+1)), so index 1 is A4; on an odd asphere the
+     * coefficient of r^(index+1), so index 2 is A3. A spherical surface becomes an
+     * asphere of the type the prescription already uses, even when it has none, and a
+     * coefficient the surface does not have starts at zero.
+     *
+     * The variable is the coefficient times a scale, so the solver works with values of
+     * order one. An existing coefficient is scaled by scalingFor(double); one starting at
+     * zero by 10^round(log10 h^n), h being half the surface's diameter and n the power of
+     * r, so that one unit moves the sag at the rim by about one lens unit.
+     */
+    OptimizationBuilder &varyAsphericCoefficient(int surface, int index);
+
+    /** Vary one aspheric coefficient, as varyAsphericCoefficient(int, int), with the given scale. */
+    OptimizationBuilder &varyAsphericCoefficient(int surface, int index, double scale);
 
     /** Adds caller-defined variables after the automatically generated variables. */
     OptimizationBuilder &additionalVariables(
@@ -345,6 +396,20 @@ public:
      */
     OptimizationBuilder &additionalGoals(const std::vector<GoalFactory> &factories);
 
+    /** Target a first-order quantity at weight 1; see paraxialGoal(int, double, double). */
+    OptimizationBuilder &paraxialGoal(int paraxId, double target) {
+        return paraxialGoal(paraxId, target, 1.0);
+    }
+
+    /**
+     * Target a first-order quantity. Every setup already holds the effective focal length
+     * and f-number at the prescription's values for the scenario, at weight 1; a goal for
+     * either replaces that one rather than adding a second.
+     *
+     * @param paraxId a ParaxHelper id, such as ParaxHelper::Back_focal_length
+     */
+    OptimizationBuilder &paraxialGoal(int paraxId, double target, double weight);
+
     // ------------------------------------------------------------------
     // Constraints - what holds the starting design together
     // ------------------------------------------------------------------
@@ -410,6 +475,23 @@ public:
 
     /** Normalizes an existing coefficient to a scaled value in [1, 10). */
     static double scalingFor(double value);
+
+    // ------------------------------------------------------------------
+    // Writing - the setup as a [trial n] section
+    // ------------------------------------------------------------------
+
+    /**
+     * This setup as a `[trial number]` section of a prescription file, which
+     * OptimizationTrial::read reads back into an equivalent builder. Every setting the
+     * trial's goals consult is written, its default included, so that a later change to a
+     * default cannot change what a saved trial means; a setting nothing in the trial
+     * consults is left out. Weights left out are 1, which is part of the format rather
+     * than a default. Variables and goals given as code, through
+     * additionalVariables(const std::vector<std::shared_ptr<Var>> &) or
+     * additionalGoals(const std::vector<GoalFactory> &), have no written form, so a
+     * builder that uses them cannot be written.
+     */
+    std::string toTrial(int number) const;
 
     class MtfGoals {
     public:
@@ -496,7 +578,31 @@ private:
     void configureSpotPattern(Analysis &analysis,
                               const std::vector<std::shared_ptr<Goal>> &goals) const;
 
+    /** Records an explicitly varied aspheric term, rejecting one the surface cannot have. */
+    OptimizationBuilder &addAsphericTerm(int surface, int index,
+                                         const std::optional<double> &scale);
+
+    /** The surface's asphere type, or the one it will be made: the prescription's own, else even. */
+    int asphereTypeOf(int surface) const;
+
+    /** The power of r a coefficient multiplies, rejecting an index the asphere type does not have. */
+    static int powerOf(int asphereType, int index);
+
+    double coefficientOf(int surface, int index) const;
+
+    bool hasExplicitAsphericTerms(int surface) const;
+
     std::vector<std::shared_ptr<Var>> buildVariables() const;
+
+    /**
+     * The variables for the explicitly varied aspheric terms. A spherical surface is made
+     * an asphere, and a coefficient array too short for a term is extended with zeros, so
+     * the variables have somewhere to read from and write to.
+     */
+    std::vector<std::shared_ptr<Var>> explicitAsphericVariables() const;
+
+    /** A first-order goal: the given target and weight, or the prescription's value at weight 1. */
+    std::shared_ptr<Goal> anchor(Analysis *analysis, int paraxId, double prescribed) const;
     std::vector<std::shared_ptr<Goal>> buildGoals(
         Analysis *analysis, const std::vector<std::shared_ptr<Var>> &variables) const;
 
@@ -525,9 +631,32 @@ private:
 
     static bool sameWavelength(double a, double b);
 
+    // Writing helpers; see toTrial(int).
+    static std::string allExcept(const std::vector<int> &exclusions);
+
+    /** Contrast weights: one row when every frequency shares them, else a row per frequency. */
+    void contrastWeights(std::string &sb, bool sagittal) const;
+
+    /** The balanced fields: all, all except the listed field values, or yes/no for each. */
+    std::string balance() const;
+
+    /** Whether any goal needs the spot analysis, and so the spot sampling settings. */
+    bool tracesSpots() const;
+
+    /** The spot pattern in effect: a maximum-radius goal asks for hexapolar whatever else is set. */
+    bool hexapolarPattern() const;
+
+    static bool allOnes(const std::vector<double> &values);
+
     static constexpr int RAY_FAN_SAMPLES = 10;
 
-    spec::Prescription *prescription;
+    static constexpr int DEFAULT_HEXAPOLAR_RAYS = 64;
+    static constexpr int DEFAULT_GAUSSIAN_QUADRATURE_RINGS = 14;
+    static constexpr int DEFAULT_GAUSSIAN_QUADRATURE_SPOKES = 20;
+    static constexpr int DEFAULT_CONTRAST_RINGS = 6;
+    static constexpr int DEFAULT_CONTRAST_SPOKES = 12;
+
+    spec::Prescription *prescription_;
     /** Null until fields() is called; validate() rejects that. */
     std::optional<std::vector<double>> _fields;
     /** Null until mtfFrequencies() is called; validate() rejects that. */
@@ -541,9 +670,9 @@ private:
     bool _dLineOnly = false;
     bool addRayAberrationGoals = false;
     bool useHexapolarSpotPattern = false;
-    int hexapolarSpotRays = 64;
-    int gaussianQuadratureRings = 14;
-    int gaussianQuadratureSpokes = 20;
+    int hexapolarSpotRays = DEFAULT_HEXAPOLAR_RAYS;
+    int gaussianQuadratureRings = DEFAULT_GAUSSIAN_QUADRATURE_RINGS;
+    int gaussianQuadratureSpokes = DEFAULT_GAUSSIAN_QUADRATURE_SPOKES;
     double gaussianQuadratureInnerRadius = 0.0;
     bool _checkSpotApertures = true;
     std::optional<std::vector<double>> spotDeviationXWeights;
@@ -554,8 +683,8 @@ private:
     // them, so the merit reads better than the lens is. 6x12 is converged - 8x16
     // reproduces it - and 12 spokes samples the x and y axes alike, so sagittal
     // and tangential residuals stay comparable.
-    int contrastRings = 6;
-    int contrastSpokes = 12;
+    int contrastRings = DEFAULT_CONTRAST_RINGS;
+    int contrastSpokes = DEFAULT_CONTRAST_SPOKES;
     bool calibrateContrastFrequency_ = false;
     bool aimContrastAtExitPupil_ = false;
     bool centerContrastResiduals_ = false;
@@ -580,8 +709,34 @@ private:
 
         void validate(int fieldCount, const char *name) const;
     };
+
+    static void spotGoals(std::string &sb, const char *key,
+                          const std::optional<SpotGoals> &goals);
     std::optional<SpotGoals> spotRmsGoals_;
     std::optional<SpotGoals> spotMaxRadiusGoals_;
+    std::vector<int> curvatureExclusions;
+    std::vector<int> thicknessExclusions;
+
+    /** An explicitly varied aspheric term: the conic constant when index is -1, else _coeffs[index]. */
+    struct AsphericTerm {
+        int surface;
+        int index;
+        std::optional<double> scale;
+    };
+
+    /** A first-order goal on a ParaxHelper quantity. */
+    struct ParaxialGoal {
+        int paraxId;
+        double target;
+        double weight;
+    };
+
+    /** Aspheric terms varied explicitly, in the order given. */
+    std::vector<AsphericTerm> asphericTerms;
+    /** First-order goals, in the order given; efl and fno replace the automatic ones. */
+    std::vector<ParaxialGoal> paraxialGoals;
+    std::optional<std::string> _description;
+    std::optional<std::string> _outdir;
 };
 
 } // namespace redukti::optim

@@ -12,16 +12,20 @@
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/tools/DefaultOptimizations.h"
+#include "redukti/optim/OptimizationTrial.h"
 #include "redukti/tools/GlassFinder.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
 namespace redukti::tools {
+
+namespace fs = std::filesystem;
 
 using importers::OpticalBenchDataImporter;
 using plotter::GeoMTFByFieldPlot;
@@ -63,12 +67,12 @@ LensTool2::LensSpecifications LensTool2::getSpecsFromFile(const std::string &spe
     return specs;
 }
 
-LensTool2::LensSpecifications LensTool2::loadSpecs(const Args &arguments) {
-    if (!arguments.assign_glass_types)
-        return getSpecsFromFile(*arguments.specfile);
+std::string LensTool2::loadSpecText(const Args &arguments) {
     const std::string &specpath = *arguments.specfile;
-    auto result = GlassFinder::enrich(readFile(specpath), arguments.force,
-                                      arguments.index_line_value());
+    std::string text = readFile(specpath);
+    if (!arguments.assign_glass_types)
+        return text;
+    auto result = GlassFinder::enrich(text, arguments.force, arguments.index_line_value());
     std::cout << "Assigned " << result.selected << " glass types; " << result.ambiguous
               << " ambiguous; " << result.unmatched << " unmatched" << std::endl;
     if (result.ambiguous > 0)
@@ -79,9 +83,7 @@ LensTool2::LensSpecifications LensTool2::loadSpecs(const Args &arguments) {
         Helper::createOutputFile(specpath, result.text);
         std::cout << "Updated " << specpath << std::endl;
     }
-    LensSpecifications specs;
-    specs.parse_buffer(result.text);
-    return specs;
+    return result.text;
 }
 
 Prescription LensTool2::createPrescription(const LensSpecifications &specs,
@@ -470,7 +472,92 @@ std::string LensTool2::today() {
     return buf;
 }
 
-void LensTool2::run(const Args &arguments, const std::string &generated_on) {
+std::string LensTool2::runOptimizationTrial(const std::string &specText, Args &arguments) {
+    int number = *arguments.optimize_trial;
+    auto pipeline = optim::OptimizationTrial::readPipeline(specText, number);
+    std::string optimized;
+    std::optional<std::string> outdir;
+    std::string suffix;
+    if (!pipeline.has_value()) {
+        auto trial = optim::OptimizationTrial::read(specText, number, arguments.use_glass_types);
+        solveTrial(trial.builder, number);
+        // The prescription as Beam42 writes it, then the trial as the builder writes it, so
+        // the result can be reported on or the trial run again: surface positions are the
+        // same in both.
+        trial.prescription->to_opt_bench_str(optimized);
+        optimized += "\n" + trial.builder.toTrial(number);
+        outdir = trial.builder.outdir();
+        suffix = "-trial" + intToString(number) + ".txt";
+    } else {
+        std::cout << "Pipeline " << number
+                  << (pipeline->description().has_value() ? ": " + *pipeline->description()
+                                                          : "")
+                  << ": trials " << pipeline->trialsText() << std::endl;
+        std::string text = specText;
+        for (int stage : pipeline->trials()) {
+            auto trial = optim::OptimizationTrial::read(text, stage, arguments.use_glass_types);
+            solveTrial(trial.builder, stage);
+            text = carriedForward(*trial.prescription, *pipeline, text,
+                                  arguments.use_glass_types);
+        }
+        optimized = text;
+        outdir = pipeline->outdir();
+        suffix = "-pipeline" + intToString(number) + ".txt";
+    }
+    fs::path specDirectory = fs::absolute(fs::path(*arguments.specfile)).parent_path();
+    fs::path directory = arguments.outdir.has_value() ? fs::path(*arguments.outdir)
+                         : outdir.has_value()         ? specDirectory / *outdir
+                                                      : specDirectory;
+    fs::create_directories(directory);
+    fs::path output =
+        directory /
+        fs::path(Helper::getOutputPathChangeExt(*arguments.specfile, suffix)).filename();
+    Helper::createOutputFile(output.string(), optimized);
+    std::cout << "Wrote " << output.string() << std::endl;
+    arguments.specfile = output.string();
+    return optimized;
+}
+
+void LensTool2::solveTrial(optim::OptimizationBuilder &builder, int number) {
+    auto setup = builder.build();
+    auto meritFunction = setup.meritFunction(false);
+    auto variables = setup.variables();
+    std::vector<double> start(variables.size());
+    for (std::size_t i = 0; i < variables.size(); i++) {
+        variables[i]->read_from_prescription();
+        start[i] = variables[i]->get_unscaled_value();
+    }
+    std::cout << "Trial " << number
+              << (builder.description().has_value() ? ": " + *builder.description() : "")
+              << std::endl;
+    std::cout << variables.size() << " variables, " << setup.goals().size() << " goals"
+              << std::endl;
+    setup.analysis()->compute();
+    double before = meritFunction.getRMS();
+    int status = meritFunction.getSolver()->solve();
+    double after = meritFunction.getRMS();
+    std::cout << "Status " << status << ", merit " << formatG(before, 0, 6) << " -> "
+              << formatG(after, 0, 6) << (after < before ? "" : " (no improvement)")
+              << std::endl;
+    for (std::size_t i = 0; i < variables.size(); i++)
+        std::cout << "  " << optim::OptimizationTrial::describe(*variables[i]) << ": "
+                  << doubleToString(start[i]) << " -> "
+                  << doubleToString(variables[i]->get_unscaled_value()) << std::endl;
+}
+
+std::string LensTool2::carriedForward(const Prescription &prescription,
+                                      const optim::OptimizationPipeline &pipeline,
+                                      const std::string &text, bool useGlassTypes) {
+    std::string sb;
+    prescription.to_opt_bench_str(sb);
+    sb += "\n" + pipeline.toPipeline();
+    for (int trial : pipeline.distinctTrials())
+        sb += "\n" + optim::OptimizationTrial::read(text, trial, useGlassTypes)
+                         .builder.toTrial(trial);
+    return sb;
+}
+
+void LensTool2::run(Args arguments, const std::string &generated_on) {
     const std::vector<double> fields{0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
                                      0.6, 0.7, 0.8, 0.9, 1.0};
     auto startTime = std::chrono::steady_clock::now();
@@ -478,7 +565,11 @@ void LensTool2::run(const Args &arguments, const std::string &generated_on) {
     // Real ray aiming is what makes very wide angle lenses trace correctly, so
     // it stays on unless the caller asks for paraxial aiming.
     bool realRayAiming = !arguments.real_ray_aiming.has_value() || *arguments.real_ray_aiming;
-    LensSpecifications specs = loadSpecs(arguments);
+    std::string specText = loadSpecText(arguments);
+    if (arguments.optimize_trial.has_value())
+        specText = runOptimizationTrial(specText, arguments);
+    LensSpecifications specs;
+    specs.parse_buffer(specText);
     auto prescription =
         createPrescription(specs, arguments.use_glass_types, arguments.only_d_line);
     if (arguments.optimize)

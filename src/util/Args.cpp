@@ -120,7 +120,13 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
         } else if (arg1 == "--update-specfile") {
             arguments.update_specfile = true;
         } else if (arg1 == "--optimize") {
-            arguments.optimize = true;
+            // Followed by a trial number it runs that [trial n]; on its own it is the
+            // routine airspace optimization.
+            if (arg2.has_value() && arg2->rfind("--", 0) != 0) {
+                arguments.optimize_trial = parse_trial_number(*arg2);
+                i++;
+            } else
+                arguments.optimize = true;
         } else if (arg1 == "--optimize-goal") {
             arguments.optimize_goal = parse_optimize_goal(arg2);
             i++;
@@ -167,6 +173,25 @@ std::string Args::parse_optimize_goal(const std::optional<std::string> &value) {
         return normalized;
     throw IllegalArgumentException("Unrecognized --optimize-goal '" + *value +
                                    "', expected one of: contrast, mtf");
+}
+
+int Args::parse_trial_number(const std::string &value) {
+    // Integer.parseInt on the trimmed text, as the Java does; anything else, or a
+    // negative number, is a usage error rather than a default.
+    std::string text = trim(value);
+    bool wellFormed = !text.empty();
+    for (std::size_t k = 0; wellFormed && k < text.size(); k++)
+        if (!std::isdigit(static_cast<unsigned char>(text[k])))
+            wellFormed = false;
+    if (wellFormed) {
+        errno = 0;
+        long long parsed = std::strtoll(text.c_str(), nullptr, 10);
+        if (errno != ERANGE && parsed <= INT_MAX)
+            return static_cast<int>(parsed);
+    }
+    throw IllegalArgumentException(
+        "--optimize takes the number of a [trial n] or [pipeline n] section, found '" +
+        value + "'");
 }
 
 int Args::parse_positive_int(const std::string &option,
@@ -250,6 +275,13 @@ VigType Args::parse_vig_type(const std::optional<std::string> &value) {
     }
     throw IllegalArgumentException("Unrecognized --vig-type '" + *value +
                                    "', expected one of: " + vig_type_names());
+}
+
+std::string Args::vig_type_name(VigType value) {
+    for (const auto &vt : kVigTypes)
+        if (vt.value == value)
+            return vt.name;
+    throw IllegalArgumentException("unknown vignetting type");
 }
 
 std::string Args::vig_type_names() {

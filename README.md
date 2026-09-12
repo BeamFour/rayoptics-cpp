@@ -7,6 +7,8 @@ to that project. Differences are noted below.
 ## Executables
 
 * LensTool2 as documented in [LensTool2](https://github.com/BeamFour/Beam42/blob/main/Documentation/LENSTOOL2.md). See exceptions below.
+* An optimization run is driven from `[trial n]` and `[pipeline n]` sections of the prescription, as documented in
+  [Optimizer](https://github.com/BeamFour/Beam42/blob/main/Documentation/OPTIMIZER.md); `--optimize n` runs one.
 
 ## Building
 
@@ -27,7 +29,6 @@ set `RAYOPTICS_RUN_SLOW_TESTS=1` to run them.
 ## Differences from Beam42
 
 * The LensTool2 utility does not support obtaining prescriptions directly from [PhotonsToPhotos Optical Bench](https://www.photonstophotos.net/GeneralTopics/Lenses/OpticalBench/OpticalBenchHub.htm).
-* The optimizer is included, but at present it is only used internally by LensTool2 to fine tune the prescription.
 * Michael Lampton's BeamFour product is not included.
 * Some utilities used during development and verification are not included.
 

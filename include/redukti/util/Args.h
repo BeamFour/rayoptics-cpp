@@ -71,6 +71,11 @@ public:
      * steps, so a solve driven by it stalls in a local minimum.
      */
     std::string optimize_goal = "contrast";
+    /**
+     * Number of the [trial n] or [pipeline n] section to run before reporting, from
+     * --optimize n. Empty when none was asked for.
+     */
+    std::optional<int> optimize_trial;
     bool force = false;
     /**
      * Vignetting calculation applied once the model is built. Defaults to the
@@ -109,6 +114,9 @@ public:
     /** Accepts contrast or mtf, rejecting anything else rather than defaulting. */
     static std::string parse_optimize_goal(const std::optional<std::string> &value);
 
+    /** Accepts the number of a [trial n] section. */
+    static int parse_trial_number(const std::string &value);
+
     /** The MTF frequencies used by every report under Examples/. */
     static std::vector<int> default_mtf_freqs() { return {10, 30, 50}; }
 
@@ -130,6 +138,8 @@ public:
     static spec::VigType parse_vig_type(const std::optional<std::string> &value);
     /** The accepted --vig-type spellings, for usage and error messages. */
     static std::string vig_type_names();
+    /** The Java enum constant name, as VigType.name() gives it: SetPupil, SetVig and so on. */
+    static std::string vig_type_name(spec::VigType value);
     /**
      * Accepts hex, grid or gaussian, returning the matching
      * SpotOptions.PATTERN_* constant. As with --vig-type an

@@ -7,6 +7,8 @@
 #define REDUKTI_TOOLS_LENSTOOL2_H
 
 #include "redukti/importers/OpticalBenchDataImporter.h"
+#include "redukti/optim/OptimizationBuilder.h"
+#include "redukti/optim/OptimizationPipeline.h"
 #include "redukti/rayoptics/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
@@ -87,19 +89,52 @@ public:
                                  const util::Args &arguments, int config,
                                  const std::string &filename_suffix);
 
-    /** The body of the Java `main`, minus argv parsing and the usage banner. */
-    static void run(const util::Args &arguments, const std::string &generated_on);
+    /**
+     * Runs the [trial n] or [pipeline n] section of the prescription - trials and
+     * pipelines share one numbering - writes the optimized prescription, and points the
+     * rest of the run at that file, so the report describes the optimized lens.
+     *
+     * A pipeline runs its trials in order, each starting from the design the one before it
+     * produced, and writes one result at the end.
+     *
+     * The file, and so the report, goes to the --outdir given on the command line; failing
+     * that to the trial's or pipeline's own outdir, relative to the specfile; failing that
+     * next to the specfile.
+     *
+     * @return the optimized prescription text
+     */
+    static std::string runOptimizationTrial(const std::string &specText,
+                                            util::Args &arguments);
+
+    /**
+     * The body of the Java `main`, minus argv parsing and the usage banner. Taken by value
+     * because running a trial repoints `specfile` at the optimized prescription, which the
+     * Java does to its own local.
+     */
+    static void run(util::Args arguments, const std::string &generated_on);
 
     /** Today's date as Java LocalDate.now() renders it, i.e. ISO yyyy-MM-dd. */
     static std::string today();
 
 private:
     /**
-     * Loads the prescription, optionally running the glass type matcher over it
-     * first. The matched prescription is used for this run only; it replaces
-     * the input file just when --update-specfile asks for that.
+     * Reads the prescription text, optionally running the glass type matcher over it
+     * first. The matched prescription is used for this run only; it replaces the input
+     * file just when --update-specfile asks for that.
      */
-    static LensSpecifications loadSpecs(const util::Args &arguments);
+    static std::string loadSpecText(const util::Args &arguments);
+
+    /** Solves one trial, reporting what it varied and what that did to the merit. */
+    static void solveTrial(optim::OptimizationBuilder &builder, int number);
+
+    /**
+     * What a pipeline hands to its next stage, and writes at the end: the design as it now
+     * stands, the pipeline, and every trial the pipeline names - so the next stage can read
+     * its own trial from it, and the result can run the pipeline again as it stands.
+     */
+    static std::string carriedForward(const spec::Prescription &prescription,
+                                      const optim::OptimizationPipeline &pipeline,
+                                      const std::string &text, bool useGlassTypes);
 
     static rayoptics::analysis::SpotAnalysisResult generateSpotDiagrams(
         rayoptics::optical::OpticalModel *opm, const util::Args &arguments,

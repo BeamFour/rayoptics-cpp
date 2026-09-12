@@ -3,9 +3,11 @@
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
+#include "redukti/optim/OptimizationTrial.h"
 #include "redukti/optim/ParaxHelper.h"
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/util/Orientation.h"
+#include "redukti/util/Args.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,6 +25,11 @@ std::vector<double> unitWeightsFor(const std::vector<double> &targets) {
     return std::vector<double>(targets.size(), 1.0);
 }
 
+/** Java's OptimizationBuilder.contains(int[], int). */
+bool contains(const std::vector<int> &values, int value) {
+    return std::find(values.begin(), values.end(), value) != values.end();
+}
+
 /** True when any goal in the list is a T; the Java uses `instanceof`. */
 template <typename T> bool anyGoalIs(const std::vector<std::shared_ptr<Goal>> &goals) {
     for (const auto &goal : goals)
@@ -33,19 +40,30 @@ template <typename T> bool anyGoalIs(const std::vector<std::shared_ptr<Goal>> &g
 
 } // namespace
 
-OptimizationBuilder::OptimizationBuilder(spec::Prescription *prescription_)
-    : prescription(prescription_) {
-    if (prescription_ == nullptr)
+OptimizationBuilder::OptimizationBuilder(spec::Prescription *prescription)
+    : prescription_(prescription) {
+    if (prescription == nullptr)
         throw IllegalArgumentException("prescription must not be null");
     // The Java tests `prescription._surfaces == null`, the array build() fills;
     // here the flag records the same thing without a second copy of the list.
-    if (!prescription_->_built)
+    if (!prescription->_built)
         throw IllegalArgumentException("prescription must be built before optimization");
 }
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
+
+OptimizationBuilder &OptimizationBuilder::description(
+    const std::optional<std::string> &description) {
+    this->_description = description;
+    return *this;
+}
+
+OptimizationBuilder &OptimizationBuilder::outdir(const std::optional<std::string> &outdir) {
+    this->_outdir = outdir;
+    return *this;
+}
 
 OptimizationBuilder &OptimizationBuilder::fields(const std::vector<double> &fields_) {
     this->_fields = fields_;
@@ -157,11 +175,19 @@ OptimizationBuilder &OptimizationBuilder::varyCurvatures(
     const std::vector<int> &surfaces) {
     this->curvatureSurfaces = surfaces;
     this->allCurvatureSurfaces = false;
+    this->curvatureExclusions.clear();
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::varyAllCurvatures() {
+    return varyAllCurvaturesExcept({});
+}
+
+OptimizationBuilder &OptimizationBuilder::varyAllCurvaturesExcept(
+    const std::vector<int> &surfaces) {
+    this->curvatureSurfaces.clear();
     this->allCurvatureSurfaces = true;
+    this->curvatureExclusions = surfaces;
     return *this;
 }
 
@@ -169,6 +195,7 @@ OptimizationBuilder &OptimizationBuilder::varyThicknesses(
     const std::vector<int> &surfaces) {
     this->thicknessSurfaces = surfaces;
     this->allThicknessSurfaces = false;
+    this->thicknessExclusions.clear();
     return *this;
 }
 
@@ -181,7 +208,14 @@ OptimizationBuilder &OptimizationBuilder::varyThicknesses(
  * layout, the solver will collapse gaps and drive elements through one another.
  */
 OptimizationBuilder &OptimizationBuilder::varyAllThicknesses() {
+    return varyAllThicknessesExcept({});
+}
+
+OptimizationBuilder &OptimizationBuilder::varyAllThicknessesExcept(
+    const std::vector<int> &surfaces) {
+    this->thicknessSurfaces.clear();
     this->allThicknessSurfaces = true;
+    this->thicknessExclusions = surfaces;
     return *this;
 }
 
@@ -190,12 +224,101 @@ OptimizationBuilder &OptimizationBuilder::varyExistingAspherics(bool include) {
     return *this;
 }
 
+OptimizationBuilder &OptimizationBuilder::varyConic(int surface) {
+    return addAsphericTerm(surface, -1, std::nullopt);
+}
+
+OptimizationBuilder &OptimizationBuilder::varyAsphericCoefficient(int surface, int index) {
+    return addAsphericTerm(surface, index, std::nullopt);
+}
+
+OptimizationBuilder &OptimizationBuilder::varyAsphericCoefficient(int surface, int index,
+                                                                  double scale) {
+    if (!std::isfinite(scale) || scale <= 0.0)
+        throw IllegalArgumentException(
+            "the scale of an aspheric coefficient must be finite and positive");
+    return addAsphericTerm(surface, index, scale);
+}
+
+OptimizationBuilder &OptimizationBuilder::addAsphericTerm(
+    int surface, int index, const std::optional<double> &scale) {
+    if (surface < 0 || surface >= static_cast<int>(prescription_->_surface_list.size()))
+        throw IllegalArgumentException("aspheric surface is out of range: " +
+                                       intToString(surface));
+    const auto &definition = prescription_->_surface_list[static_cast<std::size_t>(surface)];
+    if (definition.is_aperture_stop() || definition.is_field_stop())
+        throw IllegalArgumentException("surface " + intToString(surface) +
+                                       " is a stop; it cannot be aspheric");
+    for (const AsphericTerm &term : asphericTerms)
+        if (term.surface == surface && term.index == index)
+            throw IllegalArgumentException(
+                (index < 0 ? std::string("the conic constant")
+                           : "coefficient " + intToString(index)) +
+                " of surface " + intToString(surface) + " is varied twice");
+    if (index >= 0) {
+        powerOf(asphereTypeOf(surface), index);
+        if (!scale.has_value() && coefficientOf(surface, index) == 0.0 &&
+            !(definition._diameter > 0.0))
+            throw IllegalArgumentException(
+                "surface " + intToString(surface) +
+                " has no diameter to derive a scale for coefficient " + intToString(index) +
+                " from; give the coefficient a scale");
+    }
+    asphericTerms.push_back(AsphericTerm{surface, index, scale});
+    return *this;
+}
+
+int OptimizationBuilder::asphereTypeOf(int surface) const {
+    const auto &definition = prescription_->_surface_list[static_cast<std::size_t>(surface)];
+    if (definition.is_aspheric())
+        return definition._asph_type;
+    if (prescription_->has_odd_aspheric())
+        return spec::SurfaceType::ASPH_ODD;
+    if (prescription_->has_even_a2_aspheric())
+        return spec::SurfaceType::ASPH_EVEN_A2;
+    return spec::SurfaceType::ASPH_EVEN;
+}
+
+int OptimizationBuilder::powerOf(int asphereType, int index) {
+    switch (asphereType) {
+    case spec::SurfaceType::ASPH_ODD:
+        if (index >= 2)
+            return index + 1;
+        throw IllegalArgumentException(
+            "coefficient " + intToString(index) +
+            " is not a term of an odd asphere, whose terms start at index 2, the A3 term");
+    case spec::SurfaceType::ASPH_EVEN_A2:
+        return 2 * (index + 1);
+    default:
+        if (index >= 1)
+            return 2 * (index + 1);
+        throw IllegalArgumentException(
+            "coefficient " + intToString(index) +
+            " is not a term of an even asphere, whose terms start at index 1, the A4 term");
+    }
+}
+
+double OptimizationBuilder::coefficientOf(int surface, int index) const {
+    const auto &coefficients =
+        prescription_->_surface_list[static_cast<std::size_t>(surface)]._coeffs;
+    return coefficients.has_value() && index < static_cast<int>(coefficients->size())
+               ? (*coefficients)[static_cast<std::size_t>(index)]
+               : 0.0;
+}
+
+bool OptimizationBuilder::hasExplicitAsphericTerms(int surface) const {
+    for (const AsphericTerm &term : asphericTerms)
+        if (term.surface == surface)
+            return true;
+    return false;
+}
+
 OptimizationBuilder &OptimizationBuilder::additionalVariables(
     const std::vector<std::shared_ptr<Var>> &variables) {
     for (const auto &variable : variables) {
         if (variable == nullptr)
             throw IllegalArgumentException("additional variables must not contain null");
-        if (variable->_prescription != prescription)
+        if (variable->_prescription != prescription_)
             throw IllegalArgumentException(
                 "additional variables must use this builder's prescription");
         additionalVariables_.push_back(variable);
@@ -205,7 +328,7 @@ OptimizationBuilder &OptimizationBuilder::additionalVariables(
 
 double OptimizationBuilder::thicknessOf(int surface) const {
     const auto &definition =
-        prescription->_surface_list[static_cast<std::size_t>(surface)];
+        prescription_->_surface_list[static_cast<std::size_t>(surface)];
     return definition._thickness_by_scenario.has_value()
                ? (*definition._thickness_by_scenario)[static_cast<std::size_t>(_scenario)]
                : definition._thickness;
@@ -213,16 +336,16 @@ double OptimizationBuilder::thicknessOf(int surface) const {
 
 double OptimizationBuilder::focalLengthOf() const {
     // The Java field is a nullable array; here an empty vector is the same state.
-    return !prescription->_focal_length_by_scenario.empty()
-               ? prescription
+    return !prescription_->_focal_length_by_scenario.empty()
+               ? prescription_
                      ->_focal_length_by_scenario[static_cast<std::size_t>(_scenario)]
-               : prescription->_focal_length;
+               : prescription_->_focal_length;
 }
 
 double OptimizationBuilder::fNumberOf() const {
-    return !prescription->_f_number_by_scenario.empty()
-               ? prescription->_f_number_by_scenario[static_cast<std::size_t>(_scenario)]
-               : prescription->_fno;
+    return !prescription_->_f_number_by_scenario.empty()
+               ? prescription_->_f_number_by_scenario[static_cast<std::size_t>(_scenario)]
+               : prescription_->_fno;
 }
 
 void OptimizationBuilder::validateScenario() const {
@@ -238,10 +361,10 @@ void OptimizationBuilder::validateScenario() const {
 
 int OptimizationBuilder::scenarioCount() const {
     int count = 1;
-    if (!prescription->_focal_length_by_scenario.empty())
+    if (!prescription_->_focal_length_by_scenario.empty())
         count = std::max(
-            count, static_cast<int>(prescription->_focal_length_by_scenario.size()));
-    for (const auto &surface : prescription->_surface_list)
+            count, static_cast<int>(prescription_->_focal_length_by_scenario.size()));
+    for (const auto &surface : prescription_->_surface_list)
         if (surface._thickness_by_scenario.has_value())
             count =
                 std::max(count, static_cast<int>(surface._thickness_by_scenario->size()));
@@ -362,6 +485,22 @@ OptimizationBuilder &OptimizationBuilder::rayAberrationGoals(bool enabled) {
     return *this;
 }
 
+OptimizationBuilder &OptimizationBuilder::paraxialGoal(int paraxId, double target,
+                                                       double weight) {
+    if (paraxId < 0 || paraxId >= static_cast<int>(std::size(ParaxHelper::Names)))
+        throw IllegalArgumentException("unknown paraxial quantity: " + intToString(paraxId));
+    if (!std::isfinite(target))
+        throw IllegalArgumentException("paraxial target must be finite");
+    if (!std::isfinite(weight) || weight < 0.0)
+        throw IllegalArgumentException("paraxial weight must be finite and non-negative");
+    for (const ParaxialGoal &goal : paraxialGoals)
+        if (goal.paraxId == paraxId)
+            throw IllegalArgumentException(std::string("there is already a goal for ") +
+                                           ParaxHelper::Names[paraxId]);
+    paraxialGoals.push_back(ParaxialGoal{paraxId, target, weight});
+    return *this;
+}
+
 OptimizationBuilder &OptimizationBuilder::additionalGoals(
     const std::vector<GoalFactory> &factories) {
     for (const auto &factory : factories) {
@@ -429,7 +568,7 @@ OptimizationBuilder &OptimizationBuilder::applyCurvatureConstraints(double weigh
 OptimizationBuilder::OptimizationSetup OptimizationBuilder::build() {
     validate();
     auto analysis =
-        std::make_shared<Analysis>(prescription, *_fields, *_mtfFrequencies, _scenario);
+        std::make_shared<Analysis>(prescription_, *_fields, *_mtfFrequencies, _scenario);
     auto variables = buildVariables();
     auto goals = buildGoals(analysis.get(), variables);
     if (goals.size() < variables.size())
@@ -538,37 +677,39 @@ void OptimizationBuilder::configureSpotPattern(
 
 std::vector<std::shared_ptr<Var>> OptimizationBuilder::buildVariables() const {
     std::vector<std::shared_ptr<Var>> result;
-    const auto &surfaces = prescription->_surface_list;
+    const auto &surfaces = prescription_->_surface_list;
     if (allCurvatureSurfaces) {
         for (int surface = 0; surface < static_cast<int>(surfaces.size()); surface++) {
             const auto &definition = surfaces[static_cast<std::size_t>(surface)];
             if (!definition.is_aperture_stop() && !definition.is_field_stop() &&
-                definition._radius != 0.0)
-                result.push_back(std::make_shared<VarRadius>(prescription, surface));
+                definition._radius != 0.0 && !contains(curvatureExclusions, surface))
+                result.push_back(std::make_shared<VarRadius>(prescription_, surface));
         }
     } else {
         for (int surface : curvatureSurfaces)
-            result.push_back(std::make_shared<VarRadius>(prescription, surface));
+            result.push_back(std::make_shared<VarRadius>(prescription_, surface));
     }
     if (allThicknessSurfaces) {
         for (int surface = 0; surface < static_cast<int>(surfaces.size()); surface++) {
             // A zero thickness is a coincident surface, not a space to open up,
             // and it gives the fractional ConstraintThickness no base to work from.
-            if (thicknessOf(surface) != 0.0)
+            if (thicknessOf(surface) != 0.0 && !contains(thicknessExclusions, surface))
                 result.push_back(
-                    std::make_shared<VarThickness>(prescription, surface, _scenario));
+                    std::make_shared<VarThickness>(prescription_, surface, _scenario));
         }
     } else {
         for (int surface : thicknessSurfaces)
             result.push_back(
-                std::make_shared<VarThickness>(prescription, surface, _scenario));
+                std::make_shared<VarThickness>(prescription_, surface, _scenario));
     }
     if (includeExistingAspherics) {
         for (int surfaceId = 0; surfaceId < static_cast<int>(surfaces.size());
              surfaceId++) {
+            if (hasExplicitAsphericTerms(surfaceId))
+                continue;
             const auto &surface = surfaces[static_cast<std::size_t>(surfaceId)];
             if (surface._k != 0.0)
-                result.push_back(std::make_shared<VarAsphK>(prescription, surfaceId));
+                result.push_back(std::make_shared<VarAsphK>(prescription_, surfaceId));
             if (!surface._coeffs.has_value())
                 continue;
             for (int coefficient = 0;
@@ -576,11 +717,46 @@ std::vector<std::shared_ptr<Var>> OptimizationBuilder::buildVariables() const {
                 double value = (*surface._coeffs)[static_cast<std::size_t>(coefficient)];
                 if (value != 0.0)
                     result.push_back(std::make_shared<VarAsphCoeff>(
-                        prescription, surfaceId, coefficient, scalingFor(value)));
+                        prescription_, surfaceId, coefficient, scalingFor(value)));
             }
         }
     }
+    auto explicitTerms = explicitAsphericVariables();
+    result.insert(result.end(), explicitTerms.begin(), explicitTerms.end());
     result.insert(result.end(), additionalVariables_.begin(), additionalVariables_.end());
+    return result;
+}
+
+std::vector<std::shared_ptr<Var>> OptimizationBuilder::explicitAsphericVariables() const {
+    std::vector<std::shared_ptr<Var>> result;
+    for (const AsphericTerm &term : asphericTerms) {
+        auto &surface = prescription_->_surface_list[static_cast<std::size_t>(term.surface)];
+        if (!surface.is_aspheric())
+            surface._asph_type = asphereTypeOf(term.surface);
+        if (!surface._coeffs.has_value())
+            surface._coeffs = std::vector<double>();
+        if (term.index < 0) {
+            result.push_back(std::make_shared<VarAsphK>(prescription_, term.surface));
+            continue;
+        }
+        auto index = static_cast<std::size_t>(term.index);
+        if (surface._coeffs->size() <= index)
+            surface._coeffs->resize(index + 1, 0.0);
+        double value = (*surface._coeffs)[index];
+        double scale;
+        if (term.scale.has_value())
+            scale = *term.scale;
+        else if (value != 0.0)
+            scale = scalingFor(value);
+        else
+            // Java's Math.round(double), which is floor(x + 0.5) rather than
+            // std::round's half-away-from-zero.
+            scale = std::pow(10.0, std::floor(powerOf(surface._asph_type, term.index) *
+                                                  std::log10(surface._diameter / 2.0) +
+                                              0.5));
+        result.push_back(std::make_shared<VarAsphCoeff>(prescription_, term.surface,
+                                                        term.index, scale));
+    }
     return result;
 }
 
@@ -623,8 +799,8 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
     }
 
     int contrastSamples = contrastRings * contrastSpokes;
-    const auto &wvls = prescription->_wvls;
-    const auto &wts = prescription->_wts;
+    const auto &wvls = prescription_->_wvls;
+    const auto &wts = prescription_->_wts;
     for (int contrast_index = 0; contrast_index < static_cast<int>(_contrastGoals.size());
          contrast_index++) {
         const auto &curve = _contrastGoals[static_cast<std::size_t>(contrast_index)];
@@ -702,11 +878,10 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
         }
     }
 
-    // Anchor first-order properties to the requested prescription values.
-    result.push_back(std::make_shared<GoalParax>(
-        analysis, ParaxHelper::Effective_focal_length, focalLengthOf(), 1.0));
-    result.push_back(
-        std::make_shared<GoalParax>(analysis, ParaxHelper::Fno, fNumberOf(), 1.0));
+    // Anchor first-order properties to the requested prescription values, unless the
+    // caller has set targets of its own.
+    result.push_back(anchor(analysis, ParaxHelper::Effective_focal_length, focalLengthOf()));
+    result.push_back(anchor(analysis, ParaxHelper::Fno, fNumberOf()));
 
     if (addRayAberrationGoals) {
         for (int field = 1; field <= static_cast<int>(fields_.size()); field++) {
@@ -725,6 +900,11 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
             }
         }
     }
+    for (const ParaxialGoal &goal : paraxialGoals)
+        if (goal.paraxId != ParaxHelper::Effective_focal_length &&
+            goal.paraxId != ParaxHelper::Fno)
+            result.push_back(std::make_shared<GoalParax>(analysis, goal.paraxId, goal.target,
+                                                         goal.weight));
     for (const auto &factory : additionalGoalFactories) {
         auto goal = factory(analysis);
         if (goal == nullptr)
@@ -808,9 +988,11 @@ void OptimizationBuilder::validate() const {
                                       "spot maximum radius");
     validateSurfaces(curvatureSurfaces, "curvature");
     validateSurfaces(thicknessSurfaces, "thickness");
+    validateSurfaces(curvatureExclusions, "excluded curvature");
+    validateSurfaces(thicknessExclusions, "excluded thickness");
     if (addRayAberrationGoals && _dLineOnly) {
         bool any = false;
-        for (double w : prescription->_wvls)
+        for (double w : prescription_->_wvls)
             if (sameWavelength(w, Glass::d))
                 any = true;
         if (!any)
@@ -823,7 +1005,7 @@ void OptimizationBuilder::validateSurfaces(const std::vector<int> &surfaces,
                                            const char *kind) const {
     std::set<int> seen;
     for (int surface : surfaces) {
-        if (surface < 0 || surface >= static_cast<int>(prescription->_surface_list.size()))
+        if (surface < 0 || surface >= static_cast<int>(prescription_->_surface_list.size()))
             throw IllegalArgumentException(std::string(kind) +
                                            " surface is out of range: " +
                                            intToString(surface));
@@ -831,6 +1013,14 @@ void OptimizationBuilder::validateSurfaces(const std::vector<int> &surfaces,
             throw IllegalArgumentException("duplicate " + std::string(kind) +
                                            " surface: " + intToString(surface));
     }
+}
+
+std::shared_ptr<Goal> OptimizationBuilder::anchor(Analysis *analysis, int paraxId,
+                                                 double prescribed) const {
+    for (const ParaxialGoal &goal : paraxialGoals)
+        if (goal.paraxId == paraxId)
+            return std::make_shared<GoalParax>(analysis, paraxId, goal.target, goal.weight);
+    return std::make_shared<GoalParax>(analysis, paraxId, prescribed, 1.0);
 }
 
 double OptimizationBuilder::scalingFor(double value) {
@@ -907,6 +1097,229 @@ void OptimizationBuilder::SpotGoals::validate(int fieldCount, const char *name) 
         if (!std::isfinite(weight) || weight < 0.0)
             throw IllegalArgumentException(std::string(name) +
                                            " weights must be finite and non-negative");
+}
+
+
+// ---------------------------------------------------------------------------
+// Writing - the setup as a [trial n] section
+// ---------------------------------------------------------------------------
+
+namespace {
+
+std::string yesNo(bool value) {
+    return value ? "yes" : "no";
+}
+
+/** OptimizationTrial::line, reached through the same short name the Java uses. */
+void line(std::string &sb, const std::string &key, const std::string &values) {
+    OptimizationTrial::line(sb, key, values);
+}
+
+} // namespace
+
+std::string OptimizationBuilder::toTrial(int number) const {
+    if (!additionalVariables_.empty() || !additionalGoalFactories.empty())
+        throw IllegalStateException("variables and goals added as code have no written form, "
+                                    "so this setup cannot be written as a trial");
+    std::string sb;
+    sb += "[trial " + intToString(number) + "]\n";
+    if (_description.has_value())
+        line(sb, "description", *_description);
+    if (_outdir.has_value())
+        line(sb, "outdir", *_outdir);
+    line(sb, "configuration", intToString(_scenario));
+    if (_fields.has_value())
+        line(sb, "fields", OptimizationTrial::format(*_fields));
+    if (_mtfFrequencies.has_value())
+        line(sb, "frequencies", OptimizationTrial::format(*_mtfFrequencies));
+    line(sb, "weighted", yesNo(_weighted));
+    line(sb, "d-line-only", yesNo(_dLineOnly));
+    line(sb, "vignetting", OptimizationTrial::kebab(util::Args::vig_type_name(vigType)) +
+                               (freezeVignetting_ ? " frozen" : ""));
+    if (!_checkSpotApertures || (tracesSpots() && !hexapolarPattern()))
+        line(sb, "check-spot-apertures", yesNo(_checkSpotApertures));
+
+    if (allCurvatureSurfaces)
+        line(sb, "vary curvatures", allExcept(curvatureExclusions));
+    else if (!curvatureSurfaces.empty())
+        line(sb, "vary curvatures", OptimizationTrial::format(curvatureSurfaces));
+    if (allThicknessSurfaces)
+        line(sb, "vary thicknesses", allExcept(thicknessExclusions));
+    else if (!thicknessSurfaces.empty())
+        line(sb, "vary thicknesses", OptimizationTrial::format(thicknessSurfaces));
+    if (includeExistingAspherics)
+        line(sb, "vary aspherics", "existing");
+    // A LinkedHashMap in the Java: one row per surface, surfaces in the order their first
+    // term was given.
+    std::vector<int> termSurfaces;
+    std::vector<std::string> termRows;
+    for (const AsphericTerm &term : asphericTerms) {
+        std::string written =
+            term.index < 0 ? std::string("K")
+                           : intToString(term.index) +
+                                 (term.scale.has_value()
+                                      ? ":" + OptimizationTrial::format(*term.scale)
+                                      : "");
+        auto found = std::find(termSurfaces.begin(), termSurfaces.end(), term.surface);
+        if (found == termSurfaces.end()) {
+            termSurfaces.push_back(term.surface);
+            termRows.push_back(written);
+        } else
+            termRows[static_cast<std::size_t>(found - termSurfaces.begin())] += " " + written;
+    }
+    for (std::size_t i = 0; i < termSurfaces.size(); i++)
+        line(sb, "vary aspherics", intToString(termSurfaces[i]) + " " + termRows[i]);
+
+    if (curvatureConstraintWeight.has_value())
+        line(sb, "constrain curvatures", OptimizationTrial::format(*curvatureConstraintWeight));
+    if (thicknessConstraintWeight.has_value())
+        line(sb, "constrain thicknesses", OptimizationTrial::format(*thicknessConstraintWeight));
+    if (edgeThicknessConstraintWeight.has_value())
+        line(sb, "constrain edges", OptimizationTrial::format(*edgeThicknessConstraintWeight));
+
+    if (!_contrastGoals.empty()) {
+        std::vector<int> frequencies;
+        for (const ContrastGoals &goal : _contrastGoals)
+            frequencies.push_back(goal.frequency);
+        line(sb, "goal contrast", OptimizationTrial::format(frequencies));
+        contrastWeights(sb, true);
+        contrastWeights(sb, false);
+        if (contrastBalanceFields.has_value())
+            line(sb, "goal contrast",
+                 "balance " + balance() + " weight " +
+                     OptimizationTrial::format(contrastBalanceWeight));
+        line(sb, "goal contrast",
+             "sampling " + intToString(contrastRings) + " " + intToString(contrastSpokes));
+        line(sb, "goal contrast", "calibrate " + yesNo(calibrateContrastFrequency_));
+        line(sb, "goal contrast", "exit-pupil-aiming " + yesNo(aimContrastAtExitPupil_));
+        line(sb, "goal contrast", "centering " + yesNo(centerContrastResiduals_));
+    }
+    for (const MtfGoals &goal : _mtfGoals) {
+        std::string frequency = intToString(goal.frequency);
+        line(sb, "goal mtf", frequency + " sag " + OptimizationTrial::format(goal.sagittal));
+        line(sb, "goal mtf", frequency + " tan " + OptimizationTrial::format(goal.tangential));
+        if (goal.sagittalWeights == goal.tangentialWeights) {
+            if (!allOnes(goal.sagittalWeights))
+                line(sb, "goal mtf",
+                     frequency + " weights " + OptimizationTrial::format(goal.sagittalWeights));
+        } else {
+            if (!allOnes(goal.sagittalWeights))
+                line(sb, "goal mtf", frequency + " sag weights " +
+                                         OptimizationTrial::format(goal.sagittalWeights));
+            if (!allOnes(goal.tangentialWeights))
+                line(sb, "goal mtf", frequency + " tan weights " +
+                                         OptimizationTrial::format(goal.tangentialWeights));
+        }
+    }
+    spotGoals(sb, "goal spot-rms", spotRmsGoals_);
+    spotGoals(sb, "goal spot-max-radius", spotMaxRadiusGoals_);
+    if (addSpotDeviationGoals) {
+        if (spotDeviationXWeights == spotDeviationYWeights)
+            line(sb, "goal spot-deviation", OptimizationTrial::format(*spotDeviationXWeights));
+        else {
+            line(sb, "goal spot-deviation",
+                 "x " + OptimizationTrial::format(*spotDeviationXWeights));
+            line(sb, "goal spot-deviation",
+                 "y " + OptimizationTrial::format(*spotDeviationYWeights));
+        }
+    }
+    if (gaussianQuadratureRings != DEFAULT_GAUSSIAN_QUADRATURE_RINGS ||
+        gaussianQuadratureSpokes != DEFAULT_GAUSSIAN_QUADRATURE_SPOKES ||
+        gaussianQuadratureInnerRadius != 0.0 || (tracesSpots() && !hexapolarPattern()))
+        line(sb, "goal spot sampling",
+             "gaussian " + intToString(gaussianQuadratureRings) + " " +
+                 intToString(gaussianQuadratureSpokes) +
+                 (gaussianQuadratureInnerRadius != 0.0
+                      ? " " + OptimizationTrial::format(gaussianQuadratureInnerRadius)
+                      : ""));
+    if (hexapolarPattern())
+        line(sb, "goal spot sampling", "hexapolar " + intToString(hexapolarSpotRays));
+    line(sb, "goal ray-aberrations", yesNo(addRayAberrationGoals));
+    for (const ParaxialGoal &goal : paraxialGoals)
+        line(sb, "goal paraxial",
+             OptimizationTrial::paraxialName(goal.paraxId) + " " +
+                 OptimizationTrial::format(goal.target) +
+                 (goal.weight != 1.0 ? " weight " + OptimizationTrial::format(goal.weight)
+                                     : ""));
+    return sb;
+}
+
+std::string OptimizationBuilder::allExcept(const std::vector<int> &exclusions) {
+    return exclusions.empty() ? "all" : "all except " + OptimizationTrial::format(exclusions);
+}
+
+void OptimizationBuilder::contrastWeights(std::string &sb, bool sagittal) const {
+    std::string direction = sagittal ? "sag" : "tan";
+    const std::vector<double> &first =
+        sagittal ? _contrastGoals[0].sagittalWeights : _contrastGoals[0].tangentialWeights;
+    bool shared = true;
+    for (const ContrastGoals &goal : _contrastGoals)
+        if ((sagittal ? goal.sagittalWeights : goal.tangentialWeights) != first)
+            shared = false;
+    if (shared) {
+        if (!allOnes(first))
+            line(sb, "goal contrast", direction + " " + OptimizationTrial::format(first));
+        return;
+    }
+    for (const ContrastGoals &goal : _contrastGoals) {
+        const std::vector<double> &weights =
+            sagittal ? goal.sagittalWeights : goal.tangentialWeights;
+        if (!allOnes(weights))
+            line(sb, "goal contrast", intToString(goal.frequency) + " " + direction + " " +
+                                          OptimizationTrial::format(weights));
+    }
+}
+
+std::string OptimizationBuilder::balance() const {
+    bool all = true, none = true;
+    for (bool flag : *contrastBalanceFields) {
+        all = all && flag;
+        none = none && !flag;
+    }
+    if (all)
+        return "all";
+    if (none || !_fields.has_value() || _fields->size() != contrastBalanceFields->size()) {
+        std::string flags;
+        for (bool flag : *contrastBalanceFields) {
+            if (!flags.empty())
+                flags += " ";
+            flags += yesNo(flag);
+        }
+        return flags;
+    }
+    std::string except;
+    for (std::size_t i = 0; i < _fields->size(); i++)
+        if (!(*contrastBalanceFields)[i]) {
+            if (!except.empty())
+                except += " ";
+            except += OptimizationTrial::format((*_fields)[i]);
+        }
+    return "all except " + except;
+}
+
+void OptimizationBuilder::spotGoals(std::string &sb, const char *key,
+                                    const std::optional<SpotGoals> &goals) {
+    if (!goals.has_value())
+        return;
+    line(sb, key, OptimizationTrial::format(goals->targets));
+    if (!allOnes(goals->weights))
+        line(sb, key, "weights " + OptimizationTrial::format(goals->weights));
+}
+
+bool OptimizationBuilder::tracesSpots() const {
+    return spotRmsGoals_.has_value() || spotMaxRadiusGoals_.has_value() ||
+           addSpotDeviationGoals || !_mtfGoals.empty();
+}
+
+bool OptimizationBuilder::hexapolarPattern() const {
+    return useHexapolarSpotPattern || spotMaxRadiusGoals_.has_value();
+}
+
+bool OptimizationBuilder::allOnes(const std::vector<double> &values) {
+    for (double value : values)
+        if (value != 1.0)
+            return false;
+    return true;
 }
 
 } // namespace redukti::optim

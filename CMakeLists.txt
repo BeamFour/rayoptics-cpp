@@ -98,6 +98,8 @@ add_library(rayoptics
     src/optim/Constraint.cpp
     src/optim/LMDer.cpp
     src/optim/OptimizationBuilder.cpp
+    src/optim/OptimizationTrial.cpp
+    src/optim/OptimizationPipeline.cpp
     src/optim/ConfigurationReport.cpp
     src/spec/SurfaceType.cpp
     src/spec/Prescription.cpp
@@ -147,6 +149,11 @@ add_executable(mathlib_tests
     tests/OptimTest.cpp
     tests/OptimSolveTest.cpp
     tests/OtusOptimTest.cpp
+    tests/SetupAssertions.cpp
+    tests/OptimizationTrialTest.cpp
+    tests/OptimizationPipelineTest.cpp
+    tests/OptimizationTrialRunTest.cpp
+    tests/OptimizationTrialExamplesTest.cpp
     tests/NikkorZ58Model.cpp
     tests/MtfTest.cpp
     tests/OrientationTest.cpp
