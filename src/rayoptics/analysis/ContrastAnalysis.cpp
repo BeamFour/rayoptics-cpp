@@ -45,8 +45,8 @@ ContrastOptions &ContrastOptions::num_rings(int value) {
 }
 
 ContrastOptions &ContrastOptions::num_spokes(std::optional<int> value) {
-    if (value.has_value() && *value < 1)
-        throw IllegalArgumentException("Number of spokes must be at least 1");
+    if (value.has_value() && *value < 3)
+        throw IllegalArgumentException("Number of spokes must be at least 3");
     numSpokes = value;
     return *this;
 }

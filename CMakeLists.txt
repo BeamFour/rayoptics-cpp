@@ -98,6 +98,7 @@ add_library(rayoptics
     src/optim/Constraint.cpp
     src/optim/LMDer.cpp
     src/optim/OptimizationBuilder.cpp
+    src/optim/OptimizationConfiguration.cpp
     src/optim/OptimizationTrial.cpp
     src/optim/OptimizationPipeline.cpp
     src/optim/ConfigurationReport.cpp
@@ -113,6 +114,7 @@ add_library(rayoptics
     src/rayoptics/analysis/Histogram.cpp
     src/rayoptics/analysis/MTF.cpp
     src/rayoptics/analysis/SpotAnalysis.cpp
+    src/rayoptics/analysis/PupilMapAnalysis.cpp
     src/rayoptics/analysis/RayAberrations.cpp
     src/rayoptics/analysis/ContrastAnalysis.cpp
 )
@@ -154,6 +156,7 @@ add_executable(mathlib_tests
     tests/OptimizationPipelineTest.cpp
     tests/OptimizationTrialRunTest.cpp
     tests/OptimizationTrialExamplesTest.cpp
+    tests/PupilMapAnalysisTest.cpp
     tests/NikkorZ58Model.cpp
     tests/MtfTest.cpp
     tests/OrientationTest.cpp

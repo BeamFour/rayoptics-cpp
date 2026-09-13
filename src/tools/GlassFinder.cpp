@@ -189,11 +189,17 @@ std::string readFile(const std::string &path) {
 } // namespace
 
 GlassFinder::EnrichmentResult GlassFinder::enrich(const std::string &input, bool force) {
-    return enrich(input, force, Glass::IndexLine::D);
+    return enrich(input, force, Glass::IndexLine::D, Glass::IndexLine::D);
 }
 
 GlassFinder::EnrichmentResult GlassFinder::enrich(const std::string &input, bool force,
                                                   Glass::IndexLine indexLine) {
+    return enrich(input, force, indexLine, Glass::IndexLine::D);
+}
+
+GlassFinder::EnrichmentResult GlassFinder::enrich(const std::string &input, bool force,
+                                                  Glass::IndexLine indexLine,
+                                                  Glass::IndexLine abbeLine) {
     std::string newline = input.find("\r\n") != std::string::npos ? "\r\n" : "\n";
     bool endsWithNewline = !input.empty() && input.back() == '\n';
     std::vector<std::string> lines = splitLines(input);
@@ -236,7 +242,7 @@ GlassFinder::EnrichmentResult GlassFinder::enrich(const std::string &input, bool
             continue;
         }
 
-        auto matches = Glass::find_glasses(*nd, *vd, indexLine);
+        auto matches = Glass::find_glasses(*nd, *vd, indexLine, abbeLine);
         if (matches.empty()) {
             unmatched++;
             output.push_back(line);
@@ -254,7 +260,7 @@ GlassFinder::EnrichmentResult GlassFinder::enrich(const std::string &input, bool
             // String.join renders a null element as "null".
             fields[6] = glass->label.value_or("null");
             fields[7] = glass->catalog_name.value_or("null");
-            if (indexLine == Glass::IndexLine::E) {
+            if (indexLine == Glass::IndexLine::E || abbeLine == Glass::IndexLine::E) {
                 // The columns held ne and vd; restate them at the d line so that
                 // anything reading this file without knowing the original
                 // convention still gets the right medium.
@@ -284,7 +290,8 @@ void GlassFinder::run(const util::Args &arguments) {
                                                                    "specs.txt", std::nullopt);
 
     EnrichmentResult result =
-        enrich(readFile(input), arguments.force, arguments.index_line_value());
+        enrich(readFile(input), arguments.force, arguments.index_line_value(),
+               arguments.abbe_line_value());
     util::Helper::createOutputFile(output, result.text);
     std::cout << "Selected " << result.selected << " glass types; " << result.ambiguous
               << " ambiguous; " << result.unmatched << " unmatched" << std::endl;
@@ -292,10 +299,13 @@ void GlassFinder::run(const util::Args &arguments) {
 
 void GlassFinder::usage() {
     std::cerr << "Usage: GlassFinder --specfile input.txt -o output.txt [--index-line d|e] "
-                 "[--force]"
+                 "[--abbe-line d|e] [--force]"
               << std::endl;
     std::cerr << "       --index-line e when the prescription quotes the refractive index "
                  "at the e line"
+              << std::endl;
+    std::cerr << "       --abbe-line e  when it also quotes the Abbe number as ve, as Leica "
+                 "patents do"
               << std::endl;
 }
 

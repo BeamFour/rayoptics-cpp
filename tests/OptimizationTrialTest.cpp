@@ -10,11 +10,16 @@
 #include "redukti/Text.h"
 #include "redukti/importers/OpticalBenchDataImporter.h"
 #include "redukti/optim/OptimizationTrial.h"
+#include "redukti/optim/Analysis.h"
 #include "redukti/optim/ParaxHelper.h"
+#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/rayoptics/analysis/SpotAnalysis.h"
 #include "redukti/spec/Prescription.h"
 #include "redukti/spec/SurfaceType.h"
 
+#include <algorithm>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -35,6 +40,9 @@ using redukti::optim::VarThickness;
 using redukti::spec::Prescription;
 using redukti::spec::SurfaceType;
 using redukti::test::assertSameSetup;
+using redukti::IllegalArgumentException;
+using redukti::rayoptics::analysis::ContrastOptions;
+using redukti::rayoptics::analysis::SpotOptions;
 using TrialException = OptimizationTrial::TrialException;
 
 /** Eleven surfaces, 0 to 10: the stop is 5, surfaces 3, 7 and 9 are flat, and 10 the last. */
@@ -126,6 +134,39 @@ void checkMentions(const std::string &message, const std::string &part) {
                                            part + "\"");
 }
 
+/** Java's replaceAll("\\s+", " "): runs of whitespace collapsed to one space. */
+std::string normalizeSpaces(const std::string &text) {
+    std::string out;
+    bool space = false;
+    for (char ch : text) {
+        bool isSpace = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\f' ||
+                       ch == '\v';
+        if (isSpace) {
+            if (!space)
+                out.push_back(' ');
+        } else
+            out.push_back(ch);
+        space = isSpace;
+    }
+    return out;
+}
+
+/** Java's text.split("\n", -1).length: the lines, counting a trailing empty one. */
+int lineCount(const std::string &text) {
+    return static_cast<int>(std::count(text.begin(), text.end(), '\n')) + 1;
+}
+
+/** The message of the TrialException `call` throws; a failure when it throws nothing. */
+template <typename Call> std::string trialErrorOf(Call call) {
+    try {
+        call();
+    } catch (const TrialException &e) {
+        return e.getMessage();
+    }
+    ::redukti::test::reportFailure(__FILE__, __LINE__, "expected a TrialException");
+    return "";
+}
+
 const char *const MTF_FIVE_FIELDS = R"(fields        0 to 1 step 0.25
 frequencies   20
 goal mtf      20 sag   50 50 50 50 50
@@ -134,6 +175,90 @@ goal mtf      20 tan   50 50 50 50 50
 
 std::string trialOf(const std::string &settings) {
     return std::string("[trial 1]\n") + MTF_FIVE_FIELDS + settings;
+}
+
+TEST(trial_reusesParsedDefinitionAndRoundTripsItsSettings) {
+    std::string text =
+        withTrials(SUMMICRON, trialOf("vary thicknesses 10\nweighted no\nd-line-only yes\n"));
+    auto definition = OptimizationTrial::parse(text, 1);
+    auto first = definition.createBuilder(text, true);
+    std::string canonical = definition.toTrial(first.prescription.get());
+    CHECK_STR_EQ(definition.toTrial(), canonical);
+    CHECK_STR_EQ(first.builder.toTrial(1), canonical);
+    CHECK_EQ(definition.number(), 1);
+    CHECK(contains(canonical, "weighted"));
+    {
+        auto expectedTrial = read(text);
+        auto expected = expectedTrial.builder.build();
+        auto actual = first.builder.build();
+        assertSameSetup("first stage", expected, actual);
+    }
+
+    // A stage hands on its changed design, without needing to carry trial text for the
+    // already-parsed definition to construct a fresh stage.
+    first.prescription->_surface_list[10]._thickness += 0.25;
+    std::string design;
+    first.prescription->to_opt_bench_str(design);
+    auto next = definition.createBuilder(design, true);
+    CHECK(first.prescription.get() != next.prescription.get());
+    CHECK_CLOSE(next.prescription->_surface_list[10]._thickness,
+                first.prescription->_surface_list[10]._thickness, 1e-8);
+    CHECK_STR_EQ(definition.toTrial(next.prescription.get()), canonical);
+    CHECK(first.prescription->_wvls == next.prescription->_wvls);
+
+    auto reread = OptimizationTrial::parse(design + "\n" + canonical, 1);
+    CHECK_STR_EQ(reread.toTrial(next.prescription.get()), canonical);
+    {
+        auto expected = next.builder.build();
+        auto rebuilt = reread.createBuilder(design, true);
+        auto actual = rebuilt.builder.build();
+        assertSameSetup("next stage", expected, actual);
+    }
+    // Changing one returned builder must not change the reusable definition.
+    next.builder.fields({0.0});
+    next.builder.contrastGoals({OptimizationBuilder::contrast(30, std::vector<double>{1.0})});
+    next.builder.varyCurvatures({0});
+    next.builder.contrastBalanceGoals(std::vector<bool>{true});
+    CHECK_STR_EQ(definition.toTrial(first.prescription.get()), canonical);
+    CHECK_STR_EQ(definition.toTrial(), canonical);
+    CHECK_STR_EQ(definition.createBuilder(design, true).builder.toTrial(1), canonical);
+}
+
+TEST(trial_effectiveAnalysesAndSamplingSurviveRoundTrip) {
+    struct Case {
+        const char *goals;
+        bool spots, rays, mtf, hexapolar;
+    };
+    const Case cases[] = {
+        {"", false, false, false, false},
+        {"goal spot-rms 10\n", true, false, false, false},
+        {"goal spot-max-radius 10\n", true, false, false, true},
+        {"goal spot-deviation 1\n", true, false, false, false},
+        {"goal mtf 20 sag 50\ngoal mtf 20 tan 50\n", true, false, true, false},
+        {"goal ray-aberrations yes\n", false, true, false, false},
+        {"goal contrast 20\n", false, false, false, false},
+        {"goal spot sampling hexapolar 32\n", false, false, false, true}};
+    for (const Case &c : cases) {
+        std::string text =
+            withTrials(SUMMICRON, std::string("[trial 1]\nfields 0\nfrequencies 20\n") + c.goals);
+        auto trial = read(text);
+        auto setup = trial.builder.build();
+        auto *analysis = setup.analysis();
+        CHECK_EQ(analysis->_compute_spots, c.spots);
+        CHECK_EQ(analysis->_compute_ray_aberrations, c.rays);
+        CHECK_EQ(analysis->_compute_mtf, c.mtf);
+        CHECK_EQ(analysis->_spot_pattern, c.hexapolar ? SpotOptions::PATTERN_HEXAPOLAR
+                                                      : SpotOptions::PATTERN_GAUSS_QUADRATURE);
+        std::string written = trial.builder.toTrial(1);
+        CHECK_STR_EQ(OptimizationTrial::parse(text, 1).toTrial(), written);
+        std::string normalized = normalizeSpaces(written);
+        CHECK_EQ(contains(normalized, "sampling hexapolar"), c.hexapolar);
+        CHECK_EQ(contains(normalized, "sampling gaussian"), c.spots && !c.hexapolar);
+        auto restored = read(withTrials(SUMMICRON, written));
+        CHECK_STR_EQ(restored.builder.toTrial(1), written);
+        auto restoredSetup = restored.builder.build();
+        assertSameSetup(c.goals, setup, restoredSetup);
+    }
 }
 
 TEST(trial_numbersSurfacesByPosition) {
@@ -339,6 +464,12 @@ goal ray-aberrations yes
 )";
     auto trial = read(withTrials(SUMMICRON, loose));
     CHECK_STR_EQ(trial.builder.toTrial(1), EVERYTHING);
+    // Parsing and canonical writing need no prescription or solver construction.
+    auto definition = OptimizationTrial::parse(withTrials(SUMMICRON, loose), 1);
+    CHECK_STR_EQ(definition.toTrial(), EVERYTHING);
+    CHECK_STR_EQ(
+        OptimizationTrial::parse(withTrials(SUMMICRON, definition.toTrial()), 1).toTrial(),
+        EVERYTHING);
 
     // Reading what was written gives the same setup, and writes the same text again.
     auto again = read(withTrials(SUMMICRON, EVERYTHING));
@@ -509,6 +640,113 @@ TEST(trial_reportsProblemsWithTheirLine) {
                          ": coefficient 0 is not a term of an even asphere, whose terms "
                          "start at index 1, the A4 term");
     }
+}
+
+TEST(trial_sharedDomainRulesRejectBothEntryPointsWithSourceContext) {
+    struct Invalid {
+        std::string rows;
+        std::string offendingRow;
+        std::function<void(OptimizationBuilder &)> configure;
+    };
+    const std::vector<Invalid> invalid{
+        {"goal spot-rms -1\n", "goal spot-rms -1",
+         [](OptimizationBuilder &b) { b.spotRmsGoals(std::vector<double>{-1.0}); }},
+        {"goal spot-deviation -1\n", "goal spot-deviation -1",
+         [](OptimizationBuilder &b) { b.spotDeviationGoals(std::vector<double>{-1.0}); }},
+        {"goal spot-rms 1 2\n", "goal spot-rms 1 2",
+         [](OptimizationBuilder &b) { b.spotRmsGoals(std::vector<double>{1.0, 2.0}); }},
+        {"goal mtf 20 sag 101\ngoal mtf 20 tan 50\n", "goal mtf 20 sag 101",
+         [](OptimizationBuilder &b) {
+             b.mtfGoals({OptimizationBuilder::mtf(20, std::vector<double>{101.0},
+                                                  std::vector<double>{50.0})});
+         }},
+        {"goal mtf 30 sag 50\ngoal mtf 30 tan 50\n", "goal mtf 30 sag 50",
+         [](OptimizationBuilder &b) {
+             b.mtfGoals({OptimizationBuilder::mtf(30, std::vector<double>{50.0},
+                                                  std::vector<double>{50.0})});
+         }},
+        {"goal contrast 20 20\n", "goal contrast 20 20", [](OptimizationBuilder &b) {
+             b.contrastGoals({OptimizationBuilder::contrast(20, std::vector<double>{1.0}),
+                              OptimizationBuilder::contrast(20, std::vector<double>{1.0})});
+         }}};
+    std::string lens = withTrials(SUMMICRON, "");
+    for (const auto &c : invalid) {
+        auto owned = prescription(lens, true, false);
+        auto builder = OptimizationBuilder::builder(&owned).fields({0.0}).mtfFrequencies({20});
+        c.configure(builder);
+        CHECK_THROWS(builder.build(), IllegalArgumentException);
+        std::string text = lens + "\n[trial 1]\nfields 0\nfrequencies 20\n" + c.rows;
+        std::string message = trialErrorOf([&] { OptimizationTrial::parse(text, 1); });
+        int line = lineOf(text, c.offendingRow);
+        if (message.rfind("trial 1, line " + redukti::intToString(line) + ":", 0) != 0)
+            ::redukti::test::reportFailure(__FILE__, __LINE__,
+                                           c.offendingRow + " reported as \"" + message + "\"");
+    }
+}
+
+TEST(trial_writingAnInvalidBuilderPreservesItsHexapolarSetting) {
+    std::string lens = withTrials(SUMMICRON, "");
+    auto owned = prescription(lens, true, false);
+    auto builder = OptimizationBuilder::builder(&owned)
+                       .fields({0.0})
+                       .mtfFrequencies({20})
+                       .spotDeviationGoals(std::vector<double>{1.0})
+                       .hexapolarSampling(32);
+    CHECK_THROWS(builder.build(), IllegalArgumentException);
+    std::string written = builder.toTrial(1);
+    CHECK(contains(normalizeSpaces(written), "goal spot sampling hexapolar 32"));
+    CHECK_THROWS(OptimizationTrial::parse(lens + "\n" + written, 1), TrialException);
+}
+
+TEST(trial_incompatibleSpotSamplingReportsTheConflictingLineInEitherOrder) {
+    for (const char *deviation :
+         {"goal spot-deviation 1", "goal spot-deviation x 1\ngoal spot-deviation y 1"}) {
+        for (const char *conflict : {"goal spot sampling hexapolar 32", "goal spot-max-radius 10"}) {
+            for (bool reverse : {false, true}) {
+                std::string rows = reverse ? std::string(conflict) + "\n" + deviation
+                                           : std::string(deviation) + "\n" + conflict;
+                std::string text =
+                    withTrials(SUMMICRON, "[trial 1]\nfields 0\nfrequencies 20\n" + rows);
+                std::string message = trialErrorOf([&] { OptimizationTrial::parse(text, 1); });
+                CHECK_STR_EQ(message, "trial 1, line " + redukti::intToString(lineCount(text)) +
+                                          ": spot deviation goals require Gaussian-quadrature "
+                                          "spot sampling");
+            }
+        }
+    }
+}
+
+TEST(trial_trialSamplingMatchesTheAvailableTracerPatterns) {
+    std::string prefix = "[trial 1]\nfields 0\nfrequencies 20\n";
+    std::string lens = withTrials(SUMMICRON, "");
+    for (int spokes : {1, 2}) {
+        std::string text = lens + prefix + "goal contrast 20\ngoal contrast sampling 1 " +
+                           redukti::intToString(spokes);
+        std::string message = trialErrorOf([&] { OptimizationTrial::parse(text, 1); });
+        checkMentions(message, "line " + redukti::intToString(lineCount(text)) + ":");
+        auto owned = prescription(lens, true, false);
+        CHECK_THROWS(OptimizationBuilder::builder(&owned).contrastSampling(1, spokes),
+                     IllegalArgumentException);
+        CHECK_THROWS(ContrastOptions(20).num_spokes(spokes), IllegalArgumentException);
+    }
+    CHECK_THROWS(OptimizationTrial::parse(lens + prefix + "goal spot sampling grid 9\n", 1),
+                 TrialException);
+    // Independent spot and contrast settings are valid together, at the lower bound.
+    std::string text = lens + prefix +
+                       "goal spot-rms 10\ngoal spot sampling hexapolar 2\n"
+                       "goal contrast 20\ngoal contrast sampling 1 3\n";
+    auto trial = read(text);
+    auto setup = trial.builder.build();
+    setup.analysis()->compute();
+    CHECK(setup.analysis()->_spots.has_value());
+    CHECK_EQ(setup.analysis()->_contrasts.at(0).fields.at(0).wavelengths.at(0).samples.size(),
+             static_cast<std::size_t>(3));
+    CHECK_EQ(setup.analysis()->_spot_pattern, SpotOptions::PATTERN_HEXAPOLAR);
+    auto restored = read(lens + trial.builder.toTrial(1));
+    auto expected = trial.builder.build();
+    auto actual = restored.builder.build();
+    assertSameSetup("sampling", expected, actual);
+    CHECK_STR_EQ(trial.builder.toTrial(1), restored.builder.toTrial(1));
 }
 
 TEST(trial_rejectsMistakes) {

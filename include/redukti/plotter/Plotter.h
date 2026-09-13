@@ -6,6 +6,7 @@
 #include "redukti/Text.h"
 #include "redukti/rayoptics/analysis/MTF.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
+#include "redukti/rayoptics/analysis/PupilMapAnalysis.h"
 #include "redukti/rayoptics/analysis/SpotAnalysis.h"
 #include "redukti/render/Renderer.h"
 
@@ -93,6 +94,31 @@ public:
 
 private:
     double auto_y_scale() const;
+};
+
+/**
+ * Draws a PupilMapAnalysis map: the part of the pupil a field can use, in green, with the
+ * surfaces that block the rest in colour, and the nominal pupil and the two candidate
+ * vignetting regions drawn over it.
+ *
+ * What to look for: green outside the black circle is light a sampling pattern confined to
+ * the nominal pupil would never trace, and the dashed outlines show whether the four
+ * measured factors put their region where the green actually is.
+ */
+class PupilMapPlot {
+public:
+    /** Borrowed; the caller owns the analysis result. */
+    const rayoptics::analysis::PupilMapAnalysis::PupilMapForField *map;
+
+    explicit PupilMapPlot(const rayoptics::analysis::PupilMapAnalysis::PupilMapForField &map_)
+        : map(&map_) {}
+
+    std::string plot() const { return plot(640); }
+    std::string plot(int size) const;
+
+private:
+    /** The boundary of a candidate region, as the unit circle mapped through it. */
+    void draw_region(render::Renderer &r, const render::Rgb &rgb, bool ellipse) const;
 };
 
 } // namespace redukti::plotter

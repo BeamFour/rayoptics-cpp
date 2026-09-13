@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
                   << "] \\\n";
         std::cerr << "       [--real-ray-aiming|--paraxial-ray-aiming] [--mtf "
                      "freq,freq,...] \\\n";
-        std::cerr << "       [--assign-glass-types [--index-line d|e] [--force] "
+        std::cerr << "       [--assign-glass-types [--index-line d|e] [--abbe-line d|e] [--force] "
                      "[--update-specfile]] [--optimize [--optimize-goal contrast|mtf] | "
                      "--optimize trial]\n";
         std::cerr << "       --assign-glass-types matches each surface's nd/vd to a "
@@ -45,6 +45,8 @@ int main(int argc, char **argv) {
                      "--update-specfile writes the result back to the specfile\n";
         std::cerr << "         --index-line e when the prescription quotes the refractive "
                      "index at the e line rather than the d line\n";
+        std::cerr << "         --abbe-line e  when it also quotes the Abbe number as ve; Leica "
+                     "patents use ne with ve, ne with vd is usually an error\n";
         std::cerr << "       --optimize varies the back focus on a prime, or the other "
                      "variable airspaces on a zoom, at the central field\n";
         std::cerr << "       --optimize-goal defaults to contrast; mtf uses the geometric "
@@ -54,6 +56,13 @@ int main(int argc, char **argv) {
         std::cerr << "         a [pipeline n] section runs its trials in order, each "
                      "starting from the last result, and writes "
                      "<specfile>-pipeline<n>.txt\n";
+        std::cerr << "       --vig-type settles the models the analysis outputs are computed "
+                     "from; the layouts and --optimize set their own\n";
+        std::cerr << "       --output-pupil-maps writes pupil[-semi-skew|-skew].svg and "
+                     "pupil-report.txt: the part of each field's pupil the lens passes,\n";
+        std::cerr << "         the surface that blocks the rest, and how well the vignetting "
+                     "factors describe it; --pupil-map-samples sets the grid, default "
+                  << redukti::rayoptics::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES << "\n";
         std::cerr << "       --mtf takes spatial frequencies in cycles/mm and defaults to "
                      "10,30,50, which is what the reports under Examples/ use\n";
         std::cerr << "       --real-ray-aiming aims the chief ray by tracing a real ray at "

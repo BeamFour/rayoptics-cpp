@@ -3,7 +3,9 @@
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
+#include "redukti/optim/OptimizationConfiguration.h"
 #include "redukti/optim/OptimizationTrial.h"
+#include "redukti/optim/OptimizationValidation.h"
 #include "redukti/optim/ParaxHelper.h"
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/util/Orientation.h"
@@ -11,6 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 
 namespace redukti::optim {
@@ -41,7 +44,12 @@ template <typename T> bool anyGoalIs(const std::vector<std::shared_ptr<Goal>> &g
 } // namespace
 
 OptimizationBuilder::OptimizationBuilder(spec::Prescription *prescription)
-    : prescription_(prescription) {
+    : OptimizationBuilder(prescription, OptimizationConfiguration()) {}
+
+OptimizationBuilder::OptimizationBuilder(spec::Prescription *prescription,
+                                         const OptimizationConfiguration &configuration_)
+    : prescription_(prescription),
+      configuration(std::make_unique<OptimizationConfiguration>(configuration_.copy())) {
     if (prescription == nullptr)
         throw IllegalArgumentException("prescription must not be null");
     // The Java tests `prescription._surfaces == null`, the array build() fills;
@@ -50,39 +58,67 @@ OptimizationBuilder::OptimizationBuilder(spec::Prescription *prescription)
         throw IllegalArgumentException("prescription must be built before optimization");
 }
 
+OptimizationBuilder::OptimizationBuilder(const OptimizationBuilder &other)
+    : prescription_(other.prescription_),
+      configuration(std::make_unique<OptimizationConfiguration>(*other.configuration)),
+      additionalVariables_(other.additionalVariables_),
+      additionalGoalFactories(other.additionalGoalFactories) {}
+
+OptimizationBuilder &OptimizationBuilder::operator=(const OptimizationBuilder &other) {
+    if (this != &other) {
+        prescription_ = other.prescription_;
+        configuration = std::make_unique<OptimizationConfiguration>(*other.configuration);
+        additionalVariables_ = other.additionalVariables_;
+        additionalGoalFactories = other.additionalGoalFactories;
+    }
+    return *this;
+}
+
+OptimizationBuilder::OptimizationBuilder(OptimizationBuilder &&other) noexcept = default;
+OptimizationBuilder &OptimizationBuilder::operator=(OptimizationBuilder &&other) noexcept = default;
+OptimizationBuilder::~OptimizationBuilder() = default;
+
+const std::optional<std::string> &OptimizationBuilder::description() const {
+    return configuration->description;
+}
+
+const std::optional<std::string> &OptimizationBuilder::outdir() const {
+    return configuration->outdir;
+}
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 OptimizationBuilder &OptimizationBuilder::description(
     const std::optional<std::string> &description) {
-    this->_description = description;
+    configuration->description = description;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::outdir(const std::optional<std::string> &outdir) {
-    this->_outdir = outdir;
+    configuration->outdir = outdir;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::fields(const std::vector<double> &fields_) {
-    this->_fields = fields_;
+    configuration->fields = fields_;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::mtfFrequencies(
     const std::vector<int> &frequencies) {
-    this->_mtfFrequencies = frequencies;
+    configuration->mtfFrequencies = frequencies;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::weighted(bool weighted_) {
-    this->_weighted = weighted_;
+    configuration->weighted = weighted_;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::dLineOnly(bool dLineOnly_) {
-    this->_dLineOnly = dLineOnly_;
+    configuration->dLineOnly = dLineOnly_;
     return *this;
 }
 
@@ -90,62 +126,55 @@ OptimizationBuilder &OptimizationBuilder::scenario(int scenario_) {
     if (scenario_ < 0)
         throw IllegalArgumentException("scenario must be non-negative, got " +
                                        intToString(scenario_));
-    this->_scenario = scenario_;
+    configuration->scenario = scenario_;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::vignetting(spec::VigType vigType_) {
-    this->vigType = vigType_;
+    configuration->vigType = vigType_;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::freezeVignetting(bool freeze) {
-    this->freezeVignetting_ = freeze;
+    configuration->freezeVignetting = freeze;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::gaussianQuadratureSampling(
     int rings, int spokes, double innerPupilRadius) {
-    if (rings < 1 || spokes < 3)
-        throw IllegalArgumentException(
-            "Gaussian quadrature requires at least 1 ring and 3 spokes");
-    if (!std::isfinite(innerPupilRadius) || innerPupilRadius < 0.0 ||
-        innerPupilRadius >= 1.0)
-        throw IllegalArgumentException("Inner pupil radius must be finite and in [0, 1)");
-    this->gaussianQuadratureRings = rings;
-    this->gaussianQuadratureSpokes = spokes;
-    this->gaussianQuadratureInnerRadius = innerPupilRadius;
+    configuration->gaussianSampling(rings, spokes, innerPupilRadius);
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::checkSpotApertures(bool check) {
-    this->_checkSpotApertures = check;
+    configuration->checkSpotApertures = check;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::hexapolarSampling(int numRays) {
     if (numRays < 1)
-        throw IllegalArgumentException("hexapolar spot rays must be at least 1");
-    this->useHexapolarSpotPattern = true;
-    this->hexapolarSpotRays = numRays;
+        throw IllegalArgumentException("hexapolar spot rings must be at least 1");
+    configuration->useHexapolarSpotPattern = true;
+    configuration->hexapolarSpotRays = numRays;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::contrastSampling(int rings, int spokes) {
-    if (rings < 1 || spokes < 1)
-        throw IllegalArgumentException("contrast rings and spokes must be at least 1");
-    contrastRings = rings;
-    contrastSpokes = spokes;
+    if (rings < 1 || spokes < 3)
+        throw IllegalArgumentException(
+            "contrast sampling requires at least 1 ring and 3 spokes");
+    configuration->contrastRings = rings;
+    configuration->contrastSpokes = spokes;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::calibrateContrastFrequency(bool value) {
-    calibrateContrastFrequency_ = value;
+    configuration->calibrateContrastFrequency = value;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::aimContrastAtExitPupil(bool value) {
-    aimContrastAtExitPupil_ = value;
+    configuration->aimContrastAtExitPupil = value;
     return *this;
 }
 
@@ -163,7 +192,7 @@ OptimizationBuilder &OptimizationBuilder::aimContrastAtExitPupil(bool value) {
  * ContrastAnalysis#center_residuals(ContrastAnalysisResult, int).
  */
 OptimizationBuilder &OptimizationBuilder::centerContrastResiduals(bool value) {
-    centerContrastResiduals_ = value;
+    configuration->centerContrastResiduals = value;
     return *this;
 }
 
@@ -173,9 +202,9 @@ OptimizationBuilder &OptimizationBuilder::centerContrastResiduals(bool value) {
 
 OptimizationBuilder &OptimizationBuilder::varyCurvatures(
     const std::vector<int> &surfaces) {
-    this->curvatureSurfaces = surfaces;
-    this->allCurvatureSurfaces = false;
-    this->curvatureExclusions.clear();
+    configuration->curvatureSurfaces = surfaces;
+    configuration->allCurvatureSurfaces = false;
+    configuration->curvatureExclusions.clear();
     return *this;
 }
 
@@ -185,17 +214,17 @@ OptimizationBuilder &OptimizationBuilder::varyAllCurvatures() {
 
 OptimizationBuilder &OptimizationBuilder::varyAllCurvaturesExcept(
     const std::vector<int> &surfaces) {
-    this->curvatureSurfaces.clear();
-    this->allCurvatureSurfaces = true;
-    this->curvatureExclusions = surfaces;
+    configuration->curvatureSurfaces.clear();
+    configuration->allCurvatureSurfaces = true;
+    configuration->curvatureExclusions = surfaces;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::varyThicknesses(
     const std::vector<int> &surfaces) {
-    this->thicknessSurfaces = surfaces;
-    this->allThicknessSurfaces = false;
-    this->thicknessExclusions.clear();
+    configuration->thicknessSurfaces = surfaces;
+    configuration->allThicknessSurfaces = false;
+    configuration->thicknessExclusions.clear();
     return *this;
 }
 
@@ -213,14 +242,14 @@ OptimizationBuilder &OptimizationBuilder::varyAllThicknesses() {
 
 OptimizationBuilder &OptimizationBuilder::varyAllThicknessesExcept(
     const std::vector<int> &surfaces) {
-    this->thicknessSurfaces.clear();
-    this->allThicknessSurfaces = true;
-    this->thicknessExclusions = surfaces;
+    configuration->thicknessSurfaces.clear();
+    configuration->allThicknessSurfaces = true;
+    configuration->thicknessExclusions = surfaces;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::varyExistingAspherics(bool include) {
-    this->includeExistingAspherics = include;
+    configuration->includeExistingAspherics = include;
     return *this;
 }
 
@@ -249,7 +278,7 @@ OptimizationBuilder &OptimizationBuilder::addAsphericTerm(
     if (definition.is_aperture_stop() || definition.is_field_stop())
         throw IllegalArgumentException("surface " + intToString(surface) +
                                        " is a stop; it cannot be aspheric");
-    for (const AsphericTerm &term : asphericTerms)
+    for (const AsphericTerm &term : configuration->asphericTerms)
         if (term.surface == surface && term.index == index)
             throw IllegalArgumentException(
                 (index < 0 ? std::string("the conic constant")
@@ -264,7 +293,7 @@ OptimizationBuilder &OptimizationBuilder::addAsphericTerm(
                 " has no diameter to derive a scale for coefficient " + intToString(index) +
                 " from; give the coefficient a scale");
     }
-    asphericTerms.push_back(AsphericTerm{surface, index, scale});
+    configuration->asphericTerms.push_back(AsphericTerm{surface, index, scale});
     return *this;
 }
 
@@ -307,7 +336,7 @@ double OptimizationBuilder::coefficientOf(int surface, int index) const {
 }
 
 bool OptimizationBuilder::hasExplicitAsphericTerms(int surface) const {
-    for (const AsphericTerm &term : asphericTerms)
+    for (const AsphericTerm &term : configuration->asphericTerms)
         if (term.surface == surface)
             return true;
     return false;
@@ -330,7 +359,7 @@ double OptimizationBuilder::thicknessOf(int surface) const {
     const auto &definition =
         prescription_->_surface_list[static_cast<std::size_t>(surface)];
     return definition._thickness_by_scenario.has_value()
-               ? (*definition._thickness_by_scenario)[static_cast<std::size_t>(_scenario)]
+               ? (*definition._thickness_by_scenario)[static_cast<std::size_t>(configuration->scenario)]
                : definition._thickness;
 }
 
@@ -338,23 +367,23 @@ double OptimizationBuilder::focalLengthOf() const {
     // The Java field is a nullable array; here an empty vector is the same state.
     return !prescription_->_focal_length_by_scenario.empty()
                ? prescription_
-                     ->_focal_length_by_scenario[static_cast<std::size_t>(_scenario)]
+                     ->_focal_length_by_scenario[static_cast<std::size_t>(configuration->scenario)]
                : prescription_->_focal_length;
 }
 
 double OptimizationBuilder::fNumberOf() const {
     return !prescription_->_f_number_by_scenario.empty()
-               ? prescription_->_f_number_by_scenario[static_cast<std::size_t>(_scenario)]
+               ? prescription_->_f_number_by_scenario[static_cast<std::size_t>(configuration->scenario)]
                : prescription_->_fno;
 }
 
 void OptimizationBuilder::validateScenario() const {
-    if (_scenario == 0)
+    if (configuration->scenario == 0)
         return;
     int available = scenarioCount();
-    if (_scenario >= available)
+    if (configuration->scenario >= available)
         throw IllegalArgumentException(
-            "scenario " + intToString(_scenario) +
+            "scenario " + intToString(configuration->scenario) +
             " requested but the prescription defines " + intToString(available) +
             (available == 1 ? " (it is not multi-configuration)" : ""));
 }
@@ -406,13 +435,13 @@ OptimizationBuilder::ContrastGoals OptimizationBuilder::contrast(
 }
 
 OptimizationBuilder &OptimizationBuilder::mtfGoals(const std::vector<MtfGoals> &goals) {
-    _mtfGoals.insert(_mtfGoals.end(), goals.begin(), goals.end());
+    configuration->mtfGoals.insert(configuration->mtfGoals.end(), goals.begin(), goals.end());
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::contrastGoals(
     const std::vector<ContrastGoals> &goals) {
-    _contrastGoals.insert(_contrastGoals.end(), goals.begin(), goals.end());
+    configuration->contrastGoals.insert(configuration->contrastGoals.end(), goals.begin(), goals.end());
     return *this;
 }
 
@@ -421,8 +450,8 @@ OptimizationBuilder &OptimizationBuilder::contrastBalanceGoals(
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
             "contrast balance weight must be finite and non-negative");
-    this->contrastBalanceFields = fields_;
-    this->contrastBalanceWeight = weight;
+    configuration->contrastBalanceFields = fields_;
+    configuration->contrastBalanceWeight = weight;
     return *this;
 }
 
@@ -433,13 +462,13 @@ OptimizationBuilder &OptimizationBuilder::contrastBalanceGoals(
  */
 OptimizationBuilder &OptimizationBuilder::spotRmsGoals(
     const std::vector<double> &targets) {
-    spotRmsGoals_ = SpotGoals{targets, unitWeightsFor(targets)};
+    configuration->spotRmsGoals = SpotGoals{targets, unitWeightsFor(targets)};
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::spotRmsGoals(
     const std::vector<double> &targets, const std::vector<double> &weights) {
-    spotRmsGoals_ = SpotGoals{targets, weights};
+    configuration->spotRmsGoals = SpotGoals{targets, weights};
     return *this;
 }
 
@@ -454,34 +483,34 @@ OptimizationBuilder &OptimizationBuilder::spotRmsGoals(
  */
 OptimizationBuilder &OptimizationBuilder::spotDeviationGoals(
     const std::vector<double> &fieldWeights) {
-    this->addSpotDeviationGoals = true;
-    this->spotDeviationXWeights = fieldWeights;
-    this->spotDeviationYWeights = fieldWeights;
+    configuration->addSpotDeviationGoals = true;
+    configuration->spotDeviationXWeights = fieldWeights;
+    configuration->spotDeviationYWeights = fieldWeights;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::spotDeviationGoals(
     const std::vector<double> &xWeights, const std::vector<double> &yWeights) {
-    this->addSpotDeviationGoals = true;
-    this->spotDeviationXWeights = xWeights;
-    this->spotDeviationYWeights = yWeights;
+    configuration->addSpotDeviationGoals = true;
+    configuration->spotDeviationXWeights = xWeights;
+    configuration->spotDeviationYWeights = yWeights;
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::spotMaxRadiusGoals(
     const std::vector<double> &targets) {
-    spotMaxRadiusGoals_ = SpotGoals{targets, unitWeightsFor(targets)};
+    configuration->spotMaxRadiusGoals = SpotGoals{targets, unitWeightsFor(targets)};
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::spotMaxRadiusGoals(
     const std::vector<double> &targets, const std::vector<double> &weights) {
-    spotMaxRadiusGoals_ = SpotGoals{targets, weights};
+    configuration->spotMaxRadiusGoals = SpotGoals{targets, weights};
     return *this;
 }
 
 OptimizationBuilder &OptimizationBuilder::rayAberrationGoals(bool enabled) {
-    this->addRayAberrationGoals = enabled;
+    configuration->addRayAberrationGoals = enabled;
     return *this;
 }
 
@@ -493,11 +522,11 @@ OptimizationBuilder &OptimizationBuilder::paraxialGoal(int paraxId, double targe
         throw IllegalArgumentException("paraxial target must be finite");
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException("paraxial weight must be finite and non-negative");
-    for (const ParaxialGoal &goal : paraxialGoals)
+    for (const ParaxialGoal &goal : configuration->paraxialGoals)
         if (goal.paraxId == paraxId)
             throw IllegalArgumentException(std::string("there is already a goal for ") +
                                            ParaxHelper::Names[paraxId]);
-    paraxialGoals.push_back(ParaxialGoal{paraxId, target, weight});
+    configuration->paraxialGoals.push_back(ParaxialGoal{paraxId, target, weight});
     return *this;
 }
 
@@ -526,7 +555,7 @@ OptimizationBuilder &OptimizationBuilder::applyThicknessConstraints(double weigh
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
             "thickness constraint weight must be finite and non-negative");
-    this->thicknessConstraintWeight = weight;
+    configuration->thicknessConstraintWeight = weight;
     return *this;
 }
 
@@ -544,7 +573,7 @@ OptimizationBuilder &OptimizationBuilder::applyEdgeThicknessConstraints(double w
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
             "edge thickness constraint weight must be finite and non-negative");
-    this->edgeThicknessConstraintWeight = weight;
+    configuration->edgeThicknessConstraintWeight = weight;
     return *this;
 }
 
@@ -557,7 +586,7 @@ OptimizationBuilder &OptimizationBuilder::applyCurvatureConstraints(double weigh
     if (!std::isfinite(weight) || weight < 0.0)
         throw IllegalArgumentException(
             "curvature constraint weight must be finite and non-negative");
-    this->curvatureConstraintWeight = weight;
+    configuration->curvatureConstraintWeight = weight;
     return *this;
 }
 
@@ -567,8 +596,9 @@ OptimizationBuilder &OptimizationBuilder::applyCurvatureConstraints(double weigh
 
 OptimizationBuilder::OptimizationSetup OptimizationBuilder::build() {
     validate();
-    auto analysis =
-        std::make_shared<Analysis>(prescription_, *_fields, *_mtfFrequencies, _scenario);
+    auto analysis = std::make_shared<Analysis>(prescription_, *configuration->fields,
+                                               *configuration->mtfFrequencies,
+                                               configuration->scenario);
     auto variables = buildVariables();
     auto goals = buildGoals(analysis.get(), variables);
     if (goals.size() < variables.size())
@@ -577,12 +607,10 @@ OptimizationBuilder::OptimizationSetup OptimizationBuilder::build() {
             intToString(static_cast<int>(goals.size())) + " goals for " +
             intToString(static_cast<int>(variables.size())) +
             " variables; add optical goals or enable rayAberrationGoals()");
-    analysis->vignetting(vigType)
-        .freezing_vignetting(freezeVignetting_)
-        .checking_spot_apertures(_checkSpotApertures);
-    configureSpotPattern(*analysis, goals);
-    configureContrastAnalysis(*analysis);
-    configureRequiredAnalyses(*analysis, goals);
+    bool customMaximumRadius =
+        !additionalGoalFactories.empty() && anyGoalIs<GoalSpotMaxRadius>(goals);
+    auto effective = configuration->effectiveAnalysis(customMaximumRadius);
+    configuration->configureAnalysis(*analysis, effective, !additionalGoalFactories.empty());
     return OptimizationSetup(std::move(analysis), std::move(variables), std::move(goals));
 }
 
@@ -627,82 +655,34 @@ std::set<int> OptimizationBuilder::edgeAffectedGaps(
     return gaps;
 }
 
-void OptimizationBuilder::configureContrastAnalysis(Analysis &analysis) const {
-    if (_contrastGoals.empty())
-        return;
-    if (calibrateContrastFrequency_ && aimContrastAtExitPupil_)
-        throw IllegalArgumentException("Contrast frequency calibration and exit-pupil "
-                                       "aiming are mutually exclusive");
-    std::vector<int> frequencies;
-    frequencies.reserve(_contrastGoals.size());
-    for (const auto &goal : _contrastGoals)
-        frequencies.push_back(goal.frequency);
-    analysis.using_contrast_analysis(frequencies, contrastRings, contrastSpokes);
-    analysis.calibrating_contrast_frequency(calibrateContrastFrequency_);
-    analysis.aiming_contrast_at_exit_pupil(aimContrastAtExitPupil_);
-    analysis.centering_contrast_residuals(centerContrastResiduals_);
-}
-
-void OptimizationBuilder::configureRequiredAnalyses(
-    Analysis &analysis, const std::vector<std::shared_ptr<Goal>> &goals) const {
-    // Additional goal factories are conservatively assumed to require all analyses.
-    if (additionalGoalFactories.empty()) {
-        bool spots = anyGoalIs<GoalSpotRMS>(goals) ||
-                     anyGoalIs<GoalSpotDeviation>(goals) ||
-                     anyGoalIs<GoalSpotMaxRadius>(goals) || anyGoalIs<GoalGeoMTF>(goals);
-        bool mtf = anyGoalIs<GoalGeoMTF>(goals);
-        bool rayAberrations =
-            anyGoalIs<GoalRayAberration>(goals) || anyGoalIs<GoalMTFProxy>(goals);
-        analysis.required_analyses(spots, rayAberrations, mtf);
-    }
-}
-
-void OptimizationBuilder::configureSpotPattern(
-    Analysis &analysis, const std::vector<std::shared_ptr<Goal>> &goals) const {
-    bool hasSpotMaxRadiusGoal = anyGoalIs<GoalSpotMaxRadius>(goals);
-    if (addSpotDeviationGoals) {
-        analysis
-            .using_gauss_quadrature_pattern(gaussianQuadratureRings,
-                                            gaussianQuadratureSpokes,
-                                            gaussianQuadratureInnerRadius)
-            .retaining_failed_spot_rays(true);
-    } else if (useHexapolarSpotPattern || hasSpotMaxRadiusGoal) {
-        analysis.using_hexapolar_pattern(hexapolarSpotRays);
-    } else {
-        analysis.using_gauss_quadrature_pattern(gaussianQuadratureRings,
-                                                gaussianQuadratureSpokes,
-                                                gaussianQuadratureInnerRadius);
-    }
-}
-
 std::vector<std::shared_ptr<Var>> OptimizationBuilder::buildVariables() const {
     std::vector<std::shared_ptr<Var>> result;
     const auto &surfaces = prescription_->_surface_list;
-    if (allCurvatureSurfaces) {
+    if (configuration->allCurvatureSurfaces) {
         for (int surface = 0; surface < static_cast<int>(surfaces.size()); surface++) {
             const auto &definition = surfaces[static_cast<std::size_t>(surface)];
             if (!definition.is_aperture_stop() && !definition.is_field_stop() &&
-                definition._radius != 0.0 && !contains(curvatureExclusions, surface))
+                definition._radius != 0.0 && !contains(configuration->curvatureExclusions, surface))
                 result.push_back(std::make_shared<VarRadius>(prescription_, surface));
         }
     } else {
-        for (int surface : curvatureSurfaces)
+        for (int surface : configuration->curvatureSurfaces)
             result.push_back(std::make_shared<VarRadius>(prescription_, surface));
     }
-    if (allThicknessSurfaces) {
+    if (configuration->allThicknessSurfaces) {
         for (int surface = 0; surface < static_cast<int>(surfaces.size()); surface++) {
             // A zero thickness is a coincident surface, not a space to open up,
             // and it gives the fractional ConstraintThickness no base to work from.
-            if (thicknessOf(surface) != 0.0 && !contains(thicknessExclusions, surface))
+            if (thicknessOf(surface) != 0.0 && !contains(configuration->thicknessExclusions, surface))
                 result.push_back(
-                    std::make_shared<VarThickness>(prescription_, surface, _scenario));
+                    std::make_shared<VarThickness>(prescription_, surface, configuration->scenario));
         }
     } else {
-        for (int surface : thicknessSurfaces)
+        for (int surface : configuration->thicknessSurfaces)
             result.push_back(
-                std::make_shared<VarThickness>(prescription_, surface, _scenario));
+                std::make_shared<VarThickness>(prescription_, surface, configuration->scenario));
     }
-    if (includeExistingAspherics) {
+    if (configuration->includeExistingAspherics) {
         for (int surfaceId = 0; surfaceId < static_cast<int>(surfaces.size());
              surfaceId++) {
             if (hasExplicitAsphericTerms(surfaceId))
@@ -729,7 +709,7 @@ std::vector<std::shared_ptr<Var>> OptimizationBuilder::buildVariables() const {
 
 std::vector<std::shared_ptr<Var>> OptimizationBuilder::explicitAsphericVariables() const {
     std::vector<std::shared_ptr<Var>> result;
-    for (const AsphericTerm &term : asphericTerms) {
+    for (const AsphericTerm &term : configuration->asphericTerms) {
         auto &surface = prescription_->_surface_list[static_cast<std::size_t>(term.surface)];
         if (!surface.is_aspheric())
             surface._asph_type = asphereTypeOf(term.surface);
@@ -763,30 +743,30 @@ std::vector<std::shared_ptr<Var>> OptimizationBuilder::explicitAsphericVariables
 std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
     Analysis *analysis, const std::vector<std::shared_ptr<Var>> &variables) const {
     std::vector<std::shared_ptr<Goal>> result;
-    const auto &fields_ = *_fields;
+    const auto &fields_ = *configuration->fields;
     // Anchor the varied parameters to where they started. Built from the variable
     // list so the goals attach to exactly what is free to move, and built here
     // while the prescription still holds its original values.
-    if (thicknessConstraintWeight.has_value()) {
+    if (configuration->thicknessConstraintWeight.has_value()) {
         for (const auto &variable : variables)
             if (const auto *thickness =
                     dynamic_cast<const VarThickness *>(variable.get()))
                 result.push_back(std::make_shared<ConstraintThickness>(
-                    analysis, thickness->_surface_id, *thicknessConstraintWeight));
+                    analysis, thickness->_surface_id, *configuration->thicknessConstraintWeight));
     }
-    if (edgeThicknessConstraintWeight.has_value()) {
+    if (configuration->edgeThicknessConstraintWeight.has_value()) {
         for (int gap : edgeAffectedGaps(variables))
             if (ConstraintEdgeThickness::is_constrainable(analysis, gap))
                 result.push_back(std::make_shared<ConstraintEdgeThickness>(
-                    analysis, gap, *edgeThicknessConstraintWeight));
+                    analysis, gap, *configuration->edgeThicknessConstraintWeight));
     }
-    if (curvatureConstraintWeight.has_value()) {
+    if (configuration->curvatureConstraintWeight.has_value()) {
         for (const auto &variable : variables)
             if (const auto *radius = dynamic_cast<const VarRadius *>(variable.get()))
                 result.push_back(std::make_shared<ConstraintCurvature>(
-                    analysis, radius->_surface_id, *curvatureConstraintWeight));
+                    analysis, radius->_surface_id, *configuration->curvatureConstraintWeight));
     }
-    for (const auto &curve : _mtfGoals) {
+    for (const auto &curve : configuration->mtfGoals) {
         for (int field = 0; field < static_cast<int>(fields_.size()); field++) {
             auto f = static_cast<std::size_t>(field);
             result.push_back(std::make_shared<GoalGeoMTF>(
@@ -798,18 +778,18 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
         }
     }
 
-    int contrastSamples = contrastRings * contrastSpokes;
+    int contrastSamples = configuration->contrastRings * configuration->contrastSpokes;
     const auto &wvls = prescription_->_wvls;
     const auto &wts = prescription_->_wts;
-    for (int contrast_index = 0; contrast_index < static_cast<int>(_contrastGoals.size());
+    for (int contrast_index = 0; contrast_index < static_cast<int>(configuration->contrastGoals.size());
          contrast_index++) {
-        const auto &curve = _contrastGoals[static_cast<std::size_t>(contrast_index)];
+        const auto &curve = configuration->contrastGoals[static_cast<std::size_t>(contrast_index)];
         for (int field = 0; field < static_cast<int>(fields_.size()); field++) {
             auto f = static_cast<std::size_t>(field);
             for (int wavelength = 0; wavelength < static_cast<int>(wvls.size());
                  wavelength++) {
                 double wavelengthWeight =
-                    _weighted ? wts[static_cast<std::size_t>(wavelength)] : 1.0;
+                    configuration->weighted ? wts[static_cast<std::size_t>(wavelength)] : 1.0;
                 for (int sample = 0; sample < contrastSamples; sample++) {
                     result.push_back(std::make_shared<GoalContrast>(
                         analysis, contrast_index, curve.frequency, field + 1, wavelength,
@@ -824,57 +804,57 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
         }
     }
 
-    if (contrastBalanceFields.has_value()) {
+    if (configuration->contrastBalanceFields.has_value()) {
         std::vector<double> wavelengthWeights(wvls.size(), 0.0);
         for (std::size_t w = 0; w < wavelengthWeights.size(); w++)
-            wavelengthWeights[w] = _weighted ? wts[w] : 1.0;
+            wavelengthWeights[w] = configuration->weighted ? wts[w] : 1.0;
         for (int contrast_index = 0;
-             contrast_index < static_cast<int>(_contrastGoals.size()); contrast_index++) {
-            const auto &curve = _contrastGoals[static_cast<std::size_t>(contrast_index)];
+             contrast_index < static_cast<int>(configuration->contrastGoals.size()); contrast_index++) {
+            const auto &curve = configuration->contrastGoals[static_cast<std::size_t>(contrast_index)];
             for (int field = 0; field < static_cast<int>(fields_.size()); field++) {
                 auto f = static_cast<std::size_t>(field);
-                if (!(*contrastBalanceFields)[f])
+                if (!(*configuration->contrastBalanceFields)[f])
                     continue;
                 result.push_back(std::make_shared<GoalContrastBalance>(
                     analysis, contrast_index, curve.frequency, field + 1,
                     wavelengthWeights, curve.sagittalWeights[f],
-                    curve.tangentialWeights[f], contrastBalanceWeight));
+                    curve.tangentialWeights[f], configuration->contrastBalanceWeight));
             }
         }
     }
 
-    if (spotRmsGoals_.has_value()) {
+    if (configuration->spotRmsGoals.has_value()) {
         for (int field = 0; field < static_cast<int>(fields_.size()); field++) {
             auto f = static_cast<std::size_t>(field);
             result.push_back(std::make_shared<GoalSpotRMS>(
-                analysis, field + 1, spotRmsGoals_->targets[f], spotRmsGoals_->weights[f]));
+                analysis, field + 1, configuration->spotRmsGoals->targets[f], configuration->spotRmsGoals->weights[f]));
         }
     }
-    if (addSpotDeviationGoals) {
-        int samples = gaussianQuadratureRings * gaussianQuadratureSpokes;
+    if (configuration->addSpotDeviationGoals) {
+        int samples = configuration->gaussianQuadratureRings * configuration->gaussianQuadratureSpokes;
         for (int field = 0; field < static_cast<int>(fields_.size()); field++) {
             auto f = static_cast<std::size_t>(field);
             for (int wavelength = 0; wavelength < static_cast<int>(wvls.size());
                  wavelength++) {
                 double wavelengthWeight =
-                    _weighted ? wts[static_cast<std::size_t>(wavelength)] : 1.0;
+                    configuration->weighted ? wts[static_cast<std::size_t>(wavelength)] : 1.0;
                 for (int sample = 0; sample < samples; sample++) {
                     result.push_back(std::make_shared<GoalSpotDeviation>(
                         analysis, field + 1, wavelength, sample, Orientation::X,
-                        wavelengthWeight * (*spotDeviationXWeights)[f]));
+                        wavelengthWeight * (*configuration->spotDeviationXWeights)[f]));
                     result.push_back(std::make_shared<GoalSpotDeviation>(
                         analysis, field + 1, wavelength, sample, Orientation::Y,
-                        wavelengthWeight * (*spotDeviationYWeights)[f]));
+                        wavelengthWeight * (*configuration->spotDeviationYWeights)[f]));
                 }
             }
         }
     }
-    if (spotMaxRadiusGoals_.has_value()) {
+    if (configuration->spotMaxRadiusGoals.has_value()) {
         for (int field = 0; field < static_cast<int>(fields_.size()); field++) {
             auto f = static_cast<std::size_t>(field);
             result.push_back(std::make_shared<GoalSpotMaxRadius>(
-                analysis, field + 1, spotMaxRadiusGoals_->targets[f],
-                spotMaxRadiusGoals_->weights[f]));
+                analysis, field + 1, configuration->spotMaxRadiusGoals->targets[f],
+                configuration->spotMaxRadiusGoals->weights[f]));
         }
     }
 
@@ -883,16 +863,16 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
     result.push_back(anchor(analysis, ParaxHelper::Effective_focal_length, focalLengthOf()));
     result.push_back(anchor(analysis, ParaxHelper::Fno, fNumberOf()));
 
-    if (addRayAberrationGoals) {
+    if (configuration->addRayAberrationGoals) {
         for (int field = 1; field <= static_cast<int>(fields_.size()); field++) {
             for (int orientation = Orientation::SAGITTAL;
                  orientation <= Orientation::TANGENTIAL; orientation++) {
                 for (int wavelength = 0; wavelength < static_cast<int>(wvls.size());
                      wavelength++) {
                     auto w = static_cast<std::size_t>(wavelength);
-                    if (_dLineOnly && !sameWavelength(wvls[w], Glass::d))
+                    if (configuration->dLineOnly && !sameWavelength(wvls[w], Glass::d))
                         continue;
-                    double weight = _weighted ? wts[w] : 1.0;
+                    double weight = configuration->weighted ? wts[w] : 1.0;
                     for (int sample = 0; sample < RAY_FAN_SAMPLES; sample++)
                         result.push_back(std::make_shared<GoalRayAberration>(
                             analysis, field, orientation, sample, wvls[w], 0.0, weight));
@@ -900,7 +880,7 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
             }
         }
     }
-    for (const ParaxialGoal &goal : paraxialGoals)
+    for (const ParaxialGoal &goal : configuration->paraxialGoals)
         if (goal.paraxId != ParaxHelper::Effective_focal_length &&
             goal.paraxId != ParaxHelper::Fno)
             result.push_back(std::make_shared<GoalParax>(analysis, goal.paraxId, goal.target,
@@ -922,75 +902,78 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
 // ---------------------------------------------------------------------------
 
 void OptimizationBuilder::validate() const {
-    if (!_fields.has_value() || _fields->empty())
+    if (!configuration->fields.has_value() || configuration->fields->empty())
         throw IllegalArgumentException("at least one field is required");
     validateScenario();
-    const auto &fields_ = *_fields;
-    if (contrastBalanceFields.has_value()) {
-        if (contrastBalanceFields->size() != fields_.size())
+    const auto &fields_ = *configuration->fields;
+    int fieldCount = static_cast<int>(fields_.size());
+    if (configuration->contrastBalanceFields.has_value()) {
+        if (configuration->contrastBalanceFields->size() != fields_.size())
             throw IllegalArgumentException(
-                "contrast balance needs one flag per field: " +
-                intToString(static_cast<int>(fields_.size())) + " fields but " +
-                intToString(static_cast<int>(contrastBalanceFields->size())) + " flags");
-        if (_contrastGoals.empty())
+                "contrast balance needs one flag per field: " + intToString(fieldCount) +
+                " fields but " +
+                intToString(static_cast<int>(configuration->contrastBalanceFields->size())) +
+                " flags");
+        if (configuration->contrastGoals.empty())
             throw IllegalArgumentException(
                 "contrast balance goals require contrast goals to balance");
     }
-    for (double field : fields_)
-        if (!std::isfinite(field) || field < 0.0 || field > 1.0)
-            throw IllegalArgumentException("fields must be finite values between 0 and 1");
+    OptimizationValidation::range(fields_, 1.0, [] {
+        return IllegalArgumentException("fields must be finite values between 0 and 1");
+    });
     if (fields_[0] != 0.0)
         throw IllegalArgumentException("the first field must be 0.0");
 
-    if (!_mtfFrequencies.has_value() || _mtfFrequencies->empty())
+    if (!configuration->mtfFrequencies.has_value() || configuration->mtfFrequencies->empty())
         throw IllegalArgumentException("at least one MTF frequency is required");
     std::set<int> frequencies;
-    for (int frequency : *_mtfFrequencies) {
-        if (frequency <= 0 || !frequencies.insert(frequency).second)
-            throw IllegalArgumentException("MTF frequencies must be positive and unique");
-    }
+    for (int frequency : *configuration->mtfFrequencies)
+        OptimizationValidation::positiveUnique(frequency, frequencies, [] {
+            return IllegalArgumentException("MTF frequencies must be positive and unique");
+        });
     std::set<int> goalFrequencies;
-    for (const auto &curve : _mtfGoals) {
-        if (frequencies.count(curve.frequency) == 0)
-            throw IllegalArgumentException(
+    for (const auto &curve : configuration->mtfGoals) {
+        OptimizationValidation::frequency(curve.frequency, *configuration->mtfFrequencies, [&] {
+            return IllegalArgumentException(
                 "MTF goal frequency was not requested for measurement: " +
                 intToString(curve.frequency));
+        });
         if (!goalFrequencies.insert(curve.frequency).second)
             throw IllegalArgumentException("duplicate MTF goal frequency: " +
                                            intToString(curve.frequency));
-        curve.validate(static_cast<int>(fields_.size()));
+        curve.validate(fieldCount);
     }
     std::set<int> contrastFrequencies;
-    for (const auto &curve : _contrastGoals) {
-        if (curve.frequency <= 0 || !contrastFrequencies.insert(curve.frequency).second)
-            throw IllegalArgumentException(
-                "contrast frequencies must be positive and unique");
-        curve.validate(static_cast<int>(fields_.size()));
+    for (const auto &curve : configuration->contrastGoals) {
+        OptimizationValidation::positiveUnique(curve.frequency, contrastFrequencies, [] {
+            return IllegalArgumentException("contrast frequencies must be positive and unique");
+        });
+        curve.validate(fieldCount);
     }
-    if (spotRmsGoals_.has_value())
-        spotRmsGoals_->validate(static_cast<int>(fields_.size()), "spot RMS");
-    if (addSpotDeviationGoals) {
-        MtfGoals::validateWeights(spotDeviationXWeights.value_or(std::vector<double>()),
-                                  static_cast<int>(fields_.size()),
-                                  "spot deviation X weights");
-        MtfGoals::validateWeights(spotDeviationYWeights.value_or(std::vector<double>()),
-                                  static_cast<int>(fields_.size()),
-                                  "spot deviation Y weights");
-        if (spotRmsGoals_.has_value())
+    if (configuration->spotRmsGoals.has_value())
+        configuration->spotRmsGoals->validate(fieldCount, "spot RMS");
+    if (configuration->addSpotDeviationGoals) {
+        MtfGoals::validateWeights(
+            configuration->spotDeviationXWeights.value_or(std::vector<double>()), fieldCount,
+            "spot deviation X weights");
+        MtfGoals::validateWeights(
+            configuration->spotDeviationYWeights.value_or(std::vector<double>()), fieldCount,
+            "spot deviation Y weights");
+        if (configuration->spotRmsGoals.has_value())
             throw IllegalArgumentException("aggregate spot RMS goals and per-ray spot "
                                            "deviation goals cannot both be enabled");
-        if (spotMaxRadiusGoals_.has_value() || useHexapolarSpotPattern)
+        if (configuration->spotMaxRadiusGoals.has_value() ||
+            configuration->useHexapolarSpotPattern)
             throw IllegalArgumentException(
                 "spot deviation goals require Gaussian-quadrature spot sampling");
     }
-    if (spotMaxRadiusGoals_.has_value())
-        spotMaxRadiusGoals_->validate(static_cast<int>(fields_.size()),
-                                      "spot maximum radius");
-    validateSurfaces(curvatureSurfaces, "curvature");
-    validateSurfaces(thicknessSurfaces, "thickness");
-    validateSurfaces(curvatureExclusions, "excluded curvature");
-    validateSurfaces(thicknessExclusions, "excluded thickness");
-    if (addRayAberrationGoals && _dLineOnly) {
+    if (configuration->spotMaxRadiusGoals.has_value())
+        configuration->spotMaxRadiusGoals->validate(fieldCount, "spot maximum radius");
+    validateSurfaces(configuration->curvatureSurfaces, "curvature");
+    validateSurfaces(configuration->thicknessSurfaces, "thickness");
+    validateSurfaces(configuration->curvatureExclusions, "excluded curvature");
+    validateSurfaces(configuration->thicknessExclusions, "excluded thickness");
+    if (configuration->addRayAberrationGoals && configuration->dLineOnly) {
         bool any = false;
         for (double w : prescription_->_wvls)
             if (sameWavelength(w, Glass::d))
@@ -1017,7 +1000,7 @@ void OptimizationBuilder::validateSurfaces(const std::vector<int> &surfaces,
 
 std::shared_ptr<Goal> OptimizationBuilder::anchor(Analysis *analysis, int paraxId,
                                                  double prescribed) const {
-    for (const ParaxialGoal &goal : paraxialGoals)
+    for (const ParaxialGoal &goal : configuration->paraxialGoals)
         if (goal.paraxId == paraxId)
             return std::make_shared<GoalParax>(analysis, paraxId, goal.target, goal.weight);
     return std::make_shared<GoalParax>(analysis, paraxId, prescribed, 1.0);
@@ -1056,24 +1039,26 @@ void OptimizationBuilder::MtfGoals::validate(int fieldCount) const {
 
 void OptimizationBuilder::MtfGoals::validateTargets(const std::vector<double> &values,
                                                     int count, const char *name) {
-    if (static_cast<int>(values.size()) != count)
-        throw IllegalArgumentException(std::string(name) +
-                                       " must contain one value per field");
-    for (double value : values)
-        if (!std::isfinite(value) || value < 0.0 || value > 100.0)
-            throw IllegalArgumentException(std::string(name) +
-                                           " must be percentages between 0 and 100");
+    OptimizationValidation::fieldCount(values, count, [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " must contain one value per field");
+    });
+    OptimizationValidation::range(values, 100.0, [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " must be percentages between 0 and 100");
+    });
 }
 
 void OptimizationBuilder::MtfGoals::validateWeights(const std::vector<double> &values,
                                                     int count, const char *name) {
-    if (static_cast<int>(values.size()) != count)
-        throw IllegalArgumentException(std::string(name) +
-                                       " must contain one value per field");
-    for (double value : values)
-        if (!std::isfinite(value) || value < 0.0)
-            throw IllegalArgumentException(std::string(name) +
-                                           " must be finite and non-negative");
+    OptimizationValidation::fieldCount(values, count, [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " must contain one value per field");
+    });
+    OptimizationValidation::range(values, std::numeric_limits<double>::infinity(), [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " must be finite and non-negative");
+    });
 }
 
 void OptimizationBuilder::ContrastGoals::validate(int fieldCount) const {
@@ -1083,243 +1068,33 @@ void OptimizationBuilder::ContrastGoals::validate(int fieldCount) const {
 }
 
 void OptimizationBuilder::SpotGoals::validate(int fieldCount, const char *name) const {
-    if (static_cast<int>(targets.size()) != fieldCount)
-        throw IllegalArgumentException(std::string(name) +
-                                       " targets must contain one value per field");
-    if (static_cast<int>(weights.size()) != fieldCount)
-        throw IllegalArgumentException(std::string(name) +
-                                       " weights must contain one value per field");
-    for (double target : targets)
-        if (!std::isfinite(target) || target < 0.0)
-            throw IllegalArgumentException(std::string(name) +
-                                           " targets must be finite and non-negative");
-    for (double weight : weights)
-        if (!std::isfinite(weight) || weight < 0.0)
-            throw IllegalArgumentException(std::string(name) +
-                                           " weights must be finite and non-negative");
+    OptimizationValidation::fieldCount(targets, fieldCount, [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " targets must contain one value per field");
+    });
+    OptimizationValidation::fieldCount(weights, fieldCount, [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " weights must contain one value per field");
+    });
+    OptimizationValidation::range(targets, std::numeric_limits<double>::infinity(), [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " targets must be finite and non-negative");
+    });
+    OptimizationValidation::range(weights, std::numeric_limits<double>::infinity(), [&] {
+        return IllegalArgumentException(std::string(name) +
+                                        " weights must be finite and non-negative");
+    });
 }
-
 
 // ---------------------------------------------------------------------------
 // Writing - the setup as a [trial n] section
 // ---------------------------------------------------------------------------
 
-namespace {
-
-std::string yesNo(bool value) {
-    return value ? "yes" : "no";
-}
-
-/** OptimizationTrial::line, reached through the same short name the Java uses. */
-void line(std::string &sb, const std::string &key, const std::string &values) {
-    OptimizationTrial::line(sb, key, values);
-}
-
-} // namespace
-
 std::string OptimizationBuilder::toTrial(int number) const {
     if (!additionalVariables_.empty() || !additionalGoalFactories.empty())
         throw IllegalStateException("variables and goals added as code have no written form, "
                                     "so this setup cannot be written as a trial");
-    std::string sb;
-    sb += "[trial " + intToString(number) + "]\n";
-    if (_description.has_value())
-        line(sb, "description", *_description);
-    if (_outdir.has_value())
-        line(sb, "outdir", *_outdir);
-    line(sb, "configuration", intToString(_scenario));
-    if (_fields.has_value())
-        line(sb, "fields", OptimizationTrial::format(*_fields));
-    if (_mtfFrequencies.has_value())
-        line(sb, "frequencies", OptimizationTrial::format(*_mtfFrequencies));
-    line(sb, "weighted", yesNo(_weighted));
-    line(sb, "d-line-only", yesNo(_dLineOnly));
-    line(sb, "vignetting", OptimizationTrial::kebab(util::Args::vig_type_name(vigType)) +
-                               (freezeVignetting_ ? " frozen" : ""));
-    if (!_checkSpotApertures || (tracesSpots() && !hexapolarPattern()))
-        line(sb, "check-spot-apertures", yesNo(_checkSpotApertures));
-
-    if (allCurvatureSurfaces)
-        line(sb, "vary curvatures", allExcept(curvatureExclusions));
-    else if (!curvatureSurfaces.empty())
-        line(sb, "vary curvatures", OptimizationTrial::format(curvatureSurfaces));
-    if (allThicknessSurfaces)
-        line(sb, "vary thicknesses", allExcept(thicknessExclusions));
-    else if (!thicknessSurfaces.empty())
-        line(sb, "vary thicknesses", OptimizationTrial::format(thicknessSurfaces));
-    if (includeExistingAspherics)
-        line(sb, "vary aspherics", "existing");
-    // A LinkedHashMap in the Java: one row per surface, surfaces in the order their first
-    // term was given.
-    std::vector<int> termSurfaces;
-    std::vector<std::string> termRows;
-    for (const AsphericTerm &term : asphericTerms) {
-        std::string written =
-            term.index < 0 ? std::string("K")
-                           : intToString(term.index) +
-                                 (term.scale.has_value()
-                                      ? ":" + OptimizationTrial::format(*term.scale)
-                                      : "");
-        auto found = std::find(termSurfaces.begin(), termSurfaces.end(), term.surface);
-        if (found == termSurfaces.end()) {
-            termSurfaces.push_back(term.surface);
-            termRows.push_back(written);
-        } else
-            termRows[static_cast<std::size_t>(found - termSurfaces.begin())] += " " + written;
-    }
-    for (std::size_t i = 0; i < termSurfaces.size(); i++)
-        line(sb, "vary aspherics", intToString(termSurfaces[i]) + " " + termRows[i]);
-
-    if (curvatureConstraintWeight.has_value())
-        line(sb, "constrain curvatures", OptimizationTrial::format(*curvatureConstraintWeight));
-    if (thicknessConstraintWeight.has_value())
-        line(sb, "constrain thicknesses", OptimizationTrial::format(*thicknessConstraintWeight));
-    if (edgeThicknessConstraintWeight.has_value())
-        line(sb, "constrain edges", OptimizationTrial::format(*edgeThicknessConstraintWeight));
-
-    if (!_contrastGoals.empty()) {
-        std::vector<int> frequencies;
-        for (const ContrastGoals &goal : _contrastGoals)
-            frequencies.push_back(goal.frequency);
-        line(sb, "goal contrast", OptimizationTrial::format(frequencies));
-        contrastWeights(sb, true);
-        contrastWeights(sb, false);
-        if (contrastBalanceFields.has_value())
-            line(sb, "goal contrast",
-                 "balance " + balance() + " weight " +
-                     OptimizationTrial::format(contrastBalanceWeight));
-        line(sb, "goal contrast",
-             "sampling " + intToString(contrastRings) + " " + intToString(contrastSpokes));
-        line(sb, "goal contrast", "calibrate " + yesNo(calibrateContrastFrequency_));
-        line(sb, "goal contrast", "exit-pupil-aiming " + yesNo(aimContrastAtExitPupil_));
-        line(sb, "goal contrast", "centering " + yesNo(centerContrastResiduals_));
-    }
-    for (const MtfGoals &goal : _mtfGoals) {
-        std::string frequency = intToString(goal.frequency);
-        line(sb, "goal mtf", frequency + " sag " + OptimizationTrial::format(goal.sagittal));
-        line(sb, "goal mtf", frequency + " tan " + OptimizationTrial::format(goal.tangential));
-        if (goal.sagittalWeights == goal.tangentialWeights) {
-            if (!allOnes(goal.sagittalWeights))
-                line(sb, "goal mtf",
-                     frequency + " weights " + OptimizationTrial::format(goal.sagittalWeights));
-        } else {
-            if (!allOnes(goal.sagittalWeights))
-                line(sb, "goal mtf", frequency + " sag weights " +
-                                         OptimizationTrial::format(goal.sagittalWeights));
-            if (!allOnes(goal.tangentialWeights))
-                line(sb, "goal mtf", frequency + " tan weights " +
-                                         OptimizationTrial::format(goal.tangentialWeights));
-        }
-    }
-    spotGoals(sb, "goal spot-rms", spotRmsGoals_);
-    spotGoals(sb, "goal spot-max-radius", spotMaxRadiusGoals_);
-    if (addSpotDeviationGoals) {
-        if (spotDeviationXWeights == spotDeviationYWeights)
-            line(sb, "goal spot-deviation", OptimizationTrial::format(*spotDeviationXWeights));
-        else {
-            line(sb, "goal spot-deviation",
-                 "x " + OptimizationTrial::format(*spotDeviationXWeights));
-            line(sb, "goal spot-deviation",
-                 "y " + OptimizationTrial::format(*spotDeviationYWeights));
-        }
-    }
-    if (gaussianQuadratureRings != DEFAULT_GAUSSIAN_QUADRATURE_RINGS ||
-        gaussianQuadratureSpokes != DEFAULT_GAUSSIAN_QUADRATURE_SPOKES ||
-        gaussianQuadratureInnerRadius != 0.0 || (tracesSpots() && !hexapolarPattern()))
-        line(sb, "goal spot sampling",
-             "gaussian " + intToString(gaussianQuadratureRings) + " " +
-                 intToString(gaussianQuadratureSpokes) +
-                 (gaussianQuadratureInnerRadius != 0.0
-                      ? " " + OptimizationTrial::format(gaussianQuadratureInnerRadius)
-                      : ""));
-    if (hexapolarPattern())
-        line(sb, "goal spot sampling", "hexapolar " + intToString(hexapolarSpotRays));
-    line(sb, "goal ray-aberrations", yesNo(addRayAberrationGoals));
-    for (const ParaxialGoal &goal : paraxialGoals)
-        line(sb, "goal paraxial",
-             OptimizationTrial::paraxialName(goal.paraxId) + " " +
-                 OptimizationTrial::format(goal.target) +
-                 (goal.weight != 1.0 ? " weight " + OptimizationTrial::format(goal.weight)
-                                     : ""));
-    return sb;
-}
-
-std::string OptimizationBuilder::allExcept(const std::vector<int> &exclusions) {
-    return exclusions.empty() ? "all" : "all except " + OptimizationTrial::format(exclusions);
-}
-
-void OptimizationBuilder::contrastWeights(std::string &sb, bool sagittal) const {
-    std::string direction = sagittal ? "sag" : "tan";
-    const std::vector<double> &first =
-        sagittal ? _contrastGoals[0].sagittalWeights : _contrastGoals[0].tangentialWeights;
-    bool shared = true;
-    for (const ContrastGoals &goal : _contrastGoals)
-        if ((sagittal ? goal.sagittalWeights : goal.tangentialWeights) != first)
-            shared = false;
-    if (shared) {
-        if (!allOnes(first))
-            line(sb, "goal contrast", direction + " " + OptimizationTrial::format(first));
-        return;
-    }
-    for (const ContrastGoals &goal : _contrastGoals) {
-        const std::vector<double> &weights =
-            sagittal ? goal.sagittalWeights : goal.tangentialWeights;
-        if (!allOnes(weights))
-            line(sb, "goal contrast", intToString(goal.frequency) + " " + direction + " " +
-                                          OptimizationTrial::format(weights));
-    }
-}
-
-std::string OptimizationBuilder::balance() const {
-    bool all = true, none = true;
-    for (bool flag : *contrastBalanceFields) {
-        all = all && flag;
-        none = none && !flag;
-    }
-    if (all)
-        return "all";
-    if (none || !_fields.has_value() || _fields->size() != contrastBalanceFields->size()) {
-        std::string flags;
-        for (bool flag : *contrastBalanceFields) {
-            if (!flags.empty())
-                flags += " ";
-            flags += yesNo(flag);
-        }
-        return flags;
-    }
-    std::string except;
-    for (std::size_t i = 0; i < _fields->size(); i++)
-        if (!(*contrastBalanceFields)[i]) {
-            if (!except.empty())
-                except += " ";
-            except += OptimizationTrial::format((*_fields)[i]);
-        }
-    return "all except " + except;
-}
-
-void OptimizationBuilder::spotGoals(std::string &sb, const char *key,
-                                    const std::optional<SpotGoals> &goals) {
-    if (!goals.has_value())
-        return;
-    line(sb, key, OptimizationTrial::format(goals->targets));
-    if (!allOnes(goals->weights))
-        line(sb, key, "weights " + OptimizationTrial::format(goals->weights));
-}
-
-bool OptimizationBuilder::tracesSpots() const {
-    return spotRmsGoals_.has_value() || spotMaxRadiusGoals_.has_value() ||
-           addSpotDeviationGoals || !_mtfGoals.empty();
-}
-
-bool OptimizationBuilder::hexapolarPattern() const {
-    return useHexapolarSpotPattern || spotMaxRadiusGoals_.has_value();
-}
-
-bool OptimizationBuilder::allOnes(const std::vector<double> &values) {
-    for (double value : values)
-        if (value != 1.0)
-            return false;
-    return true;
+    return configuration->toTrial(number);
 }
 
 } // namespace redukti::optim

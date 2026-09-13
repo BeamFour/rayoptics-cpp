@@ -30,6 +30,7 @@ namespace fs = std::filesystem;
 using importers::OpticalBenchDataImporter;
 using plotter::GeoMTFByFieldPlot;
 using plotter::GeoMTFPlot;
+using plotter::PupilMapPlot;
 using plotter::RayAberrationPlot;
 using plotter::SpotDiagram;
 using spec::Prescription;
@@ -72,7 +73,8 @@ std::string LensTool2::loadSpecText(const Args &arguments) {
     std::string text = readFile(specpath);
     if (!arguments.assign_glass_types)
         return text;
-    auto result = GlassFinder::enrich(text, arguments.force, arguments.index_line_value());
+    auto result = GlassFinder::enrich(text, arguments.force, arguments.index_line_value(),
+                                      arguments.abbe_line_value());
     std::cout << "Assigned " << result.selected << " glass types; " << result.ambiguous
               << " ambiguous; " << result.unmatched << " unmatched" << std::endl;
     if (result.ambiguous > 0)
@@ -262,6 +264,9 @@ std::string LensTool2::suffixed_name(const std::string &baseName,
 analysis::SpotAnalysisResult LensTool2::generateSpotDiagrams(
     optical::OpticalModel *opm, const Args &arguments, bool standardSize,
     const std::string &filename_suffix) {
+    // The diagrams always use the same sampling; the user's choice of
+    // pattern only affects the reported numbers.
+    auto diagramAnalysis = analysis::SpotAnalysis::eval(opm, spotDiagramOptions());
     auto spotAnalysis = analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
     Helper::createOutputFile(
         Helper::getOutputFileWithPath(*arguments.specfile,
@@ -269,8 +274,8 @@ analysis::SpotAnalysisResult LensTool2::generateSpotDiagrams(
                                                     ".txt"),
                                       arguments.outdir),
         spotAnalysis.toString());
-    for (std::size_t i = 0; i < spotAnalysis.spot_results.size(); i++) {
-        const auto &spotFld = spotAnalysis.spot_results[i];
+    for (std::size_t i = 0; i < diagramAnalysis.spot_results.size(); i++) {
+        const auto &spotFld = diagramAnalysis.spot_results[i];
         std::optional<std::string> filename;
         if (spotFld.fld->y == 0.0)
             filename = suffixed_name("spot", filename_suffix, ".svg");
@@ -375,13 +380,62 @@ void LensTool2::generateRayAberrationPlots(optical::OpticalModel *opm,
     }
 }
 
+void LensTool2::generatePupilMaps(optical::OpticalModel *opm, const Args &arguments,
+                                  const std::string &filename_suffix) {
+    // A field at a time, so one field whose bundle cannot be bounded costs only its own
+    // map: the pupil maps are a diagnostic, and must not take the rest of the report down.
+    analysis::PupilMapAnalysis::PupilMapResult maps;
+    std::string unmapped;
+    const int fieldCount = static_cast<int>(opm->optical_spec->fov->fields.size());
+    for (int fi = 0; fi < fieldCount; fi++) {
+        try {
+            auto one = analysis::PupilMapAnalysis::eval(opm, arguments.pupil_map_samples,
+                                                        std::vector<int>{fi});
+            for (auto &map : one.maps)
+                maps.maps.push_back(std::move(map));
+        } catch (const IllegalStateException &e) {
+            std::cerr << "No pupil map: " << e.getMessage() << std::endl;
+            unmapped += "not mapped: " + e.getMessage() + "\n";
+        }
+    }
+    Helper::createOutputFile(
+        Helper::getOutputFileWithPath(*arguments.specfile,
+                                      suffixed_name("pupil-report", filename_suffix, ".txt"),
+                                      arguments.outdir),
+        maps.toString() + unmapped);
+    for (const auto &map : maps.maps) {
+        std::optional<std::string> filename;
+        if (map.fld->y == 0.0)
+            filename = suffixed_name("pupil", filename_suffix, ".svg");
+        else if (map.fld->y == 0.7)
+            filename = suffixed_name("pupil-semi-skew", filename_suffix, ".svg");
+        else if (map.fld->y == 1.0)
+            filename = suffixed_name("pupil-skew", filename_suffix, ".svg");
+        if (!filename.has_value())
+            continue;
+        Helper::createOutputFile(
+            Helper::getOutputFileWithPath(*arguments.specfile, *filename, arguments.outdir),
+            PupilMapPlot(map).plot());
+    }
+}
+
+analysis::SpotOptions LensTool2::spotDiagramOptions() {
+    // We limit this to 21 to avoid creating huge svg files
+    analysis::SpotOptions options;
+    return options.use_hexapolar().num_rings(21);
+}
+
 analysis::SpotOptions LensTool2::spotOptions(const Args &arguments) {
+    // TODO allow user to set the values for GQ and Hexapolar
+    // The defaults should really come from Args
     analysis::SpotOptions options;
     if (arguments.spot_pattern == analysis::SpotOptions::PATTERN_GAUSS_QUADRATURE)
-        return options.use_gaussian_quadrature();
+        return options.use_gaussian_quadrature()
+            .num_rings(GAUSS_QUADRATURE_NUM_RINGS)
+            .num_spokes(GAUSS_QUADRATURE_NUM_SPOKES);
     if (arguments.spot_pattern == analysis::SpotOptions::PATTERN_GRID)
         return options.use_grid().num_rays(arguments.spot_grid_size);
-    return options.use_hexapolar();
+    return options.use_hexapolar().num_rings(HEXAPOLAR_NUM_RINGS);
 }
 
 void LensTool2::runDefaultOptimizations(Prescription &prescription, const Args &arguments,
@@ -433,7 +487,7 @@ void LensTool2::doLayoutDiagrams(const Prescription &prescription, const Args &a
     // First we use rayoptics to get ray starts
     // For very wide angle lenses, blindly spraying rays doesn't work very well,
     // so the layout system is aimed through the pupil.
-    auto opm = createLayoutSystem(prescription, config, VigType::SetPupil, true);
+    auto opm = createLayoutSystem(prescription, config, LAYOUT_VIG_TYPE, true);
     layout::Layout2D lay;
     auto output = Helper::getOutputFileWithPath(
         *arguments.specfile, suffixed_name("layout-fan", filename_suffix, ".svg"),
@@ -494,11 +548,19 @@ std::string LensTool2::runOptimizationTrial(const std::string &specText, Args &a
                                                           : "")
                   << ": trials " << pipeline->trialsText() << std::endl;
         std::string text = specText;
+        // A LinkedHashMap in the Java: each trial parsed once, in the order the pipeline
+        // first names it.
+        std::vector<std::pair<int, optim::OptimizationTrial::TrialDefinition>> trials;
+        for (int trial : pipeline->distinctTrials())
+            trials.emplace_back(trial, optim::OptimizationTrial::parse(specText, trial));
         for (int stage : pipeline->trials()) {
-            auto trial = optim::OptimizationTrial::read(text, stage, arguments.use_glass_types);
+            const optim::OptimizationTrial::TrialDefinition *definition = nullptr;
+            for (const auto &entry : trials)
+                if (entry.first == stage)
+                    definition = &entry.second;
+            auto trial = definition->createBuilder(text, arguments.use_glass_types);
             solveTrial(trial.builder, stage);
-            text = carriedForward(*trial.prescription, *pipeline, text,
-                                  arguments.use_glass_types);
+            text = carriedForward(*trial.prescription, *pipeline, trials);
         }
         optimized = text;
         outdir = pipeline->outdir();
@@ -545,15 +607,14 @@ void LensTool2::solveTrial(optim::OptimizationBuilder &builder, int number) {
                   << doubleToString(variables[i]->get_unscaled_value()) << std::endl;
 }
 
-std::string LensTool2::carriedForward(const Prescription &prescription,
-                                      const optim::OptimizationPipeline &pipeline,
-                                      const std::string &text, bool useGlassTypes) {
+std::string LensTool2::carriedForward(
+    const Prescription &prescription, const optim::OptimizationPipeline &pipeline,
+    const std::vector<std::pair<int, optim::OptimizationTrial::TrialDefinition>> &trials) {
     std::string sb;
     prescription.to_opt_bench_str(sb);
     sb += "\n" + pipeline.toPipeline();
-    for (int trial : pipeline.distinctTrials())
-        sb += "\n" + optim::OptimizationTrial::read(text, trial, useGlassTypes)
-                         .builder.toTrial(trial);
+    for (const auto &trial : trials)
+        sb += "\n" + trial.second.toTrial();
     return sb;
 }
 
@@ -561,7 +622,9 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
     const std::vector<double> fields{0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
                                      0.6, 0.7, 0.8, 0.9, 1.0};
     auto startTime = std::chrono::steady_clock::now();
-    VigType vigType = arguments.vig_type;
+    // --vig-type settles the models the analysis outputs are computed from; the
+    // layouts and the routine optimization set their own.
+    VigType analysisVigType = arguments.vig_type;
     // Real ray aiming is what makes very wide angle lenses trace correctly, so
     // it stays on unless the caller asks for paraxial aiming.
     bool realRayAiming = !arguments.real_ray_aiming.has_value() || *arguments.real_ray_aiming;
@@ -573,7 +636,7 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
     auto prescription =
         createPrescription(specs, arguments.use_glass_types, arguments.only_d_line);
     if (arguments.optimize)
-        runDefaultOptimizations(prescription, arguments, vigType);
+        runDefaultOptimizations(prescription, arguments, OPTIMIZATION_VIG_TYPE);
     std::string prescription_output;
     prescription.to_opt_bench_str(prescription_output);
     Helper::createOutputFile(Helper::getOutputFileWithPath(*arguments.specfile,
@@ -581,8 +644,13 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
                                                            arguments.outdir),
                              prescription_output);
     exporters::ZemaxExporter zemaxExporter;
+    // Named from the specfile but placed like every other output, so that
+    // --outdir keeps the whole report together and a run cannot write over
+    // a Zemax file sitting beside the input.
+    std::string zmxName =
+        Helper::replaceExtension(Helper::getFilename(*arguments.specfile), ".zmx");
     Helper::createOutputFile(
-        Helper::getOutputPathChangeExt(*arguments.specfile, ".zmx"),
+        Helper::getOutputFileWithPath(*arguments.specfile, zmxName, arguments.outdir),
         zemaxExporter.generate(prescription, arguments.only_d_line));
     std::string SB = startREADME(prescription);
     auto prescriptionForWeightedMTF =
@@ -595,7 +663,7 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         std::string scenario_filesuffix =
             prescription.get_num_configurations() > 0 ? ("-" + std::to_string(config))
                                                       : "";
-        auto opm = createSystem(prescription, true, vigType, realRayAiming, fields, config);
+        auto opm = createSystem(prescription, true, analysisVigType, realRayAiming, fields, config);
         auto sm = opm->seq_model.get();
         auto osp = opm->optical_spec.get();
         const auto &fod = opm->optical_spec->parax_data->fod;
@@ -631,6 +699,8 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         auto spotAnalysis = generateSpotDiagrams(opm.get(), arguments,
                                                  !arguments.auto_size_spots,
                                                  scenario_filesuffix);
+        if (arguments.output_pupil_maps)
+            generatePupilMaps(opm.get(), arguments, scenario_filesuffix);
         addLayoutsToREADME(SB, scenario_filesuffix);
         addSpotDiagramsToREADME(SB, scenario_filesuffix);
         addFodToREADME(SB, fod);
@@ -641,7 +711,7 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         if (arguments.do_ray_aberrations)
             generateRayAberrationPlots(opm.get(), arguments, scenario_filesuffix);
         // Generate MTF with weighted average across wavelengths
-        opm = createSystem(prescriptionForWeightedMTF, true, vigType, realRayAiming, fields,
+        opm = createSystem(prescriptionForWeightedMTF, true, analysisVigType, realRayAiming, fields,
                            config);
         generateMTFs(opm.get(), arguments, fields,
                      prescriptionForWeightedMTF.get_wvl_wts(), "mtf-w",

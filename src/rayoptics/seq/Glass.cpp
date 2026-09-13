@@ -173,7 +173,13 @@ std::vector<Glass::GlassMatch> Glass::find_glasses(double nd_, double vd_) {
 }
 
 std::vector<Glass::GlassMatch> Glass::find_glasses(double n, double vd_, IndexLine line) {
-    return find_glasses(n, vd_, DEFAULT_ND_TOLERANCE, DEFAULT_VD_TOLERANCE, 3, line);
+    return find_glasses(n, vd_, line, IndexLine::D);
+}
+
+std::vector<Glass::GlassMatch> Glass::find_glasses(double n, double v, IndexLine indexLine,
+                                                   IndexLine abbeLine) {
+    return find_glasses(n, v, DEFAULT_ND_TOLERANCE, DEFAULT_VD_TOLERANCE, 3, indexLine,
+                        abbeLine);
 }
 
 std::vector<Glass::GlassMatch> Glass::find_glasses(double nd_, double vd_,
@@ -186,21 +192,28 @@ std::vector<Glass::GlassMatch> Glass::find_glasses(double n, double vd_,
                                                    double nd_tolerance,
                                                    double vd_tolerance, int limit,
                                                    IndexLine line) {
+    return find_glasses(n, vd_, nd_tolerance, vd_tolerance, limit, line, IndexLine::D);
+}
+
+std::vector<Glass::GlassMatch> Glass::find_glasses(double n, double v, double nd_tolerance,
+                                                   double vd_tolerance, int limit,
+                                                   IndexLine indexLine, IndexLine abbeLine) {
     ensureCatalogLoaded();
-    if (!std::isfinite(n) || !std::isfinite(vd_) || nd_tolerance <= 0.0 ||
+    if (!std::isfinite(n) || !std::isfinite(v) || nd_tolerance <= 0.0 ||
         vd_tolerance <= 0.0 || limit <= 0)
         return {};
 
     std::vector<GlassMatch> matches;
     // Java's subMap(lo, true, hi, true) -- inclusive at both ends.
-    auto &index = line == IndexLine::E ? glasses_by_ne() : glasses_by_nd();
+    auto &index = indexLine == IndexLine::E ? glasses_by_ne() : glasses_by_nd();
     auto lo = index.lower_bound(n - nd_tolerance);
     auto hi = index.upper_bound(n + nd_tolerance);
     for (auto it = lo; it != hi; ++it) {
         for (const auto &glass : it->second) {
-            double glass_index = line == IndexLine::E ? glass->ne : glass->nd;
+            double glass_index = indexLine == IndexLine::E ? glass->ne : glass->nd;
+            double glass_abbe = abbeLine == IndexLine::E ? glass->ve : glass->vd;
             double nd_difference = std::abs(glass_index - n);
-            double vd_difference = std::abs(glass->vd - vd_);
+            double vd_difference = std::abs(glass_abbe - v);
             if (vd_difference > vd_tolerance)
                 continue;
             double score = std::pow(nd_difference / nd_tolerance, 2.0) +

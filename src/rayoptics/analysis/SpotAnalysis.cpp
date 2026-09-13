@@ -43,7 +43,7 @@ SpotOptions &SpotOptions::num_rings(int rings) {
 
 SpotOptions &SpotOptions::use_hexapolar() {
     _pattern = PATTERN_HEXAPOLAR;
-    _num_rays_or_rings = 64;
+    _num_rays_or_rings = 21;
     return *this;
 }
 

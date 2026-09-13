@@ -9,6 +9,7 @@
 #include "redukti/importers/OpticalBenchDataImporter.h"
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/OptimizationPipeline.h"
+#include "redukti/optim/OptimizationTrial.h"
 #include "redukti/rayoptics/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
@@ -129,12 +130,13 @@ private:
 
     /**
      * What a pipeline hands to its next stage, and writes at the end: the design as it now
-     * stands, the pipeline, and every trial the pipeline names - so the next stage can read
-     * its own trial from it, and the result can run the pipeline again as it stands.
+     * stands, the pipeline, and every trial the pipeline names. Stage prescriptions still
+     * round-trip through text, but trial definitions are parsed only once and reused.
+     * The result can run the pipeline again as it stands.
      */
-    static std::string carriedForward(const spec::Prescription &prescription,
-                                      const optim::OptimizationPipeline &pipeline,
-                                      const std::string &text, bool useGlassTypes);
+    static std::string carriedForward(
+        const spec::Prescription &prescription, const optim::OptimizationPipeline &pipeline,
+        const std::vector<std::pair<int, optim::OptimizationTrial::TrialDefinition>> &trials);
 
     static rayoptics::analysis::SpotAnalysisResult generateSpotDiagrams(
         rayoptics::optical::OpticalModel *opm, const util::Args &arguments,
@@ -151,6 +153,45 @@ private:
                                            const util::Args &arguments,
                                            const std::string &filname_suffix);
 
+    /**
+     * Writes the measured pupil maps: which part of each field's pupil the lens passes,
+     * which surface blocks the rest, and how well the vignetting factors describe it.
+     *
+     * Named like the spot diagrams, and for the same three fields, so a map sits beside
+     * the spot it explains. The report covers every field.
+     */
+    static void generatePupilMaps(rayoptics::optical::OpticalModel *opm,
+                                  const util::Args &arguments,
+                                  const std::string &filename_suffix);
+
+    /**
+     * Vignetting for the LAYOUT diagrams, whatever the analysis uses.
+     *
+     * A layout draws the rim rays of each bundle, so it needs the factors that say where
+     * the bundle actually ends: without them the drawn rays are the nominal pupil's, which
+     * on a wide angle lens is not the bundle the apertures pass. This is why the layout has
+     * always set its own vignetting rather than following --vig-type.
+     */
+    static constexpr spec::VigType LAYOUT_VIG_TYPE = spec::VigType::SetPupil;
+
+    /**
+     * Vignetting for the routine airspace optimization (--optimize), which is not the
+     * analysis setting: a merit function wants a ray set that keeps its sensitivity to the
+     * variables rather than one that measures the lens exactly, and the vignetted bundle
+     * gives that for fewer rays. A [trial n] states its own, defaulting the same way
+     * through OptimizationBuilder.
+     */
+    static constexpr spec::VigType OPTIMIZATION_VIG_TYPE = spec::VigType::SetPupil;
+
+    // Sampling defaults, should be defaulted via Args preferably
+    static constexpr int HEXAPOLAR_NUM_RINGS = 64;
+    static constexpr int GAUSS_QUADRATURE_NUM_RINGS = 14;
+    static constexpr int GAUSS_QUADRATURE_NUM_SPOKES = 20;
+
+    /** Spot diagrams are always drawn from hexapolar sampling of 21 rings, regardless of --use-spot-pattern. */
+    static rayoptics::analysis::SpotOptions spotDiagramOptions();
+
+    /** Sampling for the spot report and MTFs, as selected by --use-spot-pattern. */
     static rayoptics::analysis::SpotOptions spotOptions(const util::Args &arguments);
 
     static std::unique_ptr<rayoptics::optical::OpticalModel> createLayoutSystem(

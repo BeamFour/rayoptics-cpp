@@ -47,6 +47,16 @@ std::string readFile(const std::string &path) {
     return out;
 }
 
+/** Java's String.replace: every occurrence, left to right. */
+std::string replaceAll(std::string text, const std::string &from, const std::string &to) {
+    std::size_t at = 0;
+    while ((at = text.find(from, at)) != std::string::npos) {
+        text.replace(at, from.size(), to);
+        at += to.size();
+    }
+    return text;
+}
+
 void writeFile(const fs::path &path, const std::string &text) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out << text;
@@ -223,7 +233,8 @@ trials            5 6
 TEST(trialRun_runsAPipelineStageByStage) {
     TempDir dir("trialRun-pipeline");
     fs::path spec = dir.resolve("zoom.txt");
-    writeFile(spec, readFile(ZOOM) + PIPELINE);
+    writeFile(spec, readFile(ZOOM) + replaceAll(PIPELINE, "trials            5 6",
+                                                "trials            5 6 5"));
     Args args = arguments({"--specfile", spec.string(), "--optimize", "7"});
 
     std::string optimized = LensTool2::runOptimizationTrial(readFile(spec.string()), args);
@@ -242,7 +253,9 @@ TEST(trialRun_runsAPipelineStageByStage) {
     // The result carries the pipeline and both its trials, so it can run again as it stands.
     auto again = OptimizationTrial::readPipeline(optimized, 7);
     CHECK(again.has_value());
-    CHECK(again->trials() == (std::vector<int>{5, 6}));
+    CHECK(again->trials() == (std::vector<int>{5, 6, 5}));
+    CHECK_STR_EQ(OptimizationTrial::readPipeline(optimized + "\n", 7)->toPipeline(),
+                 again->toPipeline());
     CHECK_STR_EQ(*again->outdir(), "trials/zoom");
     for (int stage : again->trials()) {
         auto trial = OptimizationTrial::read(optimized, stage, true);
@@ -250,6 +263,11 @@ TEST(trialRun_runsAPipelineStageByStage) {
         const auto *variable = dynamic_cast<VarThickness *>(setup.variables()[0].get());
         CHECK(variable != nullptr);
         CHECK_EQ(variable->_surface_id, 8);
+    }
+    for (int stage : again->distinctTrials()) {
+        auto original = OptimizationTrial::parse(readFile(spec.string()), stage);
+        auto restored = OptimizationTrial::parse(optimized, stage);
+        CHECK_STR_EQ(restored.toTrial(&moved), original.toTrial(&moved));
     }
 }
 

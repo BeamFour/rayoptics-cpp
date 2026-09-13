@@ -4,6 +4,8 @@
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
 #include "redukti/importers/OpticalBenchDataImporter.h"
+#include "redukti/optim/OptimizationConfiguration.h"
+#include "redukti/optim/OptimizationValidation.h"
 #include "redukti/optim/ParaxHelper.h"
 #include "redukti/util/Args.h"
 
@@ -13,6 +15,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -91,9 +94,9 @@ std::string join(const std::vector<std::string> &parts, std::size_t from, std::s
 
 /**
  * The Pattern `\[\s*trial\s+(\d+)\s*\]` and its pipeline twin, matched against a trimmed
- * line. Returns false when the line is some other section; `number` is set only on a match.
+ * line. Returns false when the line is some other section; `digitsOut` is set only on a match.
  */
-bool matchHeader(const std::string &trimmed, const char *keyword, int &number) {
+bool matchHeader(const std::string &trimmed, const char *keyword, std::string &digitsOut) {
     std::size_t i = 0;
     if (i >= trimmed.size() || trimmed[i] != '[')
         return false;
@@ -118,11 +121,7 @@ bool matchHeader(const std::string &trimmed, const char *keyword, int &number) {
         i++;
     if (i + 1 != trimmed.size() || trimmed[i] != ']')
         return false;
-    errno = 0;
-    long long parsed = std::strtoll(text.c_str(), nullptr, 10);
-    if (errno == ERANGE || parsed > INT_MAX)
-        return false;
-    number = static_cast<int>(parsed);
+    digitsOut = text;
     return true;
 }
 
@@ -315,6 +314,58 @@ std::string defined(const std::string &what, const std::map<int, int> &numbers) 
 // Reading
 // --------------------------------------------------------------------------
 
+/** Shared header validation. Map values are one-based source lines for diagnostics. */
+struct SectionIndex {
+    std::vector<std::string> lines;
+    std::map<int, int> trials;
+    std::map<int, int> pipelines;
+
+    explicit SectionIndex(const std::string &text) : lines(splitLines(text)) {
+        for (std::size_t i = 0; i < lines.size(); i++) {
+            std::string header = trim(lines[i]);
+            if (header.rfind("[", 0) != 0)
+                continue;
+            index(header, static_cast<int>(i) + 1, "trial", trials);
+            index(header, static_cast<int>(i) + 1, "pipeline", pipelines);
+        }
+        for (const auto &entry : pipelines) {
+            auto both = trials.find(entry.first);
+            if (both != trials.end())
+                throw TrialException("the number " + intToString(entry.first) +
+                                     " is used by both [trial " + intToString(entry.first) +
+                                     "] at line " + intToString(both->second) +
+                                     " and [pipeline " + intToString(entry.first) +
+                                     "] at line " + intToString(entry.second) +
+                                     "; trials and pipelines share one numbering");
+        }
+    }
+
+    static void index(const std::string &header, int line, const char *kind,
+                      std::map<int, int> &sections) {
+        std::string digits;
+        if (!matchHeader(header, kind, digits)) {
+            // Java's header.substring(1).stripLeading() starting with the kind.
+            std::size_t from = 1;
+            while (from < header.size() && isSpace(header[from]))
+                from++;
+            if (lower(header.substr(from)).rfind(kind, 0) == 0)
+                throw TrialException("line " + intToString(line) + ": expected [" + kind +
+                                     " <number>], found " + header);
+            return;
+        }
+        int number = 0;
+        if (!parseInt(digits, number))
+            throw TrialException("line " + intToString(line) + ": " + kind +
+                                 " number is out of range: " + digits);
+        auto earlier = sections.find(number);
+        if (earlier != sections.end())
+            throw TrialException("[" + std::string(kind) + " " + intToString(number) +
+                                 "] is defined twice, at lines " +
+                                 intToString(earlier->second) + " and " + intToString(line));
+        sections[number] = line;
+    }
+};
+
 /** Values given one per field, kept with their line until the field count is known. */
 struct PerField {
     std::vector<double> values;
@@ -363,6 +414,13 @@ public:
         return nullptr;
     }
 
+    const PerField *find(int frequency) const {
+        for (const auto &entry : entries)
+            if (entry.first == frequency)
+                return &entry.second;
+        return nullptr;
+    }
+
     void put(int frequency, const PerField &values) {
         if (PerField *existing = find(frequency))
             *existing = values;
@@ -377,13 +435,25 @@ private:
     std::vector<std::pair<int, PerField>> entries;
 };
 
+} // namespace
+
 /** One trial's settings as read, before they are applied to a builder. */
-class Reader {
+class OptimizationTrial::Reader {
 public:
     static Reader parse(const std::string &text, int number);
 
-    /** A builder for the prescription, set up as the trial says. */
-    OptimizationBuilder apply(spec::Prescription *prescription);
+    int trialNumber() const { return number; }
+
+    /** Apply prescription-dependent checks at each stage, retaining source diagnostics. */
+    OptimizationBuilder apply(spec::Prescription *prescription,
+                              const OptimizationConfiguration &settings) const;
+
+    /**
+     * Resolve shorthand and omitted values once into the same settings the builder uses.
+     * The Java's configuration(), renamed because the reader already has a configuration
+     * member, the configuration number.
+     */
+    OptimizationConfiguration toConfiguration() const;
 
     bool weighted = true;
     bool dLineOnly = false;
@@ -415,7 +485,7 @@ private:
                          const std::optional<PerField> &b = std::nullopt);
 
     /** One flag per field from 'all', 'all except <field values>' or yes/no per field. */
-    std::vector<bool> balanceFlags();
+    std::vector<bool> balanceFlags() const;
     std::vector<double> weightsFor(const PerField *specific,
                                    const std::optional<PerField> &general) const;
 
@@ -424,8 +494,8 @@ private:
     void count(int line, const std::vector<std::string> &w, std::size_t expected,
                const std::string &form);
     bool yesNo(int line, const std::vector<std::string> &w, std::size_t index);
-    bool yesNoValue(int line, const std::string &value);
-    double number_(int line, const std::string &value, const std::string &what);
+    bool yesNoValue(int line, const std::string &value) const;
+    double number_(int line, const std::string &value, const std::string &what) const;
     double nonNegative(int line, const std::string &value, const std::string &what);
     double positive(int line, const std::string &value, const std::string &what);
     std::vector<double> numbers(int line, const std::vector<std::string> &w, std::size_t from);
@@ -489,13 +559,15 @@ private:
     std::optional<std::vector<int>> gaussianSampling;
     double gaussianInnerRadius = 0.0;
     std::optional<int> hexapolarRays;
+    int hexapolarLine = 0;
 
     bool rayAberrations = false;
     std::vector<ParaxialGoalRow> paraxialGoals;
 };
 
-Reader Reader::parse(const std::string &text, int number) {
-    std::vector<std::string> lines = splitLines(text);
+OptimizationTrial::Reader OptimizationTrial::Reader::parse(const std::string &text, int number) {
+    SectionIndex index(text);
+    const std::vector<std::string> &lines = index.lines;
 
     // The lens data as the prescription reader sees it.
     std::vector<std::string> radii;
@@ -512,32 +584,7 @@ Reader Reader::parse(const std::string &text, int number) {
             radii.push_back(w[1]);
     }
 
-    // Find the trial's lines.
-    std::map<int, int> headers;
-    std::vector<int> trialLines;
-    bool inTrial = false;
-    for (std::size_t i = 0; i < lines.size(); i++) {
-        std::string trimmed = trim(lines[i]);
-        if (trimmed.rfind("[", 0) == 0) {
-            inTrial = false;
-            int found = 0;
-            if (matchHeader(trimmed, "trial", found)) {
-                auto earlier = headers.find(found);
-                if (earlier != headers.end())
-                    throw TrialException("[trial " + intToString(found) +
-                                         "] is defined twice, at lines " +
-                                         intToString(earlier->second) + " and " +
-                                         intToString(static_cast<int>(i) + 1));
-                headers[found] = static_cast<int>(i) + 1;
-                inTrial = found == number;
-            } else if (lower(trimmed).rfind("[trial", 0) == 0)
-                throw TrialException("line " + intToString(static_cast<int>(i) + 1) +
-                                     ": expected [trial <number>], found " + trimmed);
-            continue;
-        }
-        if (inTrial)
-            trialLines.push_back(static_cast<int>(i));
-    }
+    const auto &headers = index.trials;
     if (headers.find(number) == headers.end())
         throw TrialException("there is no [trial " + intToString(number) +
                              "] in this prescription; " +
@@ -545,13 +592,15 @@ Reader Reader::parse(const std::string &text, int number) {
                                               : "it defines " + defined("trial", headers)));
 
     Reader reader(number, radii);
-    for (int i : trialLines)
-        reader.read(i + 1, lines[static_cast<std::size_t>(i)]);
+    // The stored one-based header line is the zero-based first body line.
+    for (std::size_t i = static_cast<std::size_t>(headers.at(number));
+         i < lines.size() && trim(lines[i]).rfind("[", 0) != 0; i++)
+        reader.read(static_cast<int>(i) + 1, lines[i]);
     reader.finish();
     return reader;
 }
 
-void Reader::read(int line, const std::string &raw) {
+void OptimizationTrial::Reader::read(int line, const std::string &raw) {
     std::size_t hash = raw.find('#');
     std::string text = trim(hash != std::string::npos ? raw.substr(0, hash) : raw);
     if (text.empty())
@@ -611,7 +660,7 @@ void Reader::read(int line, const std::string &raw) {
         throw error(line, "unknown keyword '" + w[0] + "'");
 }
 
-void Reader::vary(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::vary(int line, const std::vector<std::string> &w) {
     if (w.size() < 3)
         throw error(line, "expected 'vary curvatures|thicknesses|aspherics ...'");
     std::string what = lower(w[1]);
@@ -628,7 +677,7 @@ void Reader::vary(int line, const std::vector<std::string> &w) {
                               "'; expected curvatures, thicknesses or aspherics");
 }
 
-Selection Reader::selection(int line, const std::vector<std::string> &w, bool curvature) {
+Selection OptimizationTrial::Reader::selection(int line, const std::vector<std::string> &w, bool curvature) {
     if (lower(w[2]) == "all") {
         if (w.size() == 3)
             return Selection{SelectionKind::All, {}};
@@ -639,7 +688,7 @@ Selection Reader::selection(int line, const std::vector<std::string> &w, bool cu
     return Selection{SelectionKind::List, surfaces(line, w, 2, curvature)};
 }
 
-std::vector<int> Reader::surfaces(int line, const std::vector<std::string> &w,
+std::vector<int> OptimizationTrial::Reader::surfaces(int line, const std::vector<std::string> &w,
                                   std::size_t from, bool curvature) {
     std::vector<int> result;
     std::set<int> unique;
@@ -655,7 +704,7 @@ std::vector<int> Reader::surfaces(int line, const std::vector<std::string> &w,
     return result;
 }
 
-int Reader::surface(int line, const std::string &value) {
+int OptimizationTrial::Reader::surface(int line, const std::string &value) {
     int s = 0;
     if (!parseInt(value, s))
         throw error(line, "expected a surface number, found '" + value +
@@ -668,12 +717,12 @@ int Reader::surface(int line, const std::string &value) {
     return s;
 }
 
-bool Reader::isStop(int surface) const {
+bool OptimizationTrial::Reader::isStop(int surface) const {
     const std::string &radius = radii[static_cast<std::size_t>(surface)];
     return radius == "AS" || radius == "FS";
 }
 
-void Reader::aspherics(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::aspherics(int line, const std::vector<std::string> &w) {
     if (w.size() == 3 && lower(w[2]) == "existing") {
         once(line, "vary aspherics existing");
         existingAspherics = true;
@@ -713,7 +762,7 @@ void Reader::aspherics(int line, const std::vector<std::string> &w) {
     asphericRows.push_back(AsphericRow{s, terms, line});
 }
 
-void Reader::constrain(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::constrain(int line, const std::vector<std::string> &w) {
     if (w.size() < 2 || w.size() > 3)
         throw error(line, "expected 'constrain curvatures|thicknesses|edges [weight]'");
     double weight = w.size() == 3 ? nonNegative(line, w[2], "constraint weight") : 1.0;
@@ -733,7 +782,7 @@ void Reader::constrain(int line, const std::vector<std::string> &w) {
                               "'; expected curvatures, thicknesses or edges");
 }
 
-void Reader::goal(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::goal(int line, const std::vector<std::string> &w) {
     if (w.size() < 3)
         throw error(line, "expected 'goal <type> ...'");
     std::string what = lower(w[1]);
@@ -782,7 +831,7 @@ void Reader::goal(int line, const std::vector<std::string> &w) {
                               "spot-deviation, spot, ray-aberrations or paraxial");
 }
 
-void Reader::contrastGoal(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::contrastGoal(int line, const std::vector<std::string> &w) {
     std::string what = lower(w[2]);
     if (what == "sag") {
         once(line, "goal contrast sag");
@@ -808,6 +857,8 @@ void Reader::contrastGoal(int line, const std::vector<std::string> &w) {
         count(line, w, 5, "goal contrast sampling <rings> <spokes>");
         contrastSampling = std::vector<int>{positiveInt(line, w[3], "rings"),
                                             positiveInt(line, w[4], "spokes")};
+        if ((*contrastSampling)[1] < 3)
+            throw error(line, "contrast sampling requires at least 1 ring and 3 spokes");
         contrastSettingsLine = line;
     } else if (what == "calibrate") {
         once(line, "goal contrast calibrate");
@@ -833,7 +884,7 @@ void Reader::contrastGoal(int line, const std::vector<std::string> &w) {
     }
 }
 
-MtfRows &Reader::mtfRowsFor(int frequency, int line) {
+MtfRows &OptimizationTrial::Reader::mtfRowsFor(int frequency, int line) {
     for (auto &entry : mtf)
         if (entry.first == frequency)
             return entry.second;
@@ -841,7 +892,7 @@ MtfRows &Reader::mtfRowsFor(int frequency, int line) {
     return mtf.back().second;
 }
 
-void Reader::mtfGoal(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::mtfGoal(int line, const std::vector<std::string> &w) {
     if (w.size() < 5)
         throw error(line, "expected 'goal mtf <frequency> sag|tan [weights] <values>' or "
                           "'goal mtf <frequency> weights <values>'");
@@ -873,10 +924,10 @@ void Reader::mtfGoal(int line, const std::vector<std::string> &w) {
                               w[3] + "'");
 }
 
-void Reader::spotSampling(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::spotSampling(int line, const std::vector<std::string> &w) {
     if (w.size() < 4 || lower(w[2]) != "sampling")
         throw error(line, "expected 'goal spot sampling gaussian <rings> <spokes> [<inner "
-                          "radius>]' or 'goal spot sampling hexapolar <rays>'");
+                          "radius>]' or 'goal spot sampling hexapolar <rings>'");
     std::string what = lower(w[3]);
     if (what == "gaussian") {
         once(line, "goal spot sampling gaussian");
@@ -888,14 +939,15 @@ void Reader::spotSampling(int line, const std::vector<std::string> &w) {
         gaussianInnerRadius = w.size() == 7 ? nonNegative(line, w[6], "inner radius") : 0.0;
     } else if (what == "hexapolar") {
         once(line, "goal spot sampling hexapolar");
-        count(line, w, 5, "goal spot sampling hexapolar <rays>");
-        hexapolarRays = positiveInt(line, w[4], "rays");
+        count(line, w, 5, "goal spot sampling hexapolar <rings>");
+        hexapolarRays = positiveInt(line, w[4], "rings");
+        hexapolarLine = line;
     } else
         throw error(line,
                     "unknown spot sampling '" + w[3] + "'; expected gaussian or hexapolar");
 }
 
-void Reader::paraxialGoal(int line, const std::vector<std::string> &w) {
+void OptimizationTrial::Reader::paraxialGoal(int line, const std::vector<std::string> &w) {
     if (w.size() != 4 && w.size() != 6)
         throw error(line, "expected 'goal paraxial <quantity> <target> [weight <w>]'");
     std::string quantity = lower(w[2]);
@@ -917,7 +969,7 @@ void Reader::paraxialGoal(int line, const std::vector<std::string> &w) {
     paraxialGoals.push_back(ParaxialGoalRow{*id, target, weight});
 }
 
-void Reader::finish() {
+void OptimizationTrial::Reader::finish() {
     if (!fields.has_value())
         throw TrialException("trial " + intToString(number) + ": 'fields' is required");
     if (!frequencies.has_value())
@@ -974,6 +1026,12 @@ void Reader::finish() {
     checkPerField(spotRmsWeights, "weights");
     checkPerField(spotMaxRadius, "targets");
     checkPerField(spotMaxRadiusWeights, "weights");
+    for (const std::optional<PerField> *targets : {&spotRms, &spotMaxRadius})
+        if (targets->has_value())
+            OptimizationValidation::range(
+                (*targets)->values, std::numeric_limits<double>::infinity(), [&] {
+                    return error((*targets)->line, "spot targets must be finite and non-negative");
+                });
     if (spotRmsWeights.has_value() && !spotRms.has_value())
         throw error(spotRmsWeights->line,
                     "spot-rms weights need a 'goal spot-rms <targets>' line");
@@ -992,16 +1050,25 @@ void Reader::finish() {
     if (spotDeviationX.has_value() != spotDeviationY.has_value())
         throw error(firstLine(spotDeviationX, spotDeviationY),
                     "spot deviation needs both an x and a y row");
+    if ((spotDeviation.has_value() || spotDeviationX.has_value()) &&
+        (hexapolarRays.has_value() || spotMaxRadius.has_value())) {
+        int conflictLine =
+            std::max(hexapolarLine, spotMaxRadius.has_value() ? spotMaxRadius->line : 0);
+        for (const std::optional<PerField> *row : {&spotDeviation, &spotDeviationX, &spotDeviationY})
+            if (row->has_value())
+                conflictLine = std::max(conflictLine, (*row)->line);
+        throw error(conflictLine, "spot deviation goals require Gaussian-quadrature spot sampling");
+    }
 }
 
-void Reader::checkContrastFrequency(int frequency, int line) {
+void OptimizationTrial::Reader::checkContrastFrequency(int frequency, int line) {
     if (std::find(contrastFrequencies->begin(), contrastFrequencies->end(), frequency) ==
         contrastFrequencies->end())
         throw error(line, "contrast frequency " + intToString(frequency) +
                               " is not one of the 'goal contrast' frequencies");
 }
 
-void Reader::checkPerField(const std::optional<PerField> &values, const char *what) {
+void OptimizationTrial::Reader::checkPerField(const std::optional<PerField> &values, const char *what) {
     if (!values.has_value())
         return;
     if (values->values.size() != fields->size())
@@ -1015,7 +1082,7 @@ void Reader::checkPerField(const std::optional<PerField> &values, const char *wh
                 throw error(values->line, "weights must not be negative");
 }
 
-int Reader::firstLine(const std::optional<PerField> &a, const std::optional<PerField> &b) {
+int OptimizationTrial::Reader::firstLine(const std::optional<PerField> &a, const std::optional<PerField> &b) {
     if (a.has_value())
         return a->line;
     if (b.has_value())
@@ -1023,7 +1090,7 @@ int Reader::firstLine(const std::optional<PerField> &a, const std::optional<PerF
     return 0;
 }
 
-std::vector<bool> Reader::balanceFlags() {
+std::vector<bool> OptimizationTrial::Reader::balanceFlags() const {
     std::vector<bool> flags(fields->size(), false);
     std::string first = lower((*balanceFields)[0]);
     if (first == "all") {
@@ -1054,8 +1121,15 @@ std::vector<bool> Reader::balanceFlags() {
     return flags;
 }
 
-OptimizationBuilder Reader::apply(spec::Prescription *prescription) {
+OptimizationBuilder OptimizationTrial::Reader::apply(spec::Prescription *prescription,
+                                  const OptimizationConfiguration &settings) const {
     const auto &surfaceList = prescription->_surface_list;
+    if (surfaceList.size() != radii.size())
+        throw IllegalArgumentException(
+            "the prescription has " + intToString(static_cast<int>(surfaceList.size())) +
+            " surfaces but the trial's [lens data] has " +
+            intToString(static_cast<int>(radii.size())) +
+            "; build the prescription from the same text as the trial");
     if (curvatureConstraint.has_value() && curvatures.has_value() &&
         curvatures->kind == SelectionKind::List) {
         for (int s : curvatures->surfaces)
@@ -1066,55 +1140,11 @@ OptimizationBuilder Reader::apply(spec::Prescription *prescription) {
                                 "starting curvature; remove this surface from 'vary "
                                 "curvatures' or omit 'constrain curvatures'");
     }
-    if (surfaceList.size() != radii.size())
-        throw IllegalArgumentException(
-            "the prescription has " + intToString(static_cast<int>(surfaceList.size())) +
-            " surfaces but the trial's [lens data] has " +
-            intToString(static_cast<int>(radii.size())) +
-            "; build the prescription from the same text as the trial");
-    OptimizationBuilder builder = OptimizationBuilder::builder(prescription);
-    builder.description(description)
-        .outdir(outdir)
-        .fields(*fields)
-        .mtfFrequencies(*frequencies)
-        .scenario(configuration)
-        .weighted(weighted)
-        .dLineOnly(dLineOnly);
-    if (vignetting.has_value())
-        builder.vignetting(*vignetting);
-    if (freezeVignetting)
-        builder.freezeVignetting();
-    if (checkSpotApertures.has_value())
-        builder.checkSpotApertures(*checkSpotApertures);
-
-    if (curvatures.has_value()) {
-        switch (curvatures->kind) {
-        case SelectionKind::All:
-            builder.varyAllCurvatures();
-            break;
-        case SelectionKind::AllExcept:
-            builder.varyAllCurvaturesExcept(curvatures->surfaces);
-            break;
-        case SelectionKind::List:
-            builder.varyCurvatures(curvatures->surfaces);
-            break;
-        }
-    }
-    if (thicknesses.has_value()) {
-        switch (thicknesses->kind) {
-        case SelectionKind::All:
-            builder.varyAllThicknesses();
-            break;
-        case SelectionKind::AllExcept:
-            builder.varyAllThicknessesExcept(thicknesses->surfaces);
-            break;
-        case SelectionKind::List:
-            builder.varyThicknesses(thicknesses->surfaces);
-            break;
-        }
-    }
-    if (existingAspherics)
-        builder.varyExistingAspherics();
+    // Add explicit terms through the public API to keep its prescription-dependent
+    // validation (asphere kind and coefficient scaling) and source-line errors.
+    OptimizationConfiguration stage = settings.copy();
+    stage.asphericTerms.clear();
+    OptimizationBuilder builder(prescription, stage);
     for (const AsphericRow &row : asphericRows) {
         for (const Term &term : row.terms) {
             try {
@@ -1129,33 +1159,65 @@ OptimizationBuilder Reader::apply(spec::Prescription *prescription) {
             }
         }
     }
+    return builder;
+}
 
-    if (curvatureConstraint.has_value())
-        builder.applyCurvatureConstraints(*curvatureConstraint);
-    if (thicknessConstraint.has_value())
-        builder.applyThicknessConstraints(*thicknessConstraint);
-    if (edgeConstraint.has_value())
-        builder.applyEdgeThicknessConstraints(*edgeConstraint);
-
+OptimizationConfiguration OptimizationTrial::Reader::toConfiguration() const {
+    OptimizationConfiguration c;
+    c.description = description;
+    c.outdir = outdir;
+    c.fields = *fields;
+    c.mtfFrequencies = *frequencies;
+    c.scenario = configuration;
+    c.weighted = weighted;
+    c.dLineOnly = dLineOnly;
+    if (vignetting.has_value())
+        c.vigType = *vignetting;
+    c.freezeVignetting = freezeVignetting;
+    if (checkSpotApertures.has_value())
+        c.checkSpotApertures = *checkSpotApertures;
+    if (curvatures.has_value()) {
+        c.allCurvatureSurfaces = curvatures->kind != SelectionKind::List;
+        if (curvatures->kind == SelectionKind::List)
+            c.curvatureSurfaces = curvatures->surfaces;
+        if (curvatures->kind == SelectionKind::AllExcept)
+            c.curvatureExclusions = curvatures->surfaces;
+    }
+    if (thicknesses.has_value()) {
+        c.allThicknessSurfaces = thicknesses->kind != SelectionKind::List;
+        if (thicknesses->kind == SelectionKind::List)
+            c.thicknessSurfaces = thicknesses->surfaces;
+        if (thicknesses->kind == SelectionKind::AllExcept)
+            c.thicknessExclusions = thicknesses->surfaces;
+    }
+    c.includeExistingAspherics = existingAspherics;
+    for (const AsphericRow &row : asphericRows)
+        for (const Term &term : row.terms)
+            c.asphericTerms.push_back(
+                OptimizationBuilder::AsphericTerm{row.surface, term.index, term.scale});
+    c.curvatureConstraintWeight = curvatureConstraint;
+    c.thicknessConstraintWeight = thicknessConstraint;
+    c.edgeThicknessConstraintWeight = edgeConstraint;
     if (contrastFrequencies.has_value()) {
-        std::vector<OptimizationBuilder::ContrastGoals> goals;
         for (int frequency : *contrastFrequencies)
-            goals.push_back(OptimizationBuilder::contrast(
+            c.contrastGoals.push_back(OptimizationBuilder::contrast(
                 frequency, weightsFor(contrastSagittalFor.find(frequency), contrastSagittal),
                 weightsFor(contrastTangentialFor.find(frequency), contrastTangential)));
-        builder.contrastGoals(goals);
-        if (contrastSampling.has_value())
-            builder.contrastSampling((*contrastSampling)[0], (*contrastSampling)[1]);
+        if (contrastSampling.has_value()) {
+            c.contrastRings = (*contrastSampling)[0];
+            c.contrastSpokes = (*contrastSampling)[1];
+        }
         if (calibrateContrast.has_value())
-            builder.calibrateContrastFrequency(*calibrateContrast);
+            c.calibrateContrastFrequency = *calibrateContrast;
         if (exitPupilAiming.has_value())
-            builder.aimContrastAtExitPupil(*exitPupilAiming);
+            c.aimContrastAtExitPupil = *exitPupilAiming;
         if (centerContrast.has_value())
-            builder.centerContrastResiduals(*centerContrast);
-        if (balanceFields.has_value())
-            builder.contrastBalanceGoals(balanceFlags(), balanceWeight);
+            c.centerContrastResiduals = *centerContrast;
+        if (balanceFields.has_value()) {
+            c.contrastBalanceFields = balanceFlags();
+            c.contrastBalanceWeight = balanceWeight;
+        }
     }
-
     for (const auto &entry : mtf) {
         const MtfRows &rows = entry.second;
         const std::optional<PerField> &both = rows.weights;
@@ -1164,41 +1226,40 @@ OptimizationBuilder Reader::apply(spec::Prescription *prescription) {
         const std::optional<PerField> &tangentialWeights =
             rows.tangentialWeights.has_value() ? rows.tangentialWeights : both;
         std::vector<double> ones(fields->size(), 1.0);
-        builder.mtfGoals({OptimizationBuilder::mtf(
+        c.mtfGoals.push_back(OptimizationBuilder::mtf(
             entry.first, rows.sagittal->values, rows.tangential->values,
             sagittalWeights.has_value() ? sagittalWeights->values : ones,
-            tangentialWeights.has_value() ? tangentialWeights->values : ones)});
+            tangentialWeights.has_value() ? tangentialWeights->values : ones));
     }
-
-    if (spotRms.has_value()) {
-        if (spotRmsWeights.has_value())
-            builder.spotRmsGoals(spotRms->values, spotRmsWeights->values);
-        else
-            builder.spotRmsGoals(spotRms->values);
+    if (spotRms.has_value())
+        c.spotRmsGoals = OptimizationBuilder::SpotGoals{
+            spotRms->values, spotRmsWeights.has_value()
+                                 ? spotRmsWeights->values
+                                 : std::vector<double>(spotRms->values.size(), 1.0)};
+    if (spotMaxRadius.has_value())
+        c.spotMaxRadiusGoals = OptimizationBuilder::SpotGoals{
+            spotMaxRadius->values, spotMaxRadiusWeights.has_value()
+                                       ? spotMaxRadiusWeights->values
+                                       : std::vector<double>(spotMaxRadius->values.size(), 1.0)};
+    if (spotDeviation.has_value() || spotDeviationX.has_value()) {
+        c.addSpotDeviationGoals = true;
+        c.spotDeviationXWeights = (spotDeviation.has_value() ? spotDeviation : spotDeviationX)->values;
+        c.spotDeviationYWeights = (spotDeviation.has_value() ? spotDeviation : spotDeviationY)->values;
     }
-    if (spotMaxRadius.has_value()) {
-        if (spotMaxRadiusWeights.has_value())
-            builder.spotMaxRadiusGoals(spotMaxRadius->values, spotMaxRadiusWeights->values);
-        else
-            builder.spotMaxRadiusGoals(spotMaxRadius->values);
-    }
-    if (spotDeviation.has_value())
-        builder.spotDeviationGoals(spotDeviation->values);
-    else if (spotDeviationX.has_value())
-        builder.spotDeviationGoals(spotDeviationX->values, spotDeviationY->values);
     if (gaussianSampling.has_value())
-        builder.gaussianQuadratureSampling((*gaussianSampling)[0], (*gaussianSampling)[1],
-                                           gaussianInnerRadius);
-    if (hexapolarRays.has_value())
-        builder.hexapolarSampling(*hexapolarRays);
-    if (rayAberrations)
-        builder.rayAberrationGoals();
+        c.gaussianSampling((*gaussianSampling)[0], (*gaussianSampling)[1], gaussianInnerRadius);
+    if (hexapolarRays.has_value()) {
+        c.useHexapolarSpotPattern = true;
+        c.hexapolarSpotRays = *hexapolarRays;
+    }
+    c.addRayAberrationGoals = rayAberrations;
     for (const ParaxialGoalRow &goal : paraxialGoals)
-        builder.paraxialGoal(goal.id, goal.target, goal.weight);
-    return builder;
+        c.paraxialGoals.push_back(
+            OptimizationBuilder::ParaxialGoal{goal.id, goal.target, goal.weight});
+    return c;
 }
 
-std::vector<double> Reader::weightsFor(const PerField *specific,
+std::vector<double> OptimizationTrial::Reader::weightsFor(const PerField *specific,
                                        const std::optional<PerField> &general) const {
     if (specific != nullptr)
         return specific->values;
@@ -1211,29 +1272,29 @@ std::vector<double> Reader::weightsFor(const PerField *specific,
 // Helpers
 // --------------------------------------------------------------------------
 
-TrialException Reader::error(int line, const std::string &message) const {
+TrialException OptimizationTrial::Reader::error(int line, const std::string &message) const {
     return TrialException("trial " + intToString(number) + ", line " + intToString(line) +
                           ": " + message);
 }
 
-void Reader::once(int line, const std::string &key) {
+void OptimizationTrial::Reader::once(int line, const std::string &key) {
     if (!seen.insert(key).second)
         throw error(line, "'" + key + "' is given more than once");
 }
 
-void Reader::count(int line, const std::vector<std::string> &w, std::size_t expected,
+void OptimizationTrial::Reader::count(int line, const std::vector<std::string> &w, std::size_t expected,
                    const std::string &form) {
     if (w.size() != expected)
         throw error(line, "expected '" + form + "'");
 }
 
-bool Reader::yesNo(int line, const std::vector<std::string> &w, std::size_t index) {
+bool OptimizationTrial::Reader::yesNo(int line, const std::vector<std::string> &w, std::size_t index) {
     if (w.size() != index + 1)
         throw error(line, "expected yes or no after '" + join(w, 0, index) + "'");
     return yesNoValue(line, w[index]);
 }
 
-bool Reader::yesNoValue(int line, const std::string &value) {
+bool OptimizationTrial::Reader::yesNoValue(int line, const std::string &value) const {
     std::string text = lower(value);
     if (text == "yes" || text == "true" || text == "on")
         return true;
@@ -1242,7 +1303,7 @@ bool Reader::yesNoValue(int line, const std::string &value) {
     throw error(line, "expected yes or no, found '" + value + "'");
 }
 
-double Reader::number_(int line, const std::string &value, const std::string &what) {
+double OptimizationTrial::Reader::number_(int line, const std::string &value, const std::string &what) const {
     double d = 0.0;
     if (!parseDouble(value, d))
         throw error(line, "expected a number for the " + what + ", found '" + value + "'");
@@ -1251,21 +1312,21 @@ double Reader::number_(int line, const std::string &value, const std::string &wh
     return d;
 }
 
-double Reader::nonNegative(int line, const std::string &value, const std::string &what) {
+double OptimizationTrial::Reader::nonNegative(int line, const std::string &value, const std::string &what) {
     double d = number_(line, value, what);
     if (d < 0.0)
         throw error(line, "the " + what + " must not be negative");
     return d;
 }
 
-double Reader::positive(int line, const std::string &value, const std::string &what) {
+double OptimizationTrial::Reader::positive(int line, const std::string &value, const std::string &what) {
     double d = number_(line, value, what);
     if (d <= 0.0)
         throw error(line, "the " + what + " must be positive");
     return d;
 }
 
-std::vector<double> Reader::numbers(int line, const std::vector<std::string> &w,
+std::vector<double> OptimizationTrial::Reader::numbers(int line, const std::vector<std::string> &w,
                                     std::size_t from) {
     if (from >= w.size())
         throw error(line, "expected values after '" + join(w, 0, from) + "'");
@@ -1275,7 +1336,7 @@ std::vector<double> Reader::numbers(int line, const std::vector<std::string> &w,
     return values;
 }
 
-int Reader::integer(int line, const std::string &value, const std::string &what) {
+int OptimizationTrial::Reader::integer(int line, const std::string &value, const std::string &what) {
     int i = 0;
     if (!parseInt(value, i))
         throw error(line, "expected a whole number for the " + what + ", found '" + value +
@@ -1283,21 +1344,21 @@ int Reader::integer(int line, const std::string &value, const std::string &what)
     return i;
 }
 
-int Reader::nonNegativeInt(int line, const std::string &value, const std::string &what) {
+int OptimizationTrial::Reader::nonNegativeInt(int line, const std::string &value, const std::string &what) {
     int i = integer(line, value, what);
     if (i < 0)
         throw error(line, "the " + what + " must not be negative");
     return i;
 }
 
-int Reader::positiveInt(int line, const std::string &value, const std::string &what) {
+int OptimizationTrial::Reader::positiveInt(int line, const std::string &value, const std::string &what) {
     int i = integer(line, value, what);
     if (i <= 0)
         throw error(line, "the " + what + " must be positive");
     return i;
 }
 
-std::vector<int> Reader::positiveInts(int line, const std::vector<std::string> &w,
+std::vector<int> OptimizationTrial::Reader::positiveInts(int line, const std::vector<std::string> &w,
                                       std::size_t from, const std::string &what) {
     if (from >= w.size())
         throw error(line, "expected " + what + " after '" + join(w, 0, from) + "'");
@@ -1316,7 +1377,7 @@ std::vector<int> Reader::positiveInts(int line, const std::vector<std::string> &
     return values;
 }
 
-std::vector<double> Reader::fieldList(int line, const std::vector<std::string> &w) {
+std::vector<double> OptimizationTrial::Reader::fieldList(int line, const std::vector<std::string> &w) {
     std::vector<double> values;
     if (w.size() == 6 && lower(w[2]) == "to" && lower(w[4]) == "step") {
         Decimal from = decimal(line, w[1]);
@@ -1340,14 +1401,12 @@ std::vector<double> Reader::fieldList(int line, const std::vector<std::string> &
     return values;
 }
 
-Decimal Reader::decimal(int line, const std::string &value) {
+Decimal OptimizationTrial::Reader::decimal(int line, const std::string &value) {
     Decimal result;
     if (!Decimal::parse(value, result))
         throw error(line, "expected a number, found '" + value + "'");
     return result;
 }
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 // OptimizationTrial
@@ -1355,53 +1414,52 @@ Decimal Reader::decimal(int line, const std::string &value) {
 
 OptimizationTrial::Trial OptimizationTrial::read(const std::string &text, int number,
                                                  bool useGlassTypes) {
-    Reader reader = Reader::parse(text, number);
+    return parse(text, number).createBuilder(text, useGlassTypes);
+}
+
+OptimizationTrial::TrialDefinition OptimizationTrial::parse(const std::string &text,
+                                                            int number) {
+    auto settings = std::make_shared<const Reader>(Reader::parse(text, number));
+    auto configuration =
+        std::make_shared<const OptimizationConfiguration>(settings->toConfiguration());
+    return TrialDefinition(std::move(settings), std::move(configuration));
+}
+
+OptimizationTrial::TrialDefinition::TrialDefinition(
+    std::shared_ptr<const Reader> settings_,
+    std::shared_ptr<const OptimizationConfiguration> configuration_)
+    : settings(std::move(settings_)), configuration(std::move(configuration_)) {}
+
+int OptimizationTrial::TrialDefinition::number() const {
+    return settings->trialNumber();
+}
+
+OptimizationTrial::Trial OptimizationTrial::TrialDefinition::createBuilder(
+    const std::string &prescriptionText, bool useGlassTypes) const {
     importers::OpticalBenchDataImporter::LensSpecifications specs;
-    specs.parse_buffer(text);
+    specs.parse_buffer(prescriptionText);
     auto prescription = std::make_unique<spec::Prescription>(spec::Prescription::build_prescription(
-        specs, useGlassTypes, reader.weighted, reader.dLineOnly));
-    OptimizationBuilder builder = reader.apply(prescription.get());
+        specs, useGlassTypes, configuration->weighted, configuration->dLineOnly));
+    OptimizationBuilder builder = settings->apply(prescription.get(), *configuration);
     return Trial{std::move(prescription), std::move(builder)};
+}
+
+std::string OptimizationTrial::TrialDefinition::toTrial() const {
+    return configuration->toTrial(number());
+}
+
+std::string OptimizationTrial::TrialDefinition::toTrial(spec::Prescription *prescription) const {
+    return settings->apply(prescription, *configuration).toTrial(number());
 }
 
 std::optional<OptimizationPipeline> OptimizationTrial::readPipeline(const std::string &text,
                                                                     int number) {
-    std::vector<std::string> lines = splitLines(text);
-    std::map<int, int> trials;
-    std::map<int, int> pipelines;
-    int start = -1;
-    for (std::size_t i = 0; i < lines.size(); i++) {
-        std::string trimmed = trim(lines[i]);
-        if (trimmed.rfind("[", 0) != 0)
-            continue;
-        int found = 0;
-        if (matchHeader(trimmed, "trial", found)) {
-            trials[found] = static_cast<int>(i) + 1;
-            continue;
-        }
-        if (matchHeader(trimmed, "pipeline", found)) {
-            auto earlier = pipelines.find(found);
-            if (earlier != pipelines.end())
-                throw TrialException("[pipeline " + intToString(found) +
-                                     "] is defined twice, at lines " +
-                                     intToString(earlier->second) + " and " +
-                                     intToString(static_cast<int>(i) + 1));
-            pipelines[found] = static_cast<int>(i) + 1;
-            if (found == number)
-                start = static_cast<int>(i);
-        }
-    }
-    for (const auto &entry : pipelines) {
-        auto both = trials.find(entry.first);
-        if (both != trials.end())
-            throw TrialException("the number " + intToString(entry.first) +
-                                 " is used by both [trial " + intToString(entry.first) +
-                                 "] at line " + intToString(both->second) + " and [pipeline " +
-                                 intToString(entry.first) + "] at line " +
-                                 intToString(entry.second) +
-                                 "; trials and pipelines share one numbering");
-    }
-    if (start < 0) {
+    SectionIndex index(text);
+    const auto &lines = index.lines;
+    const auto &trials = index.trials;
+    const auto &pipelines = index.pipelines;
+    auto startEntry = pipelines.find(number);
+    if (startEntry == pipelines.end()) {
         if (trials.find(number) != trials.end())
             return std::nullopt;
         throw TrialException("there is no [trial " + intToString(number) + "] or [pipeline " +
@@ -1409,6 +1467,7 @@ std::optional<OptimizationPipeline> OptimizationTrial::readPipeline(const std::s
                              defined("trial", trials) + " and " +
                              defined("pipeline", pipelines));
     }
+    int start = startEntry->second - 1;
 
     std::optional<std::string> description;
     std::optional<std::string> outdir;

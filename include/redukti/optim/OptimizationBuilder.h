@@ -17,6 +17,9 @@
 
 namespace redukti::optim {
 
+class OptimizationConfiguration;
+class OptimizationTrial;
+
 /**
  * Builds the repetitive variables and goals used by an optical optimization.
  * Surface numbers are zero based, consistently with VarRadius and the other
@@ -74,6 +77,16 @@ public:
         return OptimizationBuilder(prescription);
     }
 
+    /**
+     * A copy owns its own settings, as the Java's builder owns a private copy of its
+     * configuration: changing one builder never changes another.
+     */
+    OptimizationBuilder(const OptimizationBuilder &other);
+    OptimizationBuilder &operator=(const OptimizationBuilder &other);
+    OptimizationBuilder(OptimizationBuilder &&other) noexcept;
+    OptimizationBuilder &operator=(OptimizationBuilder &&other) noexcept;
+    ~OptimizationBuilder();
+
     /** The prescription this builder optimizes. */
     spec::Prescription *prescription() const { return prescription_; }
 
@@ -81,7 +94,7 @@ public:
     OptimizationBuilder &description(const std::optional<std::string> &description);
 
     /** Empty when the setup has no description; the Java field is a nullable String. */
-    const std::optional<std::string> &description() const { return _description; }
+    const std::optional<std::string> &description() const;
 
     /**
      * Where LensTool2 puts the output of a run of this setup as a trial, relative to
@@ -89,7 +102,7 @@ public:
      */
     OptimizationBuilder &outdir(const std::optional<std::string> &outdir);
 
-    const std::optional<std::string> &outdir() const { return _outdir; }
+    const std::optional<std::string> &outdir() const;
 
     // ------------------------------------------------------------------
     // Configuration - what gets evaluated, and how finely
@@ -554,7 +567,12 @@ public:
     };
 
 private:
+    friend class OptimizationConfiguration;
+    friend class OptimizationTrial;
+
     explicit OptimizationBuilder(spec::Prescription *prescription);
+    OptimizationBuilder(spec::Prescription *prescription,
+                        const OptimizationConfiguration &configuration);
 
     /** Thickness of a surface for the scenario this builder targets. */
     double thicknessOf(int surface) const;
@@ -571,12 +589,6 @@ private:
 
     /** Number of configurations the prescription defines; 1 when it is not a zoom. */
     int scenarioCount() const;
-
-    void configureContrastAnalysis(Analysis &analysis) const;
-    void configureRequiredAnalyses(Analysis &analysis,
-                                   const std::vector<std::shared_ptr<Goal>> &goals) const;
-    void configureSpotPattern(Analysis &analysis,
-                              const std::vector<std::shared_ptr<Goal>> &goals) const;
 
     /** Records an explicitly varied aspheric term, rejecting one the surface cannot have. */
     OptimizationBuilder &addAsphericTerm(int surface, int index,
@@ -631,77 +643,8 @@ private:
 
     static bool sameWavelength(double a, double b);
 
-    // Writing helpers; see toTrial(int).
-    static std::string allExcept(const std::vector<int> &exclusions);
-
-    /** Contrast weights: one row when every frequency shares them, else a row per frequency. */
-    void contrastWeights(std::string &sb, bool sagittal) const;
-
-    /** The balanced fields: all, all except the listed field values, or yes/no for each. */
-    std::string balance() const;
-
-    /** Whether any goal needs the spot analysis, and so the spot sampling settings. */
-    bool tracesSpots() const;
-
-    /** The spot pattern in effect: a maximum-radius goal asks for hexapolar whatever else is set. */
-    bool hexapolarPattern() const;
-
-    static bool allOnes(const std::vector<double> &values);
-
     static constexpr int RAY_FAN_SAMPLES = 10;
 
-    static constexpr int DEFAULT_HEXAPOLAR_RAYS = 64;
-    static constexpr int DEFAULT_GAUSSIAN_QUADRATURE_RINGS = 14;
-    static constexpr int DEFAULT_GAUSSIAN_QUADRATURE_SPOKES = 20;
-    static constexpr int DEFAULT_CONTRAST_RINGS = 6;
-    static constexpr int DEFAULT_CONTRAST_SPOKES = 12;
-
-    spec::Prescription *prescription_;
-    /** Null until fields() is called; validate() rejects that. */
-    std::optional<std::vector<double>> _fields;
-    /** Null until mtfFrequencies() is called; validate() rejects that. */
-    std::optional<std::vector<int>> _mtfFrequencies;
-    std::vector<int> curvatureSurfaces;
-    bool allCurvatureSurfaces = false;
-    std::vector<int> thicknessSurfaces;
-    bool allThicknessSurfaces = false;
-    bool includeExistingAspherics = false;
-    bool _weighted = true;
-    bool _dLineOnly = false;
-    bool addRayAberrationGoals = false;
-    bool useHexapolarSpotPattern = false;
-    int hexapolarSpotRays = DEFAULT_HEXAPOLAR_RAYS;
-    int gaussianQuadratureRings = DEFAULT_GAUSSIAN_QUADRATURE_RINGS;
-    int gaussianQuadratureSpokes = DEFAULT_GAUSSIAN_QUADRATURE_SPOKES;
-    double gaussianQuadratureInnerRadius = 0.0;
-    bool _checkSpotApertures = true;
-    std::optional<std::vector<double>> spotDeviationXWeights;
-    std::optional<std::vector<double>> spotDeviationYWeights;
-    bool addSpotDeviationGoals = false;
-    // 3x6 is enough to measure a fixed design but not to optimize against: the
-    // solver drives the 18 sampled points further than the wavefront between
-    // them, so the merit reads better than the lens is. 6x12 is converged - 8x16
-    // reproduces it - and 12 spokes samples the x and y axes alike, so sagittal
-    // and tangential residuals stay comparable.
-    int contrastRings = DEFAULT_CONTRAST_RINGS;
-    int contrastSpokes = DEFAULT_CONTRAST_SPOKES;
-    bool calibrateContrastFrequency_ = false;
-    bool aimContrastAtExitPupil_ = false;
-    bool centerContrastResiduals_ = false;
-    /** Null until contrastBalanceGoals() is called. */
-    std::optional<std::vector<bool>> contrastBalanceFields;
-    double contrastBalanceWeight = NOMINAL_BALANCE_WEIGHT;
-    int _scenario = 0;
-    spec::VigType vigType = spec::VigType::SetPupil;
-    bool freezeVignetting_ = false;
-    /** Null unless the matching applyXConstraints() was called. */
-    std::optional<double> thicknessConstraintWeight;
-    std::optional<double> edgeThicknessConstraintWeight;
-    std::optional<double> curvatureConstraintWeight;
-    std::vector<MtfGoals> _mtfGoals;
-    std::vector<ContrastGoals> _contrastGoals;
-    std::vector<std::shared_ptr<Var>> additionalVariables_;
-    std::vector<GoalFactory> additionalGoalFactories;
     /** Java's nullable SpotGoals; targets and weights, one per field. */
     struct SpotGoals {
         std::vector<double> targets;
@@ -709,13 +652,6 @@ private:
 
         void validate(int fieldCount, const char *name) const;
     };
-
-    static void spotGoals(std::string &sb, const char *key,
-                          const std::optional<SpotGoals> &goals);
-    std::optional<SpotGoals> spotRmsGoals_;
-    std::optional<SpotGoals> spotMaxRadiusGoals_;
-    std::vector<int> curvatureExclusions;
-    std::vector<int> thicknessExclusions;
 
     /** An explicitly varied aspheric term: the conic constant when index is -1, else _coeffs[index]. */
     struct AsphericTerm {
@@ -731,12 +667,11 @@ private:
         double weight;
     };
 
-    /** Aspheric terms varied explicitly, in the order given. */
-    std::vector<AsphericTerm> asphericTerms;
-    /** First-order goals, in the order given; efl and fno replace the automatic ones. */
-    std::vector<ParaxialGoal> paraxialGoals;
-    std::optional<std::string> _description;
-    std::optional<std::string> _outdir;
+    spec::Prescription *prescription_;
+    /** The settings this builder writes to; never shared with another builder. */
+    std::unique_ptr<OptimizationConfiguration> configuration;
+    std::vector<std::shared_ptr<Var>> additionalVariables_;
+    std::vector<GoalFactory> additionalGoalFactories;
 };
 
 } // namespace redukti::optim

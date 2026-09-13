@@ -32,6 +32,19 @@ public:
     static EnrichmentResult enrich(const std::string &input, bool force,
                                    rayoptics::seq::Glass::IndexLine indexLine);
 
+    /**
+     * @param indexLine which line the refractive index column is quoted at
+     * @param abbeLine  which line the Abbe number column is quoted at. The two are
+     *                  independent: Leica quotes ne with ve, whereas ne paired with
+     *                  vd turns up as a transcription slip. Whenever either is the e
+     *                  line, a matched surface has its index and Abbe columns
+     *                  rewritten to the catalog's d line values, so the file is left
+     *                  consistently on the d line rather than half converted.
+     */
+    static EnrichmentResult enrich(const std::string &input, bool force,
+                                   rayoptics::seq::Glass::IndexLine indexLine,
+                                   rayoptics::seq::Glass::IndexLine abbeLine);
+
     /** The body of the Java `main`, minus argv parsing and the usage banner. */
     static void run(const util::Args &arguments);
 

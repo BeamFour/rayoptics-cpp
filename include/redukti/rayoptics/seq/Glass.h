@@ -105,9 +105,11 @@ public:
     static std::map<GlassName, std::shared_ptr<Glass>> &glasses();
 
     /**
-     * Which line a prescription's refractive index column is quoted at. Most
-     * quote nd, but some patents tabulate the index at the e line while still
-     * quoting the Abbe number as vd, so the two are selected independently.
+     * Which spectral line a prescription quotes a value at. Applies separately
+     * to the refractive index column and the Abbe number column, because the
+     * two do not always agree: Leica patents quote ne with ve throughout, while
+     * a prescription pairing ne with vd is usually a transcription error - one
+     * that still has to be matched to find the glasses.
      */
     enum class IndexLine { D, E };
 
@@ -117,18 +119,25 @@ public:
 
     static std::vector<GlassMatch> find_glasses(double n, double vd_, IndexLine line);
 
+    static std::vector<GlassMatch> find_glasses(double n, double v, IndexLine indexLine,
+                                                IndexLine abbeLine);
+
     static std::vector<GlassMatch> find_glasses(double nd_, double vd_,
                                                 double nd_tolerance, double vd_tolerance,
                                                 int limit);
 
-    /**
-     * Finds catalog glasses matching a refractive index and Abbe number. The
-     * index is compared at `line`; the Abbe number is always vd, which is what
-     * prescriptions quote even when their index column is at the e line.
-     */
+    /** Matches the index at `line` and the Abbe number as vd. */
     static std::vector<GlassMatch> find_glasses(double n, double vd_,
                                                 double nd_tolerance, double vd_tolerance,
                                                 int limit, IndexLine line);
+
+    /**
+     * Finds catalog glasses matching a refractive index and an Abbe number, each
+     * compared at the line it was quoted at.
+     */
+    static std::vector<GlassMatch> find_glasses(double n, double v, double nd_tolerance,
+                                                double vd_tolerance, int limit,
+                                                IndexLine indexLine, IndexLine abbeLine);
 
     /**
      * Populates the catalog. Java runs the five add_*_glasses() methods from a

@@ -15,6 +15,8 @@
 
 namespace redukti::optim {
 
+class OptimizationConfiguration;
+
 /**
  * Reads a `[trial n]` section of a prescription file into an OptimizationBuilder;
  * OptimizationBuilder::toTrial(int) writes one back. The format is documented in
@@ -44,6 +46,42 @@ public:
         OptimizationBuilder builder;
     };
 
+private:
+    class Reader;
+
+public:
+    /**
+     * Parsed trial settings, reusable across pipeline stages. Canonical configuration is
+     * resolved once; the private reader retains source locations for surface-dependent
+     * diagnostics. Each application creates a fresh builder and stage state.
+     */
+    class TrialDefinition {
+    public:
+        int number() const;
+
+        /** Build the current design using this trial's wavelength settings. */
+        Trial createBuilder(const std::string &prescriptionText, bool useGlassTypes) const;
+
+        /**
+         * Write canonical trial text, including effective defaults, without constructing
+         * a prescription, builder or solver. Surface-dependent checks run when creating a
+         * stage.
+         */
+        std::string toTrial() const;
+
+        /** Compatibility overload that also performs prescription-dependent validation. */
+        std::string toTrial(spec::Prescription *prescription) const;
+
+    private:
+        friend class OptimizationTrial;
+
+        TrialDefinition(std::shared_ptr<const Reader> settings,
+                        std::shared_ptr<const OptimizationConfiguration> configuration);
+
+        std::shared_ptr<const Reader> settings;
+        std::shared_ptr<const OptimizationConfiguration> configuration;
+    };
+
     /**
      * Reads trial `number` from the text of a prescription file into a builder for that
      * prescription, built from the same text with the trial's wavelength settings.
@@ -51,6 +89,9 @@ public:
      * @throws TrialException if the file has no such trial, or the trial has a problem
      */
     static Trial read(const std::string &text, int number, bool useGlassTypes);
+
+    /** Parse a reusable definition without importing glass or constructing a prescription. */
+    static TrialDefinition parse(const std::string &text, int number);
 
     /**
      * Reads `[pipeline number]`, or returns nothing when the number names a trial rather

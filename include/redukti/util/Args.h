@@ -2,6 +2,7 @@
 #ifndef REDUKTI_UTIL_ARGS_H
 #define REDUKTI_UTIL_ARGS_H
 
+#include "redukti/rayoptics/analysis/PupilMapAnalysis.h"
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/spec/Prescription.h"
 
@@ -61,6 +62,12 @@ public:
      */
     std::string index_line = "d";
     /**
+     * Line the prescription's Abbe number column is quoted at, "d" or "e".
+     * Independent of index_line: Leica patents quote ne with ve, while a
+     * prescription pairing ne with vd is usually a transcription slip.
+     */
+    std::string abbe_line = "d";
+    /**
      * Run the routine airspace optimization before reporting: the back focus on
      * a prime, the variable airspaces other than the back focus on a zoom.
      */
@@ -81,8 +88,21 @@ public:
      * Vignetting calculation applied once the model is built. Defaults to the
      * value every tool in this module already hard-codes, so wiring an existing
      * tool up to this field is a no-op.
+     *
+     * In LensTool2 this settles the models the ANALYSIS outputs are computed from - the
+     * spot diagrams, the MTF, the ray aberration fans and the vignetting and paraxial
+     * dumps. The layout diagrams and the routine optimization set their own; see
+     * LensTool2::LAYOUT_VIG_TYPE and LensTool2::OPTIMIZATION_VIG_TYPE.
      */
     spec::VigType vig_type = spec::VigType::SetPupil;
+    /**
+     * Write the measured pupil maps beside the other reports: which part of each field's
+     * pupil the lens passes, and which surface blocks the rest. See
+     * rayoptics::analysis::PupilMapAnalysis.
+     */
+    bool output_pupil_maps = false;
+    /** Samples per axis in a pupil map; the cost is the square of this. */
+    int pupil_map_samples = rayoptics::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES;
     /**
      * Selects the chief ray aiming algorithm. TRUE aims with a real ray trace
      * at the entrance pupil (what the model calls a wide angle system), FALSE
@@ -107,6 +127,9 @@ public:
 
     /** The org.redukti.rayoptics.seq.Glass.IndexLine this maps to. */
     rayoptics::seq::Glass::IndexLine index_line_value() const;
+
+    /** The org.redukti.rayoptics.seq.Glass.IndexLine the Abbe column maps to. */
+    rayoptics::seq::Glass::IndexLine abbe_line_value() const;
 
     /** Accepts d or e, rejecting anything else rather than defaulting. */
     static std::string parse_index_line(const std::optional<std::string> &value);

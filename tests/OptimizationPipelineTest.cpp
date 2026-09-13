@@ -63,6 +63,27 @@ int lineOf(const std::string &text, const std::string &wanted) {
     return 0;
 }
 
+/** Java's String.replace: every occurrence, left to right. */
+std::string replaceAll(std::string text, const std::string &from, const std::string &to) {
+    std::size_t at = 0;
+    while ((at = text.find(from, at)) != std::string::npos) {
+        text.replace(at, from.size(), to);
+        at += to.size();
+    }
+    return text;
+}
+
+/** The message of the TrialException `call` throws; a failure when it throws nothing. */
+template <typename Call> std::string trialErrorOf(Call call) {
+    try {
+        call();
+    } catch (const TrialException &e) {
+        return e.getMessage();
+    }
+    ::redukti::test::reportFailure(__FILE__, __LINE__, "expected a TrialException");
+    return "";
+}
+
 void checkMentions(const std::string &message, const std::string &part) {
     if (message.find(part) == std::string::npos)
         ::redukti::test::reportFailure(__FILE__, __LINE__,
@@ -138,6 +159,44 @@ TEST(pipeline_rejectsMistakes) {
     checkMentions(rejection(TRIALS, 9),
                   "there is no [trial 9] or [pipeline 9] in this prescription; "
                   "it defines trials 1, 2 and no pipelines");
+}
+
+TEST(pipeline_bothEntryPointsValidateTheSameHeaders) {
+    const char *const invalid[] = {
+        "[trial 1]\n",
+        "[pipeline 7]\ntrials 1\n[pipeline 7]\n",
+        "[pipeline 1]\ntrials 2\n",
+        "[ trial nope ]\n",
+        "[ pipeline nope ]\n",
+        "[trial 99999999999999999999]\n",
+        "[pipeline 99999999999999999999]\n"};
+    for (const char *extra : invalid) {
+        std::string text = withSections(std::string(TRIALS) + "\n" + extra);
+        std::string trialError = trialErrorOf([&] { OptimizationTrial::parse(text, 1); });
+        std::string pipelineError =
+            trialErrorOf([&] { OptimizationTrial::readPipeline(text, 1); });
+        CHECK_STR_EQ(pipelineError, trialError);
+        checkMentions(trialError, "line");
+    }
+}
+
+TEST(pipeline_mixedHeadersAndUnrelatedSectionsRoundTrip) {
+    std::string text =
+        withSections(replaceAll(TRIALS, "[trial 1]", "[ TrIaL 1 ]") +
+                     "\n[unrelated]\nignored value\n[ PiPeLiNe 7 ]\ntrials 1 2 1\n");
+    text = replaceAll(text, "\n", "\r\n");
+    auto definition = OptimizationTrial::parse(text, 1);
+    auto built = definition.createBuilder(text, true);
+    std::string trial = definition.toTrial(built.prescription.get());
+    auto pipeline = OptimizationTrial::readPipeline(text, 7);
+    CHECK(pipeline.has_value());
+    if (!pipeline.has_value())
+        return;
+    std::string written = withSections(trial + "\n[trial 2]\nfields 0\nfrequencies 20\n" +
+                                       pipeline->toPipeline());
+    CHECK_STR_EQ(OptimizationTrial::parse(written, 1).toTrial(built.prescription.get()), trial);
+    CHECK_STR_EQ(OptimizationTrial::readPipeline(written, 7)->toPipeline(),
+                 pipeline->toPipeline());
 }
 
 TEST(pipeline_reportsProblemsWithTheirLine) {

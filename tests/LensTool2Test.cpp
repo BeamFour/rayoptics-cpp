@@ -202,9 +202,9 @@ void compareApprox(const std::string &mine, const std::string &ref,
 } // namespace
 
 TEST(lenstool2_reproduces_committed_example) {
-    // Work in a scratch directory: the tool writes the .zmx next to the spec
-    // file regardless of --outdir, so running it against the repository copy
-    // would overwrite a committed file.
+    // Work in a scratch directory: without --outdir every output, the .zmx
+    // included, is written next to the spec file, so running against the
+    // repository copy would overwrite committed files.
     fs::path work = fs::path(REDUKTI_TEST_TMPDIR) / "lenstool2";
     std::error_code ec;
     fs::remove_all(work, ec);
@@ -218,7 +218,7 @@ TEST(lenstool2_reproduces_committed_example) {
     arguments.specfile = (work / SPEC_NAME).string();
     // A fixed date so the README is reproducible; the Java stamps
     // LocalDate.now() here, which is why the tool takes it as a parameter.
-    LensTool2::run(arguments, "2026-08-26");
+    LensTool2::run(arguments, "2026-09-13");
 
     for (const char *f : EXACT_FILES)
         compareExact((work / f).string(), std::string(REF_DIR) + f, f);

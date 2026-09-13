@@ -340,4 +340,139 @@ std::string RayAberrationPlot::plot(const rayoptics::raytr::TraceFanResult &fan_
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// PupilMapPlot
+// ---------------------------------------------------------------------------
+
+namespace {
+
+using PupilSample = rayoptics::analysis::PupilMapAnalysis::Sample;
+
+const Rgb PUPIL_PASSED(0.30f, 0.69f, 0.31f, 1.0f);
+const Rgb PUPIL_FAILED(0.93f, 0.93f, 0.93f, 1.0f);
+const Rgb PUPIL_NOMINAL = Rgb::rgb_black;
+const Rgb PUPIL_PIECEWISE(0.76f, 0.07f, 0.12f, 1.0f);
+const Rgb PUPIL_ELLIPSE(0.12f, 0.47f, 0.71f, 1.0f);
+
+/** A colour per blocking surface, assigned in the order the surfaces turn up. */
+const std::vector<Rgb> &pupilPalette() {
+    static const std::vector<Rgb> palette{
+        Rgb(0.84f, 0.15f, 0.16f, 1.0f), Rgb(1.00f, 0.50f, 0.05f, 1.0f),
+        Rgb(0.58f, 0.40f, 0.74f, 1.0f), Rgb(0.55f, 0.34f, 0.29f, 1.0f),
+        Rgb(0.89f, 0.47f, 0.76f, 1.0f), Rgb(0.74f, 0.74f, 0.13f, 1.0f),
+        Rgb(0.09f, 0.75f, 0.81f, 1.0f), Rgb(0.68f, 0.78f, 0.91f, 1.0f),
+        Rgb(1.00f, 0.73f, 0.47f, 1.0f), Rgb(0.77f, 0.69f, 0.84f, 1.0f)};
+    return palette;
+}
+
+/** Java's LinkedHashMap<Integer, Rgb>: surfaces in the order they first block a ray. */
+using SurfaceColours = std::vector<std::pair<int, Rgb>>;
+
+const Rgb *colourFor(const SurfaceColours &colours, int surface) {
+    for (const auto &entry : colours)
+        if (entry.first == surface)
+            return &entry.second;
+    return nullptr;
+}
+
+Rgb pupilColourOf(const PupilSample &s, const SurfaceColours &colours) {
+    if (s.passed)
+        return PUPIL_PASSED;
+    const Rgb *colour = s.blocked_by >= 0 ? colourFor(colours, s.blocked_by) : nullptr;
+    return colour != nullptr ? *colour : PUPIL_FAILED;
+}
+
+bool sameRgb(const Rgb &a, const Rgb &b) {
+    return a.r == b.r && a.g == b.g && a.b == b.b;
+}
+
+} // namespace
+
+std::string PupilMapPlot::plot(int size) const {
+    using rayoptics::analysis::PupilMapAnalysis;
+    RendererSvg r(size, size, Rgb::rgb_white);
+    double reach = map->reach;
+    r.set_window(Vector2Pair(Vector2(-reach, -reach), Vector2(reach, reach)), true);
+
+    SurfaceColours colours;
+    for (const auto &s : map->samples)
+        if (!s.passed && s.blocked_by >= 0 && colourFor(colours, s.blocked_by) == nullptr)
+            colours.emplace_back(
+                s.blocked_by, pupilPalette()[colours.size() % pupilPalette().size()]);
+
+    // The grid is regular and its regions are contiguous, so each row is drawn as a few
+    // filled runs rather than as tens of thousands of points.
+    double cell = 2 * reach / (map->num_samples - 1.0);
+    for (int j = 0; j < map->num_samples; j++) {
+        int start = 0;
+        for (int i = 1; i <= map->num_samples; i++) {
+            Rgb run = pupilColourOf(map->sample(start, j), colours);
+            if (i < map->num_samples && sameRgb(run, pupilColourOf(map->sample(i, j), colours)))
+                continue;
+            double x0 = map->coordinate(start) - cell / 2;
+            double x1 = map->coordinate(i - 1) + cell / 2;
+            double y0 = map->coordinate(j) - cell / 2;
+            double y1 = map->coordinate(j) + cell / 2;
+            r.draw_polygon({Vector2(x0, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(x0, y1)},
+                           run, true, true);
+            start = i;
+        }
+    }
+
+    r.draw_circle(Vector2(0.0, 0.0), 1.0, PUPIL_NOMINAL, false);
+    draw_region(r, PUPIL_PIECEWISE, false);
+    draw_region(r, PUPIL_ELLIPSE, true);
+
+    const auto &fld = *map->fld;
+    double top = reach * 0.93;
+    Vector2 direction(1.0, 0.0);
+    r.draw_text(Vector2(-reach * 0.97, top), direction, "field " + formatF(fld.yv(), 2),
+                Renderer::TextAlignLeft, 16, Rgb::rgb_black);
+    r.draw_text(Vector2(-reach * 0.97, top - reach * 0.09), direction,
+                "vig scales  x " + formatF(PupilMapAnalysis::scale(fld.vlx), 3) + "/" +
+                    formatF(PupilMapAnalysis::scale(fld.vux), 3) + "  y " +
+                    formatF(PupilMapAnalysis::scale(fld.vly), 3) + "/" +
+                    formatF(PupilMapAnalysis::scale(fld.vuy), 3),
+                Renderer::TextAlignLeft, 12, Rgb::rgb_gray);
+    r.draw_text(Vector2(-reach * 0.97, -top + reach * 0.09), direction,
+                "piecewise sampled " + formatF(100 * map->piecewise_quality.sampled, 0) +
+                    "% covered " + formatF(100 * map->piecewise_quality.covered, 0) + "%",
+                Renderer::TextAlignLeft, 12, PUPIL_PIECEWISE);
+    r.draw_text(Vector2(-reach * 0.97, -top), direction,
+                "ellipse   sampled " + formatF(100 * map->ellipse_quality.sampled, 0) +
+                    "% covered " + formatF(100 * map->ellipse_quality.covered, 0) + "%",
+                Renderer::TextAlignLeft, 12, PUPIL_ELLIPSE);
+
+    int row = 0;
+    for (const auto &entry : colours) {
+        r.draw_text(Vector2(reach * 0.97, top - row * reach * 0.075), direction,
+                    "blocked by s" + intToString(entry.first), Renderer::TextAlignRight, 12,
+                    entry.second);
+        row++;
+    }
+    std::string out;
+    r.write(out);
+    return out;
+}
+
+void PupilMapPlot::draw_region(Renderer &r, const Rgb &rgb, bool ellipse) const {
+    using rayoptics::analysis::PupilMapAnalysis;
+    const auto &fld = *map->fld;
+    const int steps = 180;
+    std::optional<Vector2> previous;
+    for (int i = 0; i <= steps; i++) {
+        double t = 2 * mathlib::M::PI * i / steps;
+        double x = std::cos(t), y = std::sin(t);
+        Vector2 point = ellipse
+            ? Vector2(PupilMapAnalysis::ellipse_offset(fld.vlx, fld.vux) +
+                          x * PupilMapAnalysis::ellipse_scale(fld.vlx, fld.vux),
+                      PupilMapAnalysis::ellipse_offset(fld.vly, fld.vuy) +
+                          y * PupilMapAnalysis::ellipse_scale(fld.vly, fld.vuy))
+            : Vector2(x * fld.vignetting_scale_x(x), y * fld.vignetting_scale_y(y));
+        if (previous.has_value())
+            r.draw_segment(*previous, point, rgb);
+        previous = point;
+    }
+}
+
 } // namespace redukti::plotter

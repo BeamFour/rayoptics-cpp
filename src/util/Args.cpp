@@ -110,12 +110,20 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
         } else if (arg1 == "--spot-grid-size") {
             arguments.spot_grid_size = parse_positive_int(arg1, arg2);
             i++;
+        } else if (arg1 == "--output-pupil-maps") {
+            arguments.output_pupil_maps = true;
+        } else if (arg1 == "--pupil-map-samples") {
+            arguments.pupil_map_samples = parse_positive_int(arg1, arg2);
+            i++;
         } else if (arg1 == "--auto-size-spot-diagrams") {
             arguments.auto_size_spots = true;
         } else if (arg1 == "--assign-glass-types") {
             arguments.assign_glass_types = true;
         } else if (arg1 == "--index-line") {
             arguments.index_line = parse_index_line(arg2);
+            i++;
+        } else if (arg1 == "--abbe-line") {
+            arguments.abbe_line = parse_index_line(arg2);
             i++;
         } else if (arg1 == "--update-specfile") {
             arguments.update_specfile = true;
@@ -154,13 +162,19 @@ rayoptics::seq::Glass::IndexLine Args::index_line_value() const {
                              : rayoptics::seq::Glass::IndexLine::D;
 }
 
+rayoptics::seq::Glass::IndexLine Args::abbe_line_value() const {
+    return abbe_line == "e" ? rayoptics::seq::Glass::IndexLine::E
+                            : rayoptics::seq::Glass::IndexLine::D;
+}
+
 std::string Args::parse_index_line(const std::optional<std::string> &value) {
     if (!value.has_value())
-        throw IllegalArgumentException("--index-line requires a value, one of: d, e");
+        throw IllegalArgumentException(
+            "--index-line and --abbe-line require a value, one of: d, e");
     std::string normalized = lower(trim(*value));
     if (normalized == "d" || normalized == "e")
         return normalized;
-    throw IllegalArgumentException("Unrecognized --index-line '" + *value +
+    throw IllegalArgumentException("Unrecognized line '" + *value +
                                    "', expected one of: d, e");
 }
 

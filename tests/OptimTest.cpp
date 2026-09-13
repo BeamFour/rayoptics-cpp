@@ -797,6 +797,41 @@ TEST(optim_additional_maximum_spot_radius_goal_forces_hexapolar_sampling) {
                      .build();
 
     CHECK_EQ(setup.analysis()->_spot_pattern, SpotOptions::PATTERN_HEXAPOLAR);
+    CHECK(setup.analysis()->_compute_spots);
+    CHECK(setup.analysis()->_compute_ray_aberrations);
+    CHECK(setup.analysis()->_compute_mtf);
+}
+
+TEST(optim_custom_factory_can_keep_its_explicit_analysis_requirements) {
+    auto p = prescription();
+    auto setup = OptimizationBuilder::builder(&p)
+                     .fields({0.0})
+                     .mtfFrequencies({10})
+                     .additionalGoals({[](Analysis *a) -> std::shared_ptr<Goal> {
+                         a->required_analyses(true, false, false);
+                         return std::make_shared<GoalSpotMaxRadius>(a, 1, 20.0, 1.0);
+                     }})
+                     .build();
+    CHECK(setup.analysis()->_compute_spots);
+    CHECK(!setup.analysis()->_compute_ray_aberrations);
+    CHECK(!setup.analysis()->_compute_mtf);
+    CHECK_EQ(setup.analysis()->_spot_pattern, SpotOptions::PATTERN_HEXAPOLAR);
+}
+
+TEST(optim_per_ray_deviation_keeps_gaussian_sampling_with_a_custom_maximum_radius_goal) {
+    auto p = prescription();
+    auto setup = OptimizationBuilder::builder(&p)
+                     .fields({0.0})
+                     .mtfFrequencies({10})
+                     .spotDeviationGoals({1.0})
+                     .gaussianQuadratureSampling(3, 6)
+                     .additionalGoals({[](Analysis *a) -> std::shared_ptr<Goal> {
+                         return std::make_shared<GoalSpotMaxRadius>(a, 1, 20.0, 1.0);
+                     }})
+                     .build();
+    CHECK_EQ(setup.analysis()->_spot_pattern, SpotOptions::PATTERN_GAUSS_QUADRATURE);
+    CHECK_EQ(setup.analysis()->_num_rings, 3);
+    CHECK_EQ(setup.analysis()->_num_spokes, 6);
 }
 
 TEST(optim_rejects_invalid_hexapolar_sample_count) {
