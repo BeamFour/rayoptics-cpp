@@ -449,7 +449,7 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 still_iterating = false;
             } else {
                 auto r_target = get(sm->ifcs, *indx)->edge_pt_target(start_dir);
-                // If we missed the first surface, use bisection to bracket
+                // If we missed a surface, use bisection to bracket
                 // the edge. Use the result to start the newton iteration to
                 // quickly find the edge.
                 if (dynamic_cast<TraceMissedSurfaceException *>(&ray_error) != nullptr) {
