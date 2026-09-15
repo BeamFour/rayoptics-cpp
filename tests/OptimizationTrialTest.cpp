@@ -261,6 +261,42 @@ TEST(trial_effectiveAnalysesAndSamplingSurviveRoundTrip) {
     }
 }
 
+TEST(trial_solverTolerancesRoundTripAndAreAbsentUntilAskedFor) {
+    std::string settings = R"(solver ftol            1.0E-6
+solver xtol            1.0E-5
+solver gtol            0
+solver max-evaluations 250
+)";
+    auto trial = read(withTrials(SUMMICRON, trialOf(settings)));
+    std::string written = trial.builder.toTrial(1);
+    std::string normalized;
+    for (char c : written) {
+        if (c == ' ' || c == '\t' || c == '\n') {
+            if (!normalized.empty() && normalized.back() != ' ')
+                normalized.push_back(' ');
+        } else
+            normalized.push_back(c);
+    }
+    CHECK(contains(normalized, "solver ftol 1.0E-6"));
+    CHECK(contains(normalized, "solver xtol 1.0E-5"));
+    CHECK(contains(normalized, "solver gtol 0"));
+    CHECK(contains(normalized, "solver max-evaluations 250"));
+    auto restored = read(withTrials(SUMMICRON, written));
+    CHECK_STR_EQ(restored.builder.toTrial(1), written);
+
+    // A trial that says nothing about the solver writes nothing back, so the solver
+    // keeps the defaults it has always used.
+    auto silentTrial = read(withTrials(SUMMICRON, trialOf("")));
+    CHECK(!contains(silentTrial.builder.toTrial(1), "solver "));
+
+    try {
+        read(withTrials(SUMMICRON, trialOf("solver wibble 1\n")));
+        CHECK(false);
+    } catch (const TrialException &e) {
+        checkMentions(e.getMessage(), "unknown solver setting 'wibble'");
+    }
+}
+
 TEST(trial_numbersSurfacesByPosition) {
     std::string text = withTrials(SUMMICRON, trialOf(R"(vary curvatures   all except 2 6
 vary thicknesses  10 4

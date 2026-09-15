@@ -463,6 +463,7 @@ private:
         : number(number), radii(std::move(radii)) {}
 
     void read(int line, const std::string &raw);
+    void solver(int line, const std::vector<std::string> &w);
     void vary(int line, const std::vector<std::string> &w);
     Selection selection(int line, const std::vector<std::string> &w, bool curvature);
     std::vector<int> surfaces(int line, const std::vector<std::string> &w, std::size_t from,
@@ -520,6 +521,10 @@ private:
     std::optional<spec::VigType> vignetting;
     bool freezeVignetting = false;
     std::optional<bool> checkSpotApertures;
+    std::optional<double> solverFtol;
+    std::optional<double> solverXtol;
+    std::optional<double> solverGtol;
+    std::optional<int> solverMaxEvaluations;
 
     std::optional<Selection> curvatures;
     std::optional<Selection> thicknesses;
@@ -650,7 +655,9 @@ void OptimizationTrial::Reader::read(int line, const std::string &raw) {
                                       w[2] + "'");
             freezeVignetting = true;
         }
-    } else if (keyword == "vary")
+    } else if (keyword == "solver")
+        solver(line, w);
+    else if (keyword == "vary")
         vary(line, w);
     else if (keyword == "constrain")
         constrain(line, w);
@@ -658,6 +665,31 @@ void OptimizationTrial::Reader::read(int line, const std::string &raw) {
         goal(line, w);
     else
         throw error(line, "unknown keyword '" + w[0] + "'");
+}
+
+/**
+ * The lmder stopping tolerances. Left alone, the solver keeps its own defaults;
+ * see the note in LMDerSolver on why xtol is off by default.
+ */
+void OptimizationTrial::Reader::solver(int line, const std::vector<std::string> &w) {
+    if (w.size() != 3)
+        throw error(line, "expected 'solver ftol|xtol|gtol|max-evaluations <value>'");
+    std::string what = lower(w[1]);
+    if (what == "ftol") {
+        once(line, "solver ftol");
+        solverFtol = nonNegative(line, w[2], "ftol");
+    } else if (what == "xtol") {
+        once(line, "solver xtol");
+        solverXtol = nonNegative(line, w[2], "xtol");
+    } else if (what == "gtol") {
+        once(line, "solver gtol");
+        solverGtol = nonNegative(line, w[2], "gtol");
+    } else if (what == "max-evaluations") {
+        once(line, "solver max-evaluations");
+        solverMaxEvaluations = positiveInt(line, w[2], "max-evaluations");
+    } else
+        throw error(line, "unknown solver setting '" + w[1] +
+                              "'; expected ftol, xtol, gtol or max-evaluations");
 }
 
 void OptimizationTrial::Reader::vary(int line, const std::vector<std::string> &w) {
@@ -1174,6 +1206,11 @@ OptimizationConfiguration OptimizationTrial::Reader::toConfiguration() const {
     if (vignetting.has_value())
         c.vigType = *vignetting;
     c.freezeVignetting = freezeVignetting;
+    c.solverTolerances = SolverTolerances(
+        solverFtol.value_or(SolverTolerances::defaultFtol()),
+        solverXtol.value_or(SolverTolerances::DEFAULT_XTOL),
+        solverGtol.value_or(SolverTolerances::defaultGtol()),
+        solverMaxEvaluations.value_or(SolverTolerances::FROM_VARIABLE_COUNT));
     if (checkSpotApertures.has_value())
         c.checkSpotApertures = *checkSpotApertures;
     if (curvatures.has_value()) {

@@ -549,7 +549,7 @@ public:
         std::vector<std::shared_ptr<Goal>> goals() const { return _goals; }
 
         LMDerMeritFunction meritFunction(bool useNative) const {
-            return LMDerMeritFunction(_analysis, _variables, _goals, useNative);
+            return LMDerMeritFunction(_analysis, _variables, _goals, useNative, _tolerances);
         }
 
     private:
@@ -557,13 +557,15 @@ public:
 
         OptimizationSetup(std::shared_ptr<Analysis> analysis_,
                           std::vector<std::shared_ptr<Var>> variables_,
-                          std::vector<std::shared_ptr<Goal>> goals_)
+                          std::vector<std::shared_ptr<Goal>> goals_,
+                          SolverTolerances tolerances_ = SolverTolerances())
             : _analysis(std::move(analysis_)), _variables(std::move(variables_)),
-              _goals(std::move(goals_)) {}
+              _goals(std::move(goals_)), _tolerances(std::move(tolerances_)) {}
 
         std::shared_ptr<Analysis> _analysis;
         std::vector<std::shared_ptr<Var>> _variables;
         std::vector<std::shared_ptr<Goal>> _goals;
+        SolverTolerances _tolerances;
     };
 
 private:

@@ -3,6 +3,7 @@
 #define REDUKTI_OPTIM_OPTIMIZATIONCONFIGURATION_H
 
 #include "redukti/optim/OptimizationBuilder.h"
+#include "redukti/optim/SolverTolerances.h"
 #include "redukti/spec/Prescription.h"
 
 #include <optional>
@@ -66,6 +67,8 @@ public:
     int scenario = 0;
     spec::VigType vigType = spec::VigType::SetPupil;
     bool freezeVignetting = false;
+    /** Solver tolerances a trial set; empty fields keep the LMDerSolver defaults. */
+    SolverTolerances solverTolerances;
     /** Null unless the matching applyXConstraints() was called. */
     std::optional<double> thicknessConstraintWeight;
     std::optional<double> edgeThicknessConstraintWeight;

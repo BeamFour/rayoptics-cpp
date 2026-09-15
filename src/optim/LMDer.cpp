@@ -41,9 +41,9 @@ template <typename Evaluation> bool tryEvaluation(Evaluation &&evaluation) {
 LMDerMeritFunction::LMDerMeritFunction(Analysis *analysis,
                                        std::vector<std::shared_ptr<Var>> vars_,
                                        std::vector<std::shared_ptr<Goal>> functions_,
-                                       bool use_native)
+                                       bool use_native, SolverTolerances tolerances_)
     : analysis(analysis), vars(std::move(vars_)), functions(std::move(functions_)),
-      use_native(use_native) {
+      use_native(use_native), tolerances(std::move(tolerances_)) {
     weights.resize(functions.size());
     for (std::size_t i = 0; i < functions.size(); i++) {
         if (!std::isfinite(functions[i]->_weight) || functions[i]->_weight < 0.0)
@@ -57,9 +57,10 @@ LMDerMeritFunction::LMDerMeritFunction(Analysis *analysis,
 LMDerMeritFunction::LMDerMeritFunction(std::shared_ptr<Analysis> analysis_,
                                        std::vector<std::shared_ptr<Var>> vars_,
                                        std::vector<std::shared_ptr<Goal>> functions_,
-                                       bool use_native)
+                                       bool use_native, SolverTolerances tolerances_)
     : analysis_owner(std::move(analysis_)), analysis(analysis_owner.get()),
-      vars(std::move(vars_)), functions(std::move(functions_)), use_native(use_native) {
+      vars(std::move(vars_)), functions(std::move(functions_)), use_native(use_native),
+      tolerances(std::move(tolerances_)) {
     weights.resize(functions.size());
     for (std::size_t i = 0; i < functions.size(); i++) {
         if (!std::isfinite(functions[i]->_weight) || functions[i]->_weight < 0.0)
@@ -313,8 +314,9 @@ void LMDerMeritFunction::validateInputs() {
 std::unique_ptr<Solver> LMDerMeritFunction::getSolver() {
     validateInputs();
     if (analysis_owner)
-        return std::make_unique<LMDerSolver>(analysis_owner, vars, functions, use_native);
-    return std::make_unique<LMDerSolver>(analysis, vars, functions, use_native);
+        return std::make_unique<LMDerSolver>(analysis_owner, vars, functions, use_native,
+                                            tolerances);
+    return std::make_unique<LMDerSolver>(analysis, vars, functions, use_native, tolerances);
 }
 
 std::string LMDerMeritFunction::toString() {
@@ -377,10 +379,16 @@ int LMDerSolver::solve() {
         std::vector<double> fjac(static_cast<std::size_t>(m) * static_cast<std::size_t>(n),
                                  0.0); // Space for jacobian
         int ldfjac = m;
-        double ftol = std::sqrt(mathlib::MinPack::dpmpar(1));
-        double xtol = 0.;      // don't stop on step size; ray-trace noise makes late steps tiny
-        double gtol = 1.0e-12; // stop when the gradient is genuinely flat
-        int maxfev = (n + 1) * 100;
+        // The defaults live in SolverTolerances; a trial's 'solver' settings
+        // replace them there, so this only reads what it was given.
+        double ftol = tolerances.ftol();
+        double xtol = tolerances.xtol();
+        double gtol = tolerances.gtol();
+        int maxfev = tolerances.maxEvaluations(n);
+        REDUKTI_LOG_INFO(Optim, "lmder: n=" + intToString(n) + " m=" + intToString(m) +
+                                    " ftol=" + formatG(ftol, 0, 6) + " xtol=" +
+                                    formatG(xtol, 0, 6) + " gtol=" + formatG(gtol, 0, 6) +
+                                    " maxfev=" + intToString(maxfev));
         int mode = 1; // 1=scale internally 2=scale using diag
         double factor = 100;
         int nprint = 1;

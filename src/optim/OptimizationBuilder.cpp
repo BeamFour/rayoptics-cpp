@@ -611,7 +611,8 @@ OptimizationBuilder::OptimizationSetup OptimizationBuilder::build() {
         !additionalGoalFactories.empty() && anyGoalIs<GoalSpotMaxRadius>(goals);
     auto effective = configuration->effectiveAnalysis(customMaximumRadius);
     configuration->configureAnalysis(*analysis, effective, !additionalGoalFactories.empty());
-    return OptimizationSetup(std::move(analysis), std::move(variables), std::move(goals));
+    return OptimizationSetup(std::move(analysis), std::move(variables), std::move(goals),
+                             configuration->solverTolerances);
 }
 
 /**

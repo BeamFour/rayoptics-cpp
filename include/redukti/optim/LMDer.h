@@ -4,6 +4,7 @@
 
 #include "redukti/mathlib/MinPack.h"
 #include "redukti/optim/Goal.h"
+#include "redukti/optim/SolverTolerances.h"
 #include "redukti/optim/Var.h"
 
 #include <chrono>
@@ -27,10 +28,12 @@ public:
      * references amount to.
      */
     LMDerMeritFunction(Analysis *analysis, std::vector<std::shared_ptr<Var>> vars,
-                       std::vector<std::shared_ptr<Goal>> functions, bool use_native);
+                       std::vector<std::shared_ptr<Goal>> functions, bool use_native,
+                       SolverTolerances tolerances = SolverTolerances());
     LMDerMeritFunction(std::shared_ptr<Analysis> analysis,
                        std::vector<std::shared_ptr<Var>> vars,
-                       std::vector<std::shared_ptr<Goal>> functions, bool use_native);
+                       std::vector<std::shared_ptr<Goal>> functions, bool use_native,
+                       SolverTolerances tolerances = SolverTolerances());
 
     bool hasJacobian() override { return true; }
 
@@ -77,6 +80,8 @@ private:
     /** number of functions in lmder parlance */
     std::vector<std::shared_ptr<Goal>> functions;
     bool use_native;
+    /** Solver tolerances handed to the solver this builds; see SolverTolerances. */
+    SolverTolerances tolerances;
     /** Every analysis compute, including Jacobian probes that lmder does not count. */
     int evaluations = 0;
     int iterations = 0;
@@ -109,13 +114,16 @@ private:
 class LMDerSolver : public Solver {
 public:
     LMDerSolver(Analysis *analysis, std::vector<std::shared_ptr<Var>> vars,
-                std::vector<std::shared_ptr<Goal>> functions, bool use_native)
+                std::vector<std::shared_ptr<Goal>> functions, bool use_native,
+                SolverTolerances tolerances = SolverTolerances())
         : analysis(analysis), vars(std::move(vars)), functions(std::move(functions)),
-          use_native(use_native) {}
+          use_native(use_native), tolerances(std::move(tolerances)) {}
     LMDerSolver(std::shared_ptr<Analysis> analysis_, std::vector<std::shared_ptr<Var>> vars,
-                std::vector<std::shared_ptr<Goal>> functions, bool use_native)
+                std::vector<std::shared_ptr<Goal>> functions, bool use_native,
+                SolverTolerances tolerances = SolverTolerances())
         : analysis_owner(std::move(analysis_)), analysis(analysis_owner.get()),
-          vars(std::move(vars)), functions(std::move(functions)), use_native(use_native) {}
+          vars(std::move(vars)), functions(std::move(functions)), use_native(use_native),
+          tolerances(std::move(tolerances)) {}
 
     int solve() override;
 
@@ -127,6 +135,8 @@ private:
     /** number of functions in lmder parlance */
     std::vector<std::shared_ptr<Goal>> functions;
     bool use_native = false;
+    /** What a trial asked for; an empty field keeps the default chosen in solve(). */
+    SolverTolerances tolerances;
 };
 
 } // namespace redukti::optim
