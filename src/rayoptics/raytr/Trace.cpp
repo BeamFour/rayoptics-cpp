@@ -20,6 +20,7 @@
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/util/Lists.h"
+#include "redukti/util/Log.h"
 
 #include <algorithm>
 #include <cmath>
@@ -161,6 +162,8 @@ public:
             rr->pkg = pkg;
             rr->err = nullptr;
         } catch (TraceException &ray_error) {
+            REDUKTI_LOG_DEBUG(Rayoptics, "ray_error: \"" + ray_error.simple_name() +
+                                             "\", ray_error.surf=" + std::to_string(ray_error.surf));
             pkg = ray_error.ray_pkg;
             rr->pkg = ray_error.ray_pkg;
             rr->err = ray_error.clone();
@@ -1054,6 +1057,8 @@ public:
             rr->pkg = pkg;
             rr->err = nullptr;
         } catch (TraceException &ray_error) {
+            REDUKTI_LOG_DEBUG(Rayoptics, "ray_error: \"" + ray_error.simple_name() +
+                                             "\", ray_error.surf=" + std::to_string(ray_error.surf));
             pkg = ray_error.ray_pkg;
             rr->pkg = ray_error.ray_pkg;
             rr->err = ray_error.clone();

@@ -286,4 +286,67 @@ std::string formatF(double value, int precision) {
     return out;
 }
 
+std::string formatE(double value, int width, int precision) {
+    std::string out;
+    if (std::isnan(value)) {
+        out = "NaN";
+    } else if (std::isinf(value)) {
+        out = value < 0 ? "-Infinity" : "Infinity";
+    } else {
+        // Java's %e rounds the shortest round-tripping decimal HALF_UP, exactly
+        // as its %f does; see formatF. Only the placement of the digits differs:
+        // one before the point, `precision` after, then the exponent.
+        if (std::signbit(value))
+            out.push_back('-');
+        std::string digits;
+        int exp10;
+        if (value == 0.0) {
+            digits = "0";
+            exp10 = 0;
+        } else {
+            ShortestDecimal sd = shortestDecimal(std::abs(value));
+            digits = sd.digits;
+            // m = 0.DIGITS * 10^decimalAt = D.IGITS * 10^(decimalAt - 1)
+            exp10 = sd.decimalAt - 1;
+            const int keep = precision + 1;
+            if (keep < static_cast<int>(digits.size())) {
+                const bool round_up = digits[static_cast<std::size_t>(keep)] >= '5';
+                digits.resize(static_cast<std::size_t>(keep));
+                if (round_up) {
+                    int i = keep - 1;
+                    for (; i >= 0; i--) {
+                        auto ui = static_cast<std::size_t>(i);
+                        if (digits[ui] != '9') {
+                            digits[ui] = static_cast<char>(digits[ui] + 1);
+                            break;
+                        }
+                        digits[ui] = '0';
+                    }
+                    if (i < 0) {
+                        // 9.99 carried all the way: 1.00 at the next exponent.
+                        digits = "1";
+                        exp10++;
+                    }
+                }
+            }
+        }
+        const int len = static_cast<int>(digits.size());
+        out.push_back(digits[0]);
+        if (precision > 0) {
+            out.push_back('.');
+            for (int k = 1; k <= precision; k++)
+                out.push_back(k < len ? digits[static_cast<std::size_t>(k)] : '0');
+        }
+        out.push_back('e');
+        out.push_back(exp10 < 0 ? '-' : '+');
+        const int magnitude = exp10 < 0 ? -exp10 : exp10;
+        if (magnitude < 10)
+            out.push_back('0');
+        out += std::to_string(magnitude);
+    }
+    if (static_cast<int>(out.size()) < width)
+        out.insert(out.begin(), static_cast<std::size_t>(width) - out.size(), ' ');
+    return out;
+}
+
 } // namespace redukti

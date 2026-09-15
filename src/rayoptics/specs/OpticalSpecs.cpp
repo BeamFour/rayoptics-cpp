@@ -16,6 +16,7 @@
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/util/Lists.h"
+#include "redukti/util/Log.h"
 
 #include <cmath>
 #include <cstdio>
@@ -70,9 +71,10 @@ void OpticalSpecs::update_optical_properties() {
                         fld.aim_info = std::nullopt;
                     }
                 } catch (const Exception &) {
-                    std::fprintf(stderr,
-                                 "OpticalSpecs aim_chief_ray failure at field %d\n",
-                                 static_cast<int>(i));
+                    const std::string msg =
+                        "OpticalSpecs aim_chief_ray failure at field " + std::to_string(i);
+                    REDUKTI_LOG_INFO(Rayoptics, msg);
+                    std::fprintf(stderr, "%s\n", msg.c_str());
                 }
             }
         }

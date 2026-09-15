@@ -19,6 +19,7 @@
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/util/Lists.h"
+#include "redukti/util/Log.h"
 
 #include <cmath>
 #include <cstdio>
@@ -32,6 +33,7 @@ using mathlib::Matrix3;
 using mathlib::Vector2;
 using mathlib::Vector3;
 using util::Lists::get;
+namespace rlog = ::redukti::util::log;
 
 std::string Wideangle::ZEnpStopHt::toString() const {
     return "{z_enp=" + doubleToString(z_enp) +
@@ -74,8 +76,8 @@ RayResultWithStopCoord Wideangle::enp_z_coordinate(double z_enp,
     } catch (TraceException &ray_error) {
         //print(f'  ray_error: "{type(ray_error).__name__}", '
         //              f'{ray_error.surf=}')
-        //logger.debug(f'   ray_error: "{type(ray_error).__name__}", '
-        //f'{ray_error.surf=}')
+        REDUKTI_LOG_DEBUG(Rayoptics, "   ray_error: \"" + ray_error.simple_name() +
+                                         "\", ray_error.surf=" + std::to_string(ray_error.surf));
         ray_pkg = ray_error.ray_pkg;
         rr = RayResult(ray_pkg, ray_error.clone());
         // FIXME should below be null?
@@ -157,6 +159,10 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
     int stop_idx = stop_idx_.has_value() ? *stop_idx_ : 1;
     auto coord = osp->obj_coords(fld);
     auto dir0 = coord.dir;
+    REDUKTI_LOG_INFO(Rayoptics, std::string(specs::name(osp->fov->key.imageKey)) + ", " +
+                                    specs::name(osp->fov->key.valueKey) + " " +
+                                    doubleToString(fld.yv()) + ":   obj dir sine=" +
+                                    rlog::f(dir0.y, 8, 4));
     // If there is aim_info, try it and return if good.
     if (fld.z_enp.has_value()) {
         auto z_enp_f = *fld.z_enp;
@@ -174,7 +180,8 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
         // axial chief ray
         auto coord_rr = enp_z_coordinate(z_enp_0, sm, stop_idx, dir0, fod.obj_dist, wvl);
         auto rr_f = coord_rr.rr;
-        //logger.info(f"  axial chief {z_enp_0=:8.4f}  {rr.err is None}")
+        REDUKTI_LOG_INFO(Rayoptics, "  axial chief z_enp_0=" + rlog::f(z_enp_0, 8, 4) + "  " +
+                                        rlog::b(rr_f.err == nullptr));
         return RayResultWithZEnp(z_enp_0, rr_f);
     }
     std::optional<ZEnpStopHt> start_z;
@@ -197,8 +204,8 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
         auto final_coord = coord_rr.stop_coord;
         if (rr.err == nullptr) {
             auto ht_at_stop = final_coord.y;
-            //            logger.debug(f"  ray passed at z_enp={z_enp:10.5f},  "
-            //                         f"{ht_at_stop=:7.3f}")
+            REDUKTI_LOG_DEBUG(Rayoptics, "  ray passed at z_enp=" + rlog::f(z_enp, 10, 5) +
+                                             ",  ht_at_stop=" + rlog::f(ht_at_stop, 7, 3));
             successes++;
             if (!start_z.has_value())
                 start_z = ZEnpStopHt(z_enp, ht_at_stop);
@@ -215,7 +222,7 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
                     if (direction == "first") {
                         // first time through, reverse direction and start on
                         // the other side of z_enp_0.
-                        //logger.debug("  --> reverse search direction")
+                        REDUKTI_LOG_DEBUG(Rayoptics, "  --> reverse search direction");
                         del_z = -del_z;
                         z_enp = z_enp_0;
                         direction = "reverse";
@@ -226,13 +233,16 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
                 }
             }
         } else {
-            // logger.debug(f"  ray failed at z_enp={z_enp:10.5f}, "
-            //                         f"{type(rr.err).__name__} at surf {rr.err.surf}")
+            REDUKTI_LOG_DEBUG(Rayoptics, "  ray failed at z_enp=" + rlog::f(z_enp, 10, 5) + ", " +
+                                             rr.err->simple_name() + " at surf " +
+                                             std::to_string(rr.err->surf));
             if (dynamic_cast<TraceMissedSurfaceException *>(rr.err.get()) != nullptr) {
                 // if the first surface was missed, then exit
                 if (rr.err->surf == 1) {
-                    //logger.debug(f"Num 1st surf misses {first_surf_misses}: "
-                    //                                 +msg1)
+                    REDUKTI_LOG_DEBUG(Rayoptics, "Num 1st surf misses " +
+                                                     std::to_string(first_surf_misses) +
+                                                     ": trial " + std::to_string(trial) +
+                                                     "   z_enp=" + rlog::f(z_enp, 8, 4));
                     del_z = -del_z;
                     z_enp = z_enp_0;
                     first_surf_misses++;
@@ -241,7 +251,7 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
             // if the first surface was missed, then exit
             if (start_z.has_value()) {
                 if (direction == "first") {
-                    // logger.debug("  --> reverse search direction")
+                    REDUKTI_LOG_DEBUG(Rayoptics, "  --> reverse search direction");
                     del_z = -del_z;
                     z_enp = z_enp_0;
                     direction = "reverse";
@@ -267,6 +277,8 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
     auto ht_at_stop_a = start_z->ht_at_stop;
     auto z_enp_b = end_z->z_enp;
     auto ht_at_stop_b = end_z->ht_at_stop;
+    REDUKTI_LOG_DEBUG(Rayoptics, "  start_z=" + rlog::f(z_enp_a, 10, 5) + "  end_z=" +
+                                     rlog::f(z_enp_b, 10, 5));
     double a = 0.0, b = 0.0;
     // If start and end are equal, then only one ray was successful.
     // Sample z_enp evenly 1 del_z to either side.
@@ -287,6 +299,8 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
                     start_z = ZEnpStopHt(z_enp, ht_at_stop);
                 end_z = ZEnpStopHt(z_enp, ht_at_stop);
             }
+            REDUKTI_LOG_DEBUG(Rayoptics, "  sample point z_enp=" + rlog::f(z_enp, 8, 4) +
+                                             "  ray passed: " + rlog::b(rr.err == nullptr));
         }
         if (!start_z.has_value() || !end_z.has_value())
             return RayResultWithZEnp(std::nullopt, rr);
@@ -318,8 +332,8 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
         auto edge_b = find_edge(z_enp_coordinate_wrapper, z_enp_b, z_enp_b + del_z, 6);
         auto z_enp_edge_b = edge_b.z_enp;
         auto ht_at_stop_edg_b = edge_b.ht_at_stop;
-        //logger.debug(f"  edge_b found at at z_enp={z_enp_edge_b:10.5f},  "
-        //                     f"{ht_at_stop_edg_b=:7.3f}")
+        REDUKTI_LOG_DEBUG(Rayoptics, "  edge_b found at at z_enp=" + rlog::f(z_enp_edge_b, 10, 5) +
+                                         ",  ht_at_stop_edg_b=" + rlog::f(ht_at_stop_edg_b, 7, 3));
         if (ht_at_stop_edg_b * ht_at_stop_b < 0) {
             start_z = ZEnpStopHt(z_enp_b, ht_at_stop_b);
             end_z = ZEnpStopHt(z_enp_edge_b, ht_at_stop_edg_b);
@@ -331,8 +345,9 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
             auto edge_a = find_edge(wrapper2, z_enp_a, z_enp_a - del_z, 6);
             auto z_enp_edge_a = edge_a.z_enp;
             auto ht_at_stop_edg_a = edge_a.ht_at_stop;
-            // logger.debug(f"  edge_a found at at z_enp={z_enp_edge_a:10.5f},  "
-            //                         f"{ht_at_stop_edg_a=:7.3f}")
+            REDUKTI_LOG_DEBUG(Rayoptics,
+                              "  edge_a found at at z_enp=" + rlog::f(z_enp_edge_a, 10, 5) +
+                                  ",  ht_at_stop_edg_a=" + rlog::f(ht_at_stop_edg_a, 7, 3));
             if (ht_at_stop_edg_a * ht_at_stop_a < 0) {
                 // found an interval containing a crossover point
                 start_z = ZEnpStopHt(z_enp_a, ht_at_stop_a);
@@ -342,15 +357,18 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
             } else {
                 //  there is no ray that passes thru the center of the stop
                 //                # surface.
-                std::fprintf(stderr, "chief ray trace failed at field %3.1f\n",
-                             fld.yv());
+                REDUKTI_LOG_WARNING(Rayoptics,
+                                    "chief ray trace failed at field " + rlog::f(fld.yv(), 3, 1));
                 auto z_enp_cntr = z_enp_edge_a + (z_enp_edge_b - z_enp_edge_a) / 2;
                 auto coord_rr =
                     enp_z_coordinate(z_enp_cntr, sm, stop_idx, dir0, fod.obj_dist, wvl);
                 rr = coord_rr.rr;
-                // logger.debug(f"  fld: {fld.yv:3.1f}:   {z_enp_edge_a=:8.4f}  "
-                //                    f"{z_enp_edge_b=:8.4f}  {z_enp_cntr=:8.4f}  "
-                //                    f"{ht_at_stop=:10.2e}")
+                REDUKTI_LOG_DEBUG(Rayoptics, "  fld: " + rlog::f(fld.yv(), 3, 1) +
+                                                 ":   z_enp_edge_a=" + rlog::f(z_enp_edge_a, 8, 4) +
+                                                 "  z_enp_edge_b=" + rlog::f(z_enp_edge_b, 8, 4) +
+                                                 "  z_enp_cntr=" + rlog::f(z_enp_cntr, 8, 4) +
+                                                 "  ht_at_stop=" +
+                                                 rlog::e(coord_rr.stop_coord.y, 10, 2));
                 return RayResultWithZEnp(z_enp_b, rr);
             }
         }
@@ -364,11 +382,12 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
                                        (end_z->ht_at_stop - start_z->ht_at_stop)) *
                                           start_z->ht_at_stop;
     }
-    //    logger.debug(f"  trials: {trial},   {successes=}")
-    //    logger.debug(f"  z_enp: start_z={a:10.5f} z_estimate={z_estimate:10.5f}  "
-    //                 f"end_z={b:10.5f}")
-    //    logger.debug(f"  ht_at_stop: start_z={start_z[1]:10.5f} "
-    //                 f"end_z={end_z[1]:10.5f}")
+    REDUKTI_LOG_DEBUG(Rayoptics, "  trials: " + std::to_string(trial) +
+                                     ",   successes=" + std::to_string(successes));
+    REDUKTI_LOG_DEBUG(Rayoptics, "  z_enp: start_z=" + rlog::f(a, 10, 5) + " z_estimate=" +
+                                     rlog::f(z_estimate, 10, 5) + "  end_z=" + rlog::f(b, 10, 5));
+    REDUKTI_LOG_DEBUG(Rayoptics, "  ht_at_stop: start_z=" + rlog::f(start_z->ht_at_stop, 10, 5) +
+                                     " end_z=" + rlog::f(end_z->ht_at_stop, 10, 5));
     // Vector3 has no default constructor, so seed the pair explicitly.
     util::Pair<Vector3, RayResult> result(Vector3::ZERO, RayResult());
     try {
@@ -382,6 +401,10 @@ RayResultWithZEnp Wideangle::find_real_enp_rev1(optical::OpticalModel *opm,
     auto start_coord = result.first;
     rr = result.second;
     z_enp = start_coord.z;
+    // The Java reads ht_at_stop here only for this message.
+    REDUKTI_LOG_INFO(Rayoptics, "fld: " + rlog::f(fld.yv(), 3, 1) + ":   z_enp=" +
+                                    rlog::f(z_enp, 8, 4) + "  ht_at_stop=" +
+                                    rlog::e(get(rr.pkg->ray, stop_idx).p.y, 10, 2));
     return RayResultWithZEnp(z_enp, rr);
 }
 
@@ -399,11 +422,15 @@ util::Pair<Vector3, RayResult> Wideangle::find_z_enp_on_interval(
     double y_target = 0.;
     Vector3 start_coords = Vector3::ZERO;
     bool converged = false;
+    // what the solver log messages report: upstream's scipy results carry these
+    std::string method = "secant";
+    int iterations = 0;
     if (stop_idx.has_value()) {
         // do 1D iteration if field and target points are zero in x
         Eval_Z_Enp_Function fn(sm, *stop_idx, dir0, obj_dist, wvl, y_target);
         try {
             auto result = mathlib::SecantSolver::find_root(fn, z_enp, 50, 1.48e-8);
+            iterations = result.iterations;
             z_enp = result.root;
             converged = result.converged;
             rr = fn.rr;
@@ -411,7 +438,8 @@ util::Pair<Vector3, RayResult> Wideangle::find_z_enp_on_interval(
             if (std::abs(ht_at_stop - y_target) < 1e-6)
                 converged = true;
             start_coords = Vector3(0., 0., z_enp);
-        } catch (const TraceException &) {
+        } catch (const TraceException &ray_err) {
+            REDUKTI_LOG_DEBUG(Rayoptics, "trace error: " + std::to_string(ray_err.surf));
             // the objective records the ray result on every evaluation;
             // hold on to the last one so the caller still has ray data.
             rr = fn.rr;
@@ -419,12 +447,13 @@ util::Pair<Vector3, RayResult> Wideangle::find_z_enp_on_interval(
             start_coords = Vector3(0., 0., z_enp);
         }
         if (!converged) {
-            //                logger.debug(f'  {results.method} converged: '
-            //                             f'{results.converged},  # fct evals='
-            //                             f'{results.function_calls}  msg: "{results.flag}" '
-            //                             f'{z_enp=:9.4f}')
+            REDUKTI_LOG_DEBUG(Rayoptics, "  " + method + " converged: " + rlog::b(converged) +
+                                             ",  iterations=" + std::to_string(iterations) +
+                                             "  z_enp=" + rlog::f(z_enp, 9, 4));
             try {
+                method = "brentq";
                 auto result = mathlib::BrentSolver::find_root(start_z, end_z, fn);
+                iterations = result.iterations;
                 if (result.converged) {
                     z_enp = result.root;
                     converged = true;
@@ -442,8 +471,8 @@ util::Pair<Vector3, RayResult> Wideangle::find_z_enp_on_interval(
         }
     } else
         start_coords = Vector3(0., 0., fod.enp_dist);
-    //    logger.debug(f'  {results.method} converged: {results.converged},  '
-    //                 f'# fct evals={results.function_calls}  msg: "{results.flag}"')
+    REDUKTI_LOG_DEBUG(Rayoptics, "  " + method + " converged: " + rlog::b(converged) +
+                                     ",  iterations=" + std::to_string(iterations));
     return util::Pair<Vector3, RayResult>(start_coords, rr);
 }
 
@@ -491,6 +520,10 @@ RayResultWithZEnp Wideangle::find_real_enp_orig(optical::OpticalModel *opm,
     RayResult rr;
     auto coord = osp->obj_coords(fld);
     auto dir0 = coord.dir;
+    REDUKTI_LOG_INFO(Rayoptics, std::string(specs::name(osp->fov->key.imageKey)) + ", " +
+                                    specs::name(osp->fov->key.valueKey) + " " +
+                                    doubleToString(fld.yv()) + ":   obj dir sine=" +
+                                    rlog::f(dir0.y, 8, 4));
     if (fld.z_enp.has_value()) {
         auto z_enp_f = *fld.z_enp;
         auto coord_rr =
@@ -502,6 +535,8 @@ RayResultWithZEnp Wideangle::find_real_enp_orig(optical::OpticalModel *opm,
     auto z_enp_0 = fod.enp_dist;
     if (dir0.z == 1.0) {  // axial chief ray
         auto coord_rr = enp_z_coordinate(z_enp_0, sm, stop_idx, dir0, fod.obj_dist, wvl);
+        REDUKTI_LOG_DEBUG(Rayoptics, "  axial chief z_enp_0=" + rlog::f(z_enp_0, 8, 4) + "  " +
+                                         rlog::b(coord_rr.rr.err == nullptr));
         return RayResultWithZEnp(z_enp_0, coord_rr.rr);
     }
     std::optional<double> start_z;
@@ -518,13 +553,23 @@ RayResultWithZEnp Wideangle::find_real_enp_orig(optical::OpticalModel *opm,
         auto coord_rr = enp_z_coordinate(z_enp, sm, stop_idx, dir0, fod.obj_dist, wvl);
         rr = coord_rr.rr;
         if (rr.err == nullptr) {
+            REDUKTI_LOG_DEBUG(Rayoptics, "  ray passed at z_enp=" + rlog::f(z_enp, 10, 5) +
+                                             ",  final_coord[1]=" +
+                                             rlog::f(coord_rr.stop_coord.y, 7, 3));
             successes++;
             if (!start_z.has_value())
                 start_z = z_enp;
             end_z = z_enp;
         } else {
+            REDUKTI_LOG_DEBUG(Rayoptics, "  ray failed at z_enp=" + rlog::f(z_enp, 10, 5) + ", " +
+                                             rr.err->simple_name() + " at surf " +
+                                             std::to_string(rr.err->surf));
             if (dynamic_cast<TraceMissedSurfaceException *>(rr.err.get()) != nullptr) {
                 if (rr.err->surf == 1) {
+                    REDUKTI_LOG_DEBUG(Rayoptics, "Num 1st surf misses " +
+                                                     std::to_string(first_surf_misses) +
+                                                     ": trial " + std::to_string(trial) +
+                                                     "   z_enp=" + rlog::f(z_enp, 8, 4));
                     del_z = -del_z;
                     z_enp = z_enp_0;
                     first_surf_misses++;
@@ -537,6 +582,11 @@ RayResultWithZEnp Wideangle::find_real_enp_orig(optical::OpticalModel *opm,
         z_enp += del_z;
         trial += 1;
     }
+    REDUKTI_LOG_DEBUG(Rayoptics, "  trials: " + std::to_string(trial) +
+                                     ",   successes=" + std::to_string(successes));
+    REDUKTI_LOG_DEBUG(Rayoptics,
+                      "  start_z=" + (start_z ? rlog::f(*start_z, 10, 5) : rlog::pad("null", 10)) +
+                          "  end_z=" + (end_z ? rlog::f(*end_z, 10, 5) : rlog::pad("null", 10)));
     // If start and end are equal, then only one ray was successful.
     // Sample z_enp evenly 1 del_z to either side.
     if (start_z.has_value() && end_z.has_value() && *start_z == *end_z) {
@@ -554,6 +604,8 @@ RayResultWithZEnp Wideangle::find_real_enp_orig(optical::OpticalModel *opm,
                     start_z = z_enp;
                 end_z = z_enp;
             }
+            REDUKTI_LOG_DEBUG(Rayoptics, "  sample point z_enp=" + rlog::f(z_enp, 8, 4) +
+                                             "  ray passed: " + rlog::b(rr.err == nullptr));
         }
     }
     // Java unboxes start_z/end_z here; a null would NPE, and .value() throws in
@@ -563,13 +615,23 @@ RayResultWithZEnp Wideangle::find_real_enp_orig(optical::OpticalModel *opm,
                                         // Now that candidate z_enps have been identified that trace without
                                         // ray failures, iterate to find the ray thru the stop center
                                         end_z.value()};
+    REDUKTI_LOG_DEBUG(Rayoptics, "  start_z=" + rlog::f(*start_z, 10, 5) + "  end_z=" +
+                                     rlog::f(*end_z, 10, 5));
     for (auto init_z : starting_pts) {
         auto result = find_z_enp(opm, stop_idx, init_z, fld, wvl);
         rr = result.rr;
         z_enp = result.z_enp.has_value() ? *result.z_enp : z_enp;
-        if (rr.err == nullptr)
+        if (rr.err == nullptr) {
+            REDUKTI_LOG_DEBUG(Rayoptics, "  iter start " + rlog::f(init_z, 8, 4) + ",  z_enp " +
+                                             rlog::f(z_enp, 8, 4));
             break;
+        }
     }
+    // upstream also logs the solver's convergence here; find_z_enp does not
+    // return the solver result, so there is nothing to report it from
+    REDUKTI_LOG_INFO(Rayoptics, "fld: " + rlog::f(fld.yv(), 3, 1) + ":   z_enp=" +
+                                    rlog::f(z_enp, 8, 4) + "  ht_at_stop=" +
+                                    rlog::e(get(rr.pkg->ray, stop_idx).p.y, 10, 2));
     return RayResultWithZEnp(z_enp, rr);
 }
 
@@ -610,7 +672,8 @@ RayResultWithZEnp Wideangle::find_z_enp(optical::OpticalModel *opt_model,
         try {
             auto result = mathlib::SecantSolver::find_root(func, z_enp, 50, 1.48e-8);
             z_enp = result.root;
-        } catch (const TraceException &) {
+        } catch (const TraceException &ray_err) {
+            REDUKTI_LOG_DEBUG(Rayoptics, "   trace error: " + std::to_string(ray_err.surf));
             z_enp = z_enp_0;
             // Preserve the caller's estimate rather than replacing it with zero.
         }

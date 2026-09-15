@@ -6,6 +6,7 @@
 #include "redukti/optim/Goal.h"
 #include "redukti/optim/Var.h"
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -76,6 +77,13 @@ private:
     /** number of functions in lmder parlance */
     std::vector<std::shared_ptr<Goal>> functions;
     bool use_native;
+    /** Every analysis compute, including Jacobian probes that lmder does not count. */
+    int evaluations = 0;
+    int iterations = 0;
+    std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+
+    /** One line per lmder iteration, so a long solve can be told apart from a stuck one. */
+    void reportProgress(int m, const std::vector<double> &fvec);
 
     /**
      * Evaluates the weighted residuals (value - target)*weight at x.

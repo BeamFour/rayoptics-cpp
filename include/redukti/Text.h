@@ -52,6 +52,16 @@ std::string formatG(double value, int width, int precision);
 std::string formatF(double value, int precision);
 
 /**
+ * Java's `String.format("%<width>.<precision>e", value)`.
+ *
+ * Like %f, Java rounds the shortest round-tripping decimal HALF_UP, so this is
+ * not C's %e either. The exponent always carries a sign and at least two
+ * digits (`1.5e+00`, `2.5e-300`), and precision 0 writes no decimal point.
+ * `width` right-aligns with spaces; pass 0 for no padding.
+ */
+std::string formatE(double value, int width, int precision);
+
+/**
  * The subset of java.text.DecimalFormat that M::decimal_format configures:
  * minimum 1 integer digit, at most `maxFractionDigits` fraction digits,
  * minimum 0 fraction digits, no grouping, decimal separator only when needed.

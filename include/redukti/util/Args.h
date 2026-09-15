@@ -101,6 +101,10 @@ public:
      * rayoptics::analysis::PupilMapAnalysis.
      */
     bool output_pupil_maps = false;
+    /** Log the optimizer's progress to the console, one line per iteration. */
+    bool verbose = false;
+    /** Log everything, including the ray-optics info messages and debug traces. */
+    bool debug = false;
     /** Samples per axis in a pupil map; the cost is the square of this. */
     int pupil_map_samples = rayoptics::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES;
     /**

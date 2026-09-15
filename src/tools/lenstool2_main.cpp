@@ -5,6 +5,7 @@
 // this port has no third-party dependencies.
 #include "redukti/tools/LensTool2.h"
 #include "redukti/util/Args.h"
+#include "redukti/util/Log.h"
 
 #include <exception>
 #include <iostream>
@@ -24,11 +25,21 @@ int main(int argc, char **argv) {
         std::cerr << e.what() << std::endl;
         return 1;
     }
+    {
+        // Only warnings show otherwise. --verbose is scoped to the optimizer: the
+        // ray-optics info messages fire on every chief ray aim, so inside an
+        // optimization they would bury the progress lines; they come with --debug.
+        namespace rlog = redukti::util::log;
+        if (arguments.debug)
+            rlog::set_all_levels(rlog::Level::Debug);
+        else if (arguments.verbose)
+            rlog::set_level(rlog::Area::Optim, rlog::Level::Info);
+    }
     if (!arguments.specfile.has_value()) {
         // The trailing backslash-newline pairs mirror the Java usage text,
         // which wraps the synopsis the way a shell continuation would.
         std::cerr << "Usage: --specfile inputfile [--outdir dir] \\\n";
-        std::cerr << "       [--only-d-line] [--dont-use-glass-types] \\\n";
+        std::cerr << "       [--only-d-line] [--dont-use-glass-types] [--verbose|--debug] \\\n";
         std::cerr << "       [--output-ray-aberration-plots] [--output-wavelength-mtfs] "
                      "[--auto-size-spot-diagrams] \\\n";
         std::cerr << "       [--use-spot-pattern " << Args::spot_pattern_names()
@@ -70,6 +81,9 @@ int main(int argc, char **argv) {
                      "is the default\n";
         std::cerr << "       Output files are created alongside the specfile unless "
                      "--outdir is given\n";
+        std::cerr << "       --verbose logs the optimizer's progress, one line per iteration;\n";
+        std::cerr << "         --debug logs everything, including ray-optics' info and debug "
+                     "traces, which are voluminous during an optimization\n";
         return 1;
     }
     if (arguments.update_specfile && !arguments.assign_glass_types) {

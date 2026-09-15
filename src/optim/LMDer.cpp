@@ -4,6 +4,7 @@
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
 #include "redukti/mathlib/M.h"
+#include "redukti/util/Log.h"
 
 #include <algorithm>
 #include <cassert>
@@ -87,8 +88,10 @@ int LMDerMeritFunction::apply(int m, int n, std::vector<double> &x,
     // called every nprint iterations with iflag=0, so that the
     // function may perform special operations, such as printing
     // residuals.
-    if (iflag == 0)
+    if (iflag == 0) {
+        reportProgress(m, fvec);
         return 0;
+    }
     if (iflag != 2) {
         computeResiduals(x, fvec);
     } else {
@@ -106,14 +109,33 @@ int LMDerMeritFunction::apply(int m, int n, std::vector<double> &x,
     (void)m;
     (void)n;
 
-    if (iflag == 0)
+    if (iflag == 0) {
+        reportProgress(m, fvec);
         return 0;
+    }
     computeResiduals(x, fvec);
     return 0;
 }
 
+void LMDerMeritFunction::reportProgress(int m, const std::vector<double> &fvec) {
+    namespace rlog = ::redukti::util::log;
+    iterations++;
+    if (!rlog::enabled(rlog::Area::Optim, rlog::Level::Info))
+        return;
+    double sos = 0.0;
+    for (int i = 0; i < m; i++)
+        sos += fvec[static_cast<std::size_t>(i)] * fvec[static_cast<std::size_t>(i)];
+    const double elapsed =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    rlog::write("lmder: iter=" + std::to_string(iterations) +
+                " evaluations=" + std::to_string(evaluations) +
+                " merit=" + formatG(std::sqrt(sos / m), 0, 9) +
+                " elapsed=" + formatF(elapsed, 1) + " s");
+}
+
 void LMDerMeritFunction::computeResiduals(std::vector<double> &x,
                                           std::vector<double> &fvec) {
+    evaluations++;
     const bool okay = tryEvaluation([&] {
         for (std::size_t i = 0; i < x.size(); i++) {
             vars[i]->set_scaled_value(x[i]);
@@ -224,6 +246,7 @@ bool LMDerMeritFunction::isUsable(double value) {
 
 bool LMDerMeritFunction::evaluate(std::vector<double> &x, std::vector<double> &delta,
                                   std::vector<double> &values) {
+    evaluations++;
     const bool okay = tryEvaluation([&] {
         for (std::size_t i = 0; i < delta.size(); i++) {
             vars[i]->set_scaled_value(x[i] + delta[i]);

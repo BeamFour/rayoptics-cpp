@@ -147,6 +147,7 @@ add_executable(mathlib_tests
     tests/LayoutPlotterTest.cpp
     tests/ZemaxExporterTest.cpp
     tests/FormatFTest.cpp
+    tests/FormatETest.cpp
     tests/LensTool2Test.cpp
     tests/OptimTest.cpp
     tests/OptimSolveTest.cpp

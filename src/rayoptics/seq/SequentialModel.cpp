@@ -22,6 +22,7 @@
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/util/Lists.h"
+#include "redukti/util/Log.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -376,22 +377,29 @@ void SequentialModel::apply_scale_factor_over(double scale_factor,
         surfs = {0, static_cast<int>(ifcs.size())};
     if (surfs.size() == 1) {
         auto idx = static_cast<std::size_t>(surfs[0]);
+        REDUKTI_LOG_DEBUG(Rayoptics, "scale_factor=" + doubleToString(scale_factor) +
+                                         ", idx=" + std::to_string(idx));
         ifcs[idx]->apply_scale_factor(scale_factor);
         if (idx < gaps.size())
             gaps[idx]->apply_scale_factor(scale_factor);
     } else if (surfs.size() == 2) {
         auto idx1 = surfs[0];
         auto idx2 = surfs[1];
+        REDUKTI_LOG_DEBUG(Rayoptics, "scale_factor=" + doubleToString(scale_factor) +
+                                         ", idx1=" + std::to_string(idx1) +
+                                         ", idx2=" + std::to_string(idx2));
         for (int i = idx1; i < idx2 + 1; i++) {
             // Java catches IndexOutOfBoundsException and breaks; the bound is
             // checked directly here.
             if (i >= static_cast<int>(ifcs.size()))
                 break;
             ifcs[static_cast<std::size_t>(i)]->apply_scale_factor(scale_factor);
+            REDUKTI_LOG_DEBUG(Rayoptics, std::to_string(i) + ": ifc");
             if (i < idx2) {
                 if (i >= static_cast<int>(gaps.size()))
                     break;
                 gaps[static_cast<std::size_t>(i)]->apply_scale_factor(scale_factor);
+                REDUKTI_LOG_DEBUG(Rayoptics, std::to_string(i) + ": gap");
             }
         }
     }

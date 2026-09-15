@@ -2,10 +2,15 @@
 
 First measurement of the ported tool against the Java it was ported from,
 taken 2026-09-03. **The initial C++ baseline was about 1.5x slower than the Java.
-After caching the path it runs at about 0.73x the Java.**
+After caching the path it ran at about 0.73x the Java.**
 
-This file records what was measured, the leading explanation, and the first
-optimisation experiment. The original numbers below remain the baseline.
+**Re-measured on 2026-09-14, after the path cache and list presizing were
+backported to the Java, the C++ runs at about 0.95x the Java: the two are
+now comparable.** See [Re-measurement, 2026-09-14](#re-measurement-2026-09-14).
+
+This file records what was measured, the leading explanation, and the
+optimisation experiments in the order they were made. The original numbers
+below remain the baseline.
 
 ## Method
 
@@ -21,10 +26,12 @@ report artifacts. Wall clock, three consecutive runs each, nothing else running.
 | Java | OpenJDK Temurin 25.0.1+8 LTS, default JVM options |
 
 Both were run against a scratch copy of the prescription, not the repository
-copy. **`LensTool2` writes its `.zmx` next to the spec file regardless of
-`--outdir`**, so running it directly against a folder under `Examples/`
-overwrites committed files. `LensTool2Test` copies the spec to a scratch
-directory for this reason; do the same by hand.
+copy. Without `--outdir`, `LensTool2` writes every artifact next to the spec
+file, so running it directly against a folder under `Examples/` overwrites
+committed files. `LensTool2Test` copies the spec to a scratch directory for
+this reason; do the same by hand. (At the time of the first measurements the
+`.zmx` was written next to the spec even when `--outdir` was given; it now
+follows `--outdir` like everything else.)
 
 ## Results
 
@@ -245,6 +252,108 @@ Only one pre-change run was captured, so a longer interleaved series would be
 needed for a precise percentage. The two post-change runs agree closely and the
 effect is much larger than the short-term run-to-run variation observed here.
 
+## Re-measurement, 2026-09-14
+
+Since the experiments above, two of the C++ changes were backported to the
+Java (Beam43 commits 26e5ae31, list presizing including the `RaySeg` list, and
+efaf5c84, the path cache), so the 0.73x ratio no longer described the pair.
+
+### Method
+
+As above -- same lens, same machine, a scratch copy of the prescription -- with
+these differences:
+
+- Browsers and IDEs were closed, and nothing else was run during a series.
+- Runs are strictly one process at a time, C++ and Java alternating, so that
+  drift affects both equally.
+- Two workloads: the plain run, which writes the same 29 artifacts as before,
+  and a run with `--output-ray-aberration-plots --output-wavelength-mtfs
+  --do-wideangle-layout`, which writes 227.
+
+| | |
+|---|---|
+| C++ | rayoptics-cpp dd8e10b3, MSVC 19.40.33811, Release (`/O2 /Ob2 /DNDEBUG`), no LTCG |
+| Java | Beam43 9d11c8bd classes, OpenJDK Temurin 25.0.1+8 LTS, default JVM options |
+
+### Results
+
+Only ratios are recorded. The absolute times in this sitting are suspect: every
+run wrote its artifacts under `%TEMP%`, and Windows Defender real-time scanning
+was active, which may add a cost unrelated to the code. Because the two versions
+alternate and write the same files, that cost applies to both and the ratio
+still compares them.
+
+C++ time as a fraction of the Java's:
+
+| | plain run, 29 artifacts | with the output flags, 227 artifacts |
+|---|---:|---:|
+| pair 1 | 0.97 | 0.99 |
+| pair 2 | 0.96 | 0.93 |
+| pair 3 | 0.94 | 1.02 |
+| ratio of means | **0.95** | **0.98** |
+
+The extra plots add under 10% to either version's time; the work is in the spot
+and MTF analyses both workloads share.
+
+The path cache still behaves as measured above:
+
+| | calls | cache misses | hit rate |
+|---|---:|---:|---:|
+| Plain run | 3,117,809 | 48 | 99.998% |
+| With the output flags | 3,123,595 | 48 | 99.998% |
+
+With the output flags, 185 of the 227 artifacts are byte-identical between the
+two versions (ignoring line endings). The 42 that differ are all MTF SVGs and
+the spot reports -- the documented hexapolar sin/cos divergence, now also
+reaching 36 of the 110 per-field MTF plots.
+
+The full C++ test suite, now 300 tests, passes.
+
+### The C++ did not get slower
+
+The absolute C++ times in this sitting were much longer than those recorded
+after the third experiment. To tell a regression from a change in the
+environment, the 2026-09-04 tree (84b1b439, which already has the path cache
+and the `RaySeg` reservation) was built with the same compiler and flags and
+timed against the current build, alternating:
+
+| | current time / 84b1b439 time |
+|---|---:|
+| pair 1 | 0.99 |
+| pair 2 | 0.97 |
+| pair 3 | 1.02 |
+| ratio of means | **0.99** |
+
+The two builds are indistinguishable. The old build makes 3,026,267 `path()`
+calls, as recorded above; the current one makes about 3% more, from the
+separate 21-ring spot-diagram analysis. The longer absolute times therefore
+come from the environment, not the code; Defender scanning the output files is
+the leading suspect but was not isolated. That confirms the caveat on
+wall-clock numbers: **compare only runs made back to back in one sitting**, and
+read ratios rather than absolute times across sessions.
+
+The change in ratio, from 0.73x to 0.95x, therefore comes from the Java side.
+The backported path cache and presizing are the likely cause, but the Java
+before and after them was not timed in this sitting, so their individual
+effects are not measured here.
+
+## Rejected experiment: pocketfft in place of fftpack
+
+On 2026-09-11 pocketfft (header-only C++, BSD-3) was trialled as a drop-in for
+`ComplexDoubleFFT` in `BaseMTF::compute_fft`.
+
+| | |
+|---|---|
+| FFT alone, at MTF sizes (1024-4096) | about 2x faster |
+| Round-trip accuracy | about 20x better |
+| Agreement with fftpack | to about 7e-16; 2.8% of doubles bit-identical |
+| Tests and the 111 `LensTool2` outputs across 5 Examples | all passed; outputs byte-identical |
+| End-to-end `LensTool2` time | no measurable change |
+
+The FFT is a negligible share of a run. The trial was reverted: it would add a
+dependency, diverge from the Java's fftpack, and take MTF out of the bit-exact
+comparison against the JVM that `FftTest` provides.
+
 ## Further candidate fixes, in rough order of expected value
 
 **None of these further changes have been measured.** They are sized by
@@ -264,9 +373,16 @@ Items 1 and 2 of the original list -- caching the path, and holding
 `const Tfm3d *` in `PathSeg` -- are done and reverted-as-superseded
 respectively; see the experiment above.
 
+The smaller follow-ups listed under the third experiment -- the exception
+handlers' copy of the traced segments, and reserving capacity for fan, grid,
+ring and contrast results and the point generators -- are also still open as of
+2026-09-14. With the C++ and Java now comparable, none is needed to meet the
+project's goal; they remain candidates only.
+
 ## Caveat on the comparison
 
 This measures one lens on one machine. The workload is dominated by ray tracing
-through the hexapolar spot analysis (`SpotOptions` defaults to 64 rings, and the
-tool runs two spot analyses per configuration, twice over). A different lens or
-a different analysis mix could shift the balance.
+through the hexapolar spot analyses. For each configuration the tool now runs
+one 21-ring analysis for the spot diagrams and three 64-ring analyses: the spot
+report, the MTF and the wavelength MTFs. A different lens, a different
+`--spot-pattern`, or a different analysis mix could shift the balance.

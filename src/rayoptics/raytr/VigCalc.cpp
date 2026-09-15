@@ -15,6 +15,7 @@
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/util/Lists.h"
+#include "redukti/util/Log.h"
 
 #include <algorithm>
 #include <cmath>
@@ -29,6 +30,12 @@ using mathlib::Vector2;
 using specs::ImageKey;
 using specs::ValueKey;
 using util::Lists::get;
+namespace rlog = ::redukti::util::log;
+
+namespace {
+// label for coordinate chooser
+constexpr const char *xy_str = "xy";
+} // namespace
 
 std::optional<double> VigCalc::max_aperture_at_surf(
     const std::vector<std::vector<std::shared_ptr<const RayPkg>>> &rayset, int i) {
@@ -103,6 +110,7 @@ void VigCalc::set_vig(optical::OpticalModel *opm, std::optional<bool> use_bisect
         auto fld_wvl_foc = osp->lookup_fld_wvl_focus(static_cast<int>(fi));
         auto fld = fld_wvl_foc.first;
         auto wvl = fld_wvl_foc.second;
+        REDUKTI_LOG_DEBUG(Rayoptics, "set vig field " + std::to_string(fi) + ":");
         calc_vignetting_for_field(opm, *fld, wvl, use_bisection, std::nullopt);
     }
 }
@@ -143,6 +151,9 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     auto stop_radius = get(sm->ifcs, idx_stop)->surface_od();
     auto start_coords = iterate_pupil_ray(opm, sm->stop_surface, 1, 1.0, stop_radius,
                                           *fld_0, cwl);
+    REDUKTI_LOG_DEBUG(Rayoptics, "set_pupil edge of stop coords: " +
+                                     rlog::f(start_coords.v(0), 8, 4) + " " +
+                                     rlog::f(start_coords.v(1), 8, 4));
     // trace the real axial marginal ray
     TraceOptions options;
     options.output_filter = std::nullopt;
@@ -166,7 +177,7 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     auto &fod = parax_data->fod;
     if (use_parax) {
         auto scale_ratio = stop_radius / ax_ray[static_cast<std::size_t>(idx_stop)].ht;
-        //logger.debug(f"{scale_ratio=:8.5f} (parax)")
+        REDUKTI_LOG_DEBUG(Rayoptics, "scale_ratio=" + rlog::f(scale_ratio, 8, 5) + " (parax)");
         if (obj_img_key == ImageKey::Object) {
             if (pupil_spec == ValueKey::EPD) {
                 osp->pupil->value = scale_ratio * (2 * fod.enp_radius);
@@ -196,6 +207,7 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
         }
     } else {
         auto scale_ratio = get(ray_pkg->ray, 1).p.y / get(ax_ray, 1).ht;
+        REDUKTI_LOG_DEBUG(Rayoptics, "scale_ratio=" + rlog::f(scale_ratio, 8, 5));
         if (obj_img_key == ImageKey::Object) {
             if (pupil_spec == ValueKey::EPD) {
                 osp->pupil->value *= scale_ratio;
@@ -235,9 +247,9 @@ void VigCalc::set_pupil(optical::OpticalModel *opm, bool use_parax) {
     auto clipped_ray_err = clipped_rr.err;
     if (clipped_ray_err != nullptr) {
         if (dynamic_cast<TraceRayBlockedException *>(clipped_ray_err.get()) != nullptr)
-            std::fprintf(stderr,
-                         "Axial bundle limited by surface %d not stop surface.\n",
-                         clipped_ray_err->surf);
+            REDUKTI_LOG_WARNING(Rayoptics, "Axial bundle limited by surface " +
+                                               std::to_string(clipped_ray_err->surf) +
+                                               ", not stop surface.");
     }
     if (osp->pupil->value != pupil_value_orig) {
         opm->update_model();
@@ -306,6 +318,8 @@ std::optional<double> VigCalc::Fn_r_pupil_coordinate::eval(double xy_coord) {
     auto p = get(ray_pkg->ray, indx).p;
     auto r_ray = std::copysign(std::sqrt(p.x * p.x + p.y * p.y), r_target);
     auto delta = r_ray - r_target;
+    REDUKTI_LOG_DEBUG(Rayoptics, "  xy_coord=" + rlog::f(xy_coord, 8, 5) + "   r_ray=" +
+                                     rlog::f(r_ray, 8, 5) + "    delta=" + rlog::g(delta, 9, 2));
     return delta;
 }
 
@@ -356,9 +370,9 @@ public:
         auto p = get(ray_pkg->ray, indx).p;
         auto r_ray = std::copysign(std::sqrt(p.x * p.x + p.y * p.y), r_target);
         auto delta = r_ray - r_target;
-        //            logger.debug(f"  {xy_coord=:8.5f}   {r_ray=:8.5f}    "
-        //                    f"delta={delta:9.2g}")
-        //System.out.println(String.format("   xy_coord=%8.5f   r_ray=%8.5f   delta=%9.2g",xy_coord,r_ray,delta));
+        REDUKTI_LOG_DEBUG(Rayoptics, "  xy_coord=" + rlog::f(xy_coord, 8, 5) + "   r_ray=" +
+                                         rlog::f(r_ray, 8, 5) + "    delta=" +
+                                         rlog::g(delta, 9, 2));
         return delta;
     }
 };
@@ -387,6 +401,9 @@ public:
 VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                                       const Vector2 &start_dir, specs::Field &fld,
                                       double wvl, std::optional<int> max_iter_count_) {
+    REDUKTI_LOG_DEBUG(Rayoptics, "fld=" + rlog::f(fld.yf(), 5, 2) + ", [" +
+                                     rlog::f(start_dir.v(0), 5, 2) + ", " +
+                                     rlog::f(start_dir.v(1), 5, 2) + "]");
     int max_iter_count = max_iter_count_.has_value() ? *max_iter_count_ : 50;
     auto rel_p1 = start_dir;
     auto sm = opm->seq_model.get();
@@ -411,9 +428,16 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 // The Java computes r_error here and discards it; the call to
                 // edge_pt_target is kept because it is the only other effect.
                 (void)get(sm->ifcs, *clip_indx)->edge_pt_target(start_dir);
-                //                    logger.debug(f" C {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
-                //                            f"blocked at {clip_indx}, del={r_error:8.1e}, "
-                //                            "exiting")
+                // r_error only feeds the log message, so it is computed there.
+                REDUKTI_LOG_DEBUG(Rayoptics, ([&] {
+                    auto r_target = get(sm->ifcs, *clip_indx)->edge_pt_target(start_dir);
+                    auto p = get(ray_pkg->ray, *clip_indx).p;
+                    auto r_ray = std::copysign(std::sqrt(p.x * p.x + p.y * p.y), r_target.v(xy));
+                    auto r_error = r_ray - r_target.v(xy);
+                    return std::string(" C ") + xy_str[xy] + " = " + rlog::f(rel_p1.v(xy), 10, 6) +
+                           ":   blocked at " + rlog::d(clip_indx) + ", del=" +
+                           rlog::e(r_error, 8, 1) + ", exiting";
+                }()));
                 still_iterating = false;
             } else {
                 // this is the first time through
@@ -423,9 +447,11 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 indx = stop_indx = sm->stop_surface;
                 if (stop_indx.has_value()) {
                     auto r_target = get(sm->ifcs, *stop_indx)->edge_pt_target(start_dir);
-                    //                        logger.debug(f" D {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
-                    //                                f"passed first time, iterate to edge of stop, "
-                    //                                f"ifcs[{stop_indx}]")
+                    REDUKTI_LOG_DEBUG(Rayoptics,
+                                      std::string(" D ") + xy_str[xy] + " = " +
+                                          rlog::f(rel_p1.v(xy), 10, 6) +
+                                          ":   passed first time, iterate to edge of stop, ifcs[" +
+                                          rlog::d(stop_indx) + "]");
                     rel_p1 = iterate_pupil_ray(opm, indx, xy, rel_p1.v(xy),
                                                r_target.v(xy), fld, wvl);
                     still_iterating = true;
@@ -440,12 +466,24 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 // As above: the Java's r_error computation here is dead, and its
                 // IndexOutOfBoundsException catch guarded only that.
                 (void)get(sm->ifcs, *clip_indx)->edge_pt_target(start_dir);
-                //                        logger.debug(f" A {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
-                //                                f"blocked at {clip_indx}, del={r_error:8.1e}, "
-                //                                "exiting")
-                //                        logger.debug(f" A' {xy_str[xy]} = {rel_p1[xy]:10.6f}:   "
-                //                                f"blocked at {clip_indx}, "
-                //                                "exiting")
+                // r_error only feeds the log message, so it is computed there,
+                // along with the Java's IndexOutOfBoundsException fallback.
+                REDUKTI_LOG_DEBUG(Rayoptics, ([&] {
+                    auto r_target = get(sm->ifcs, *clip_indx)->edge_pt_target(start_dir);
+                    auto prefix = std::string(" A ") + xy_str[xy] + " = " +
+                                  rlog::f(rel_p1.v(xy), 10, 6) + ":   ";
+                    try {
+                        auto p = get(ray_pkg->ray, *clip_indx).p;
+                        auto r_ray =
+                            std::copysign(std::sqrt(p.x * p.x + p.y * p.y), r_target.v(xy));
+                        auto r_error = r_ray - r_target.v(xy);
+                        return prefix + "blocked at " + rlog::d(clip_indx) + ", del=" +
+                               rlog::e(r_error, 8, 1) + ", exiting";
+                    } catch (const IndexOutOfBoundsException &) {
+                        return prefix + "index error at clip_indx=" + rlog::d(clip_indx) +
+                               ", exiting";
+                    }
+                }()));
                 still_iterating = false;
             } else {
                 auto r_target = get(sm->ifcs, *indx)->edge_pt_target(start_dir);
@@ -453,10 +491,16 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 // the edge. Use the result to start the newton iteration to
                 // quickly find the edge.
                 if (dynamic_cast<TraceMissedSurfaceException *>(&ray_error) != nullptr) {
+                    REDUKTI_LOG_DEBUG(Rayoptics, " Missed surface " + rlog::d(indx) +
+                                                   ", use bisection to find edge");
                     Fn_r_pupil_coordinate fn(opm, *indx, xy, &fld, wvl, r_target.v(xy));
                     auto edge = Wideangle::find_edge(fn, 0.0, rel_p1.v(xy), std::nullopt);
                     rel_p1 = rel_p1.set(xy, edge.z_enp);
                 }
+                REDUKTI_LOG_DEBUG(Rayoptics, std::string(" B ") + xy_str[xy] + " = " +
+                                                 rlog::f(rel_p1.v(xy), 10, 6) + ":   blocked at " +
+                                                 rlog::d(indx) + ". target=" +
+                                                 rlog::f(r_target.v(xy), 9, 6));
                 rel_p1 = iterate_pupil_ray(opm, indx, xy, rel_p1.v(xy), r_target.v(xy),
                                            fld, wvl);
                 still_iterating = true;
@@ -465,8 +509,10 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
         }
     }
     auto vig = 1.0 - (rel_p1.v(xy) / start_dir.v(xy));
-    //        logger.info(f" ray: ({start_dir[0]:2.0f}, {start_dir[1]:2.0f}), "
-    //                f"vig={vig:8.4f}, limited at ifcs[{clip_indx}]")
+    REDUKTI_LOG_INFO(Rayoptics, " ray: (" + rlog::f(start_dir.v(0), 2, 0) + ", " +
+                                    rlog::f(start_dir.v(1), 2, 0) + "), vig=" +
+                                    rlog::f(vig, 8, 4) + ", limited at ifcs[" +
+                                    rlog::d(clip_indx) + "]");
     return VigResult(vig, clip_indx, ray_pkg);
 }
 
@@ -493,8 +539,9 @@ VigResult VigCalc::calc_vignetted_ray_by_bisection(optical::OpticalModel *opm, i
                                                    const Vector2 &start_dir,
                                                    specs::Field &fld, double wvl,
                                                    std::optional<int> max_iter_count_) {
-    //        logger.debug(f"fld={fld.yf:5.2f}, [{start_dir[0]:5.2f}, "
-    //                f"{start_dir[1]:5.2f}]")
+    REDUKTI_LOG_DEBUG(Rayoptics, "fld=" + rlog::f(fld.yf(), 5, 2) + ", [" +
+                                     rlog::f(start_dir.v(0), 5, 2) + ", " +
+                                     rlog::f(start_dir.v(1), 5, 2) + "]");
     int max_iter_count = max_iter_count_.has_value() ? *max_iter_count_ : 10;
     auto rel_p1 = start_dir;
     std::optional<int> clip_indx;
@@ -513,16 +560,21 @@ VigResult VigCalc::calc_vignetted_ray_by_bisection(optical::OpticalModel *opm, i
             ray_pkg = Trace::trace_base(opm, std::vector<double>{arr[0], arr[1]}, fld,
                                         wvl, options);
             rel_p1 = start_dir.times(step_size).plus(rel_p1);
+            REDUKTI_LOG_DEBUG(Rayoptics,
+                              std::string(1, xy_str[xy]) + " = " + rlog::f(rel_p1.v(xy), 10, 6) +
+                                  ": passed");
         } catch (TraceException &ray_error) {
             ray_pkg = ray_error.ray_pkg;
             clip_indx = ray_error.surf;
             rel_p1 = start_dir.times(-step_size).plus(rel_p1);
-            //                logger.debug(f"{xy_str[xy]} = {rel_p1[xy]:10.6f}: "
-            //                        f"blocked at {clip_indx}")
+            REDUKTI_LOG_DEBUG(Rayoptics,
+                              std::string(1, xy_str[xy]) + " = " + rlog::f(rel_p1.v(xy), 10, 6) +
+                                  ": blocked at " + rlog::d(clip_indx));
         }
     }
     auto vig = 1.0 - (rel_p1.v(xy) / start_dir.v(xy));
-    //        logger.debug(f"   {vig=:7.4f}, {clip_indx=}")
+    REDUKTI_LOG_DEBUG(Rayoptics,
+                      "   vig=" + rlog::f(vig, 7, 4) + ", clip_indx=" + rlog::d(clip_indx));
     return VigResult(vig, clip_indx, ray_pkg);
 }
 
@@ -537,8 +589,10 @@ Vector2 VigCalc::iterate_pupil_ray(optical::OpticalModel *opt_model,
             start_r =
                 mathlib::SecantSolver::find_root(objective_fn, start_r0, 50, 1e-6).root;
         } catch (TraceException &rt_err) {
-            //                logger.debug(f"  {type(rt_err).__name__}: surf={rt_err.surf}    "
-            //                        f"rel_p1={rt_err.rel_p1[xy]=:8.5f}   ")
+            REDUKTI_LOG_DEBUG(Rayoptics, "  " + rt_err.simple_name() +
+                                             ": surf=" + std::to_string(rt_err.surf) +
+                                             "    rel_p1=rt_err.rel_p1[xy]=" +
+                                             rlog::f(rt_err.rel_p1->v(xy), 8, 5) + "   ");
             start_r = 0.9 * rt_err.rel_p1->v(xy);
         }
         return start_coord.set(xy, start_r);

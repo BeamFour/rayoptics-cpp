@@ -112,6 +112,10 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
             i++;
         } else if (arg1 == "--output-pupil-maps") {
             arguments.output_pupil_maps = true;
+        } else if (arg1 == "--verbose") {
+            arguments.verbose = true;
+        } else if (arg1 == "--debug") {
+            arguments.debug = true;
         } else if (arg1 == "--pupil-map-samples") {
             arguments.pupil_map_samples = parse_positive_int(arg1, arg2);
             i++;
