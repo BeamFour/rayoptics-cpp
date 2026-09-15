@@ -452,8 +452,7 @@ VigResult VigCalc::calc_vignetted_ray(optical::OpticalModel *opm, int xy,
                 // If we missed the first surface, use bisection to bracket
                 // the edge. Use the result to start the newton iteration to
                 // quickly find the edge.
-                if (dynamic_cast<TraceMissedSurfaceException *>(&ray_error) != nullptr &&
-                    ray_error.surf == 1) {
+                if (dynamic_cast<TraceMissedSurfaceException *>(&ray_error) != nullptr) {
                     Fn_r_pupil_coordinate fn(opm, *indx, xy, &fld, wvl, r_target.v(xy));
                     auto edge = Wideangle::find_edge(fn, 0.0, rel_p1.v(xy), std::nullopt);
                     rel_p1 = rel_p1.set(xy, edge.z_enp);
