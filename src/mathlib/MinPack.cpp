@@ -1,3 +1,5 @@
+// Ported from Minpack Copyright Notice (1999) University of Chicago.
+//
 // C++ port of org.redukti.mathlib.MinPack
 //
 // argonne national laboratory. minpack project. march 1980.

@@ -13,7 +13,6 @@
 #include "redukti/mathlib/Matrix3.h"
 #include "redukti/mathlib/Quaternion.h"
 #include "redukti/mathlib/Transform3.h"
-#include "redukti/mathlib/Triangle2.h"
 #include "redukti/mathlib/Vector2Pair.h"
 #include "redukti/mathlib/Vector3Pair.h"
 
@@ -220,13 +219,10 @@ TEST(transform3_compose_and_rotate) {
                      t3.rotation_matrix, 0.0);
 }
 
-TEST(matrix2_and_triangle2) {
+TEST(matrix2) {
     Matrix2 a2(1, 2, 3, 4), b2(5, 6, 7, 8);
     CHECK_STR_EQ(a2.multiply(Vector2(2, 3)).toString(), "[8.0,18.0]");
     CHECK_STR_EQ(a2.multiply(b2).multiply(Vector2(1, 1)).toString(), "[41.0,93.0]");
-    CHECK_STR_EQ(
-        Triangle2(Vector2(0, 0), Vector2(3, 0), Vector2(0, 6)).get_centroid().toString(),
-        "[1.0,2.0]");
 }
 
 TEST(vector_pairs) {

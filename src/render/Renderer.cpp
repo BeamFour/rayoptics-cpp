@@ -80,11 +80,6 @@ void Renderer::draw_circle(const Vector2 &v, double r, const Rgb &rgb, bool fill
     draw_polygon(p, rgb, filled, true);
 }
 
-void Renderer::draw_triangle(const mathlib::Triangle2 &t, bool filled, const Rgb &rgb) {
-    auto arr = t.as_array();
-    draw_polygon(std::vector<Vector2>(arr.begin(), arr.end()), rgb, filled, true);
-}
-
 void Renderer::draw_box(const Vector2Pair &c, const Rgb &rgb) {
     draw_segment(Vector2(c.v0.x, c.v0.y), Vector2(c.v1.x, c.v0.y), rgb);
     draw_segment(Vector2(c.v1.x, c.v1.y), Vector2(c.v1.x, c.v0.y), rgb);

@@ -1,3 +1,12 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// SpotOptions and SpotAnalysisResult are part of Beam42 project
+// (https://github.com/BeamFour/Beam42), Copyright 2025-2026 by Dibyendu Majumdar,
+// License GPL v3; see LICENSE-GPL-3.0.txt
+//
 // C++ port of SpotOptions, SpotAnalysisResult and SpotAnalysis.
 #include "redukti/rayoptics/analysis/SpotAnalysis.h"
 

@@ -1,3 +1,8 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // C++ port of the glass catalog data in org.redukti.rayoptics.seq.Glass.
 //
 // Transliterated verbatim from the five add_*_glasses() methods. The trailing

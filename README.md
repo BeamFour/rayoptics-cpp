@@ -46,6 +46,11 @@ and the LICENSE files:
 * [LICENSE-GPL-3.0.txt](LICENSE-GPL-3.0.txt) - the overall license, and the license of the code derived from Goptical.
 * [LICENSE-ray-optics.txt](LICENSE-ray-optics.txt) - BSD 3-Clause, for the code derived from Michael Hayford's RayOptics.
 * [LICENSE-Minpack.txt](LICENSE-Minpack.txt) - for the code derived from MINPACK.
+* [LICENSE-jfftpack.txt](LICENSE-jfftpack.txt) - for the code derived from jfftpack.
 * [LICENSE-ryu.txt](LICENSE-ryu.txt) - for the bundled Ryu, used for number formatting (see also `third_party/ryu`).
+
+Each source file carries its own notice identifying which of the above it falls under. Code that is not derived from
+any external project - original Beam42 code, and the helpers written for this port - is marked with a
+`This code is part of Beam42 project` header and is licensed under GPL v3 or later, same as the overall project.
 
 The overall license is GNU GPL v3 or later.

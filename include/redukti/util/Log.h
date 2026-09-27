@@ -1,3 +1,8 @@
+// This code is part of Beam42 project (https://github.com/BeamFour/Beam42)
+// Copyright 2025-2026 by Dibyendu Majumdar
+// License GPL v3
+// See LICENSE-GPL-3.0.txt
+//
 // Minimal logging for the ported ray-optics and optimizer messages.
 //
 // The Java uses java.util.logging, one logger per class, and LensTool2 sets the

@@ -9,7 +9,6 @@
 #define REDUKTI_RENDER_RENDERER_H
 
 #include "redukti/mathlib/Transform3.h"
-#include "redukti/mathlib/Triangle2.h"
 #include "redukti/mathlib/Vector2.h"
 #include "redukti/mathlib/Vector2Pair.h"
 #include "redukti/mathlib/Vector3.h"
@@ -188,8 +187,6 @@ public:
 
     virtual void draw_circle(const mathlib::Vector2 &v, double r, const Rgb &rgb,
                              bool filled);
-
-    void draw_triangle(const mathlib::Triangle2 &t, bool filled, const Rgb &rgb);
 
     void draw_box(const mathlib::Vector2Pair &c, const Rgb &rgb);
 

@@ -1,3 +1,8 @@
+// This code is part of Beam42 project (https://github.com/BeamFour/Beam42)
+// Copyright 2025-2026 by Dibyendu Majumdar
+// License GPL v3
+// See LICENSE-GPL-3.0.txt
+//
 // C++ port of org.redukti.spec.Prescription
 #include "redukti/spec/Prescription.h"
 
@@ -9,7 +14,9 @@
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
 
+#include <cctype>
 #include <cmath>
+#include <string>
 
 namespace redukti::spec {
 
@@ -19,6 +26,34 @@ using rayoptics::seq::Glass;
 namespace {
 std::string d(double v) { return doubleToString(v); }
 std::string i(int v) { return std::to_string(v); }
+
+const char *const VALID_STATUSES[] = {Prescription::STATUS_TODO,
+                                      Prescription::STATUS_CANDIDATE,
+                                      Prescription::STATUS_ACCEPTED};
+
+/** Java's String.trim(): strips every char <= ' ' from both ends. */
+std::string java_trim(const std::string &s) {
+    auto blank = [](char c) { return static_cast<unsigned char>(c) <= ' '; };
+    std::size_t b = 0, e = s.size();
+    while (b < e && blank(s[b]))
+        b++;
+    while (e > b && blank(s[e - 1]))
+        e--;
+    return s.substr(b, e - b);
+}
+
+/** Java's String.equalsIgnoreCase, for the ASCII status names. */
+bool equals_ignore_case(const std::string &a, const char *b) {
+    std::size_t n = std::char_traits<char>::length(b);
+    if (a.size() != n)
+        return false;
+    for (std::size_t k = 0; k < n; k++) {
+        if (std::tolower(static_cast<unsigned char>(a[k])) !=
+            std::tolower(static_cast<unsigned char>(b[k])))
+            return false;
+    }
+    return true;
+}
 } // namespace
 
 Prescription::Prescription(double focal_length, double fno,
@@ -302,9 +337,11 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
     }
     const auto &report_data = specs.get_report_data();
     std::optional<std::string> lensName;
-    if (report_data.count() > 0)
+    if (report_data.count() > 0) {
         // new style
         lensName = report_data.get_value("lens name");
+        prescription.set_status(report_data.get_value("status"));
+    }
     if (!lensName.has_value()) {
         // old style - to be removed
         const auto *variable = specs.get_descriptive_data().find_variable("lens name");
@@ -482,6 +519,26 @@ bool Prescription::has_even_a2_aspheric() const {
     return false;
 }
 
+std::string Prescription::get_status() const {
+    return _status.empty() ? STATUS_TODO : _status;
+}
+
+void Prescription::set_status(const std::optional<std::string> &status) {
+    if (!status.has_value() || status->empty()) {
+        _status = "";
+        return;
+    }
+    for (const char *valid : VALID_STATUSES) {
+        if (equals_ignore_case(java_trim(*status), valid)) {
+            _status = valid;
+            return;
+        }
+    }
+    throw IllegalArgumentException("Unknown status '" + *status + "'; expected one of " +
+                                   STATUS_TODO + ", " + STATUS_CANDIDATE + ", " +
+                                   STATUS_ACCEPTED);
+}
+
 void Prescription::add_patent_section(std::string &sb) const {
     sb += "[patent info]\n";
     if (!_patent_country.empty())
@@ -506,6 +563,8 @@ void Prescription::add_report_section(std::string &sb) const {
     sb += "[report data]\n";
     if (_lens_name.has_value() && !_lens_name->empty())
         sb += "lens name\t" + *_lens_name + "\n";
+    if (!_status.empty())
+        sb += "status\t" + _status + "\n";
     if (_configurations.has_value()) {
         sb += "scenarios";
         for (std::size_t k = 0; k < _configurations->size(); k++)

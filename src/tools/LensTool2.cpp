@@ -1,3 +1,8 @@
+// This code is part of Beam42 project (https://github.com/BeamFour/Beam42)
+// Copyright 2025-2026 by Dibyendu Majumdar
+// License GPL v3
+// See LICENSE-GPL-3.0.txt
+//
 // C++ port of org.redukti.tools.LensTool2
 #include "redukti/tools/LensTool2.h"
 
@@ -243,6 +248,7 @@ void LensTool2::addMTFsToREADME(std::string &sb, const std::string &scenario_fil
 }
 
 void LensTool2::createREADME(std::string &sb, const std::string &specFile,
+                             const spec::Prescription &prescription,
                              const std::string &output_file,
                              const std::string &generated_on) {
     std::string filename = Helper::getFilename(specFile);
@@ -250,6 +256,10 @@ void LensTool2::createREADME(std::string &sb, const std::string &specFile,
     sb += "## Resources\n";
     sb += "* [OpticalBench Compatible Data File, tab delimited](./prescription.txt)\n";
     sb += "* [Zemax file](./" + zmxFilename + ")\n\n";
+    // A lens folder usually holds several prescriptions, so record which one this
+    // report came from and how finished it is. Just the name: the file sits in the
+    // same folder as this README.
+    sb += "Generated from `" + filename + "`, status **" + prescription.get_status() + "**\n\n";
     sb += "Report / Zemax file generated using "
           "[Beam42](https://github.com/BeamFour/Beam42) on " +
           generated_on + "\n";
@@ -717,7 +727,7 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
                      prescriptionForWeightedMTF.get_wvl_wts(), "mtf-w",
                      scenario_filesuffix);
     }
-    createREADME(SB, *arguments.specfile,
+    createREADME(SB, *arguments.specfile, prescription,
                  Helper::getOutputFileWithPath(*arguments.specfile, "README.md",
                                                arguments.outdir),
                  generated_on);

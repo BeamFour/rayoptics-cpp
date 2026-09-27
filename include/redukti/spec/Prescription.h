@@ -1,3 +1,8 @@
+// This code is part of Beam42 project (https://github.com/BeamFour/Beam42)
+// Copyright 2025-2026 by Dibyendu Majumdar
+// License GPL v3
+// See LICENSE-GPL-3.0.txt
+//
 // C++ port of org.redukti.spec.Prescription, VigType and RayOpticsModelBuilder
 #ifndef REDUKTI_SPEC_PRESCRIPTION_H
 #define REDUKTI_SPEC_PRESCRIPTION_H
@@ -111,11 +116,24 @@ public:
     // that vary for configurations but these are specified for
     // each surface
 
+    /** Work in progress - not to be relied upon. This is the assumed status when
+     * a prescription does not say. */
+    static constexpr const char *STATUS_TODO = "TODO";
+    /** Complete enough to look at, but not signed off. */
+    static constexpr const char *STATUS_CANDIDATE = "Candidate";
+    /** Signed off. This is the version a report or a test should be based on. */
+    static constexpr const char *STATUS_ACCEPTED = "Accepted";
+
     /** Following are optional values for information only, used to generate
      * lens report.
      */
     std::string _title;
     std::optional<std::string> _lens_name;
+    /** How far along this prescription is - one of TODO, Candidate or Accepted.
+     * A lens folder often holds several prescriptions and this says which of them
+     * is the finished one. Empty means not stated, which is read as TODO.
+     */
+    std::string _status;
     std::string _patent_country;
     std::optional<std::string> _patent_number;
     std::string _patent_example;
@@ -241,6 +259,14 @@ public:
 
     bool has_odd_aspheric() const;
     bool has_even_a2_aspheric() const;
+    /** The status of this prescription, defaulting to TODO when the file does not say. */
+    std::string get_status() const;
+
+    /** Accepts any case, and stores the canonical spelling, so that a status cannot be
+     * missed because of how it was typed. An unrecognized value is an error rather than a
+     * silent TODO, as the whole point of the field is to be relied upon.
+     */
+    void set_status(const std::optional<std::string> &status);
 
     std::string &to_opt_bench_str(std::string &sb) const;
     std::string &to_markdown_str(std::string &sb) const;

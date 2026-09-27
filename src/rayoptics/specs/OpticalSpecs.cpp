@@ -191,10 +191,10 @@ Coord OpticalSpecs::ray_start_from_osp(const std::vector<double> &pupil_,
                 pt1 = Vector3(pt1.x, pt1.y, pt1.z - obj2enp_dist);
             } else {
                 auto &aim_pt = *fld.aim_info;
-                auto obj2enp_dist = -(fod.obj_dist + z_enp);
+                auto obj2enp_dist = fod.obj_dist + z_enp;
                 pt1 = Vector3(eprad * pupil_[0] + aim_pt[0],
-                              eprad * pupil_[1] + aim_pt[1], fod.obj_dist + z_enp);
-                pt0 = Vector3(d0.x / d0.z, d0.y / d0.z, 0.0).times(obj2enp_dist);
+                              eprad * pupil_[1] + aim_pt[1], obj2enp_dist);
+                pt0 = Vector3(d0.x / d0.z, d0.y / d0.z, 0.0).times(-obj2enp_dist);
             }
         }
         dir0 = pt1.minus(pt0).normalize();

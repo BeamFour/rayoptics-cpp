@@ -1,3 +1,8 @@
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
 // toString for the surface profiles. Java builds these with StringBuilder and
 // getClass().getSimpleName(); the class name is spelled out here.
 #include "redukti/rayoptics/elem/profiles/EvenPolynomial.h"

@@ -229,7 +229,7 @@ Coord FieldSpec::obj_coords(Field &fld) {
             obj_pt = rot_mat.multiply(pt1.negate()).plus(pt1);
         } else {
             obj_pt = Vector3(dir_cos.x / dir_cos.z, dir_cos.y / dir_cos.z, 0.0)
-                         .times(obj2enp_dist);
+                         .times(-obj2enp_dist);
         }
         obj_dir = dir_cos;
     } else if (obj_conj == ConjugateType::FINITE) {
@@ -265,7 +265,7 @@ Coord FieldSpec::obj_coords(Field &fld) {
                 auto z = std::sqrt(1.0 - obj_dir.x * obj_dir.x - obj_dir.y * obj_dir.y);
                 obj_dir = Vector3(obj_dir.x, obj_dir.y, z);
                 obj_pt = Vector3(obj_dir.x / obj_dir.z, obj_dir.y / obj_dir.z, 0.0)
-                             .times(obj2enp_dist);
+                             .times(-obj2enp_dist);
                 return Coord(obj_pt, obj_dir);
             } else {
                 obj_pt = fld_coord;

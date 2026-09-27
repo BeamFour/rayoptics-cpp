@@ -1,3 +1,8 @@
+// This code is part of Beam42 project (https://github.com/BeamFour/Beam42)
+// Copyright 2025-2026 by Dibyendu Majumdar
+// License GPL v3
+// See LICENSE-GPL-3.0.txt
+//
 // C++ port of org.redukti.tools.LensTool2
 //
 // Generates the report artifacts that live under Examples/: prescription.txt,
@@ -83,6 +88,7 @@ public:
      * test passes the date the reference README carries.
      */
     static void createREADME(std::string &sb, const std::string &specFile,
+                             const spec::Prescription &prescription,
                              const std::string &output_file,
                              const std::string &generated_on);
 

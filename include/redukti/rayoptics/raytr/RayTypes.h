@@ -3,6 +3,10 @@
 // Java version by Dibyendu Majumdar
 // See LICENSE-ray-optics.txt
 //
+// ContrastRayTriplet, RayFanType and TraceRingsDef are part of Beam42 project
+// (https://github.com/BeamFour/Beam42), Copyright 2025-2026 by Dibyendu Majumdar,
+// License GPL v3; see LICENSE-GPL-3.0.txt
+//
 // C++ port of the raytr data types:
 //   RaySeg, RayPkg, RayData, RayDataWithZ_Enp, ReferenceSphere,
 //   ChiefRayExitPupilSegment, ChiefRayPkg, RefSphereCR, RayResult and its

@@ -3,6 +3,10 @@
 // Java version by Dibyendu Majumdar
 // See LICENSE-ray-optics.txt
 //
+// FieldSnapshot is part of Beam42 project
+// (https://github.com/BeamFour/Beam42), Copyright 2025-2026 by Dibyendu Majumdar,
+// License GPL v3; see LICENSE-GPL-3.0.txt
+//
 // C++ port of org.redukti.rayoptics.specs.{Field,ReadOnlyField}
 #ifndef REDUKTI_RAYOPTICS_SPECS_FIELD_H
 #define REDUKTI_RAYOPTICS_SPECS_FIELD_H

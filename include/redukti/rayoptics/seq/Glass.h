@@ -1,4 +1,13 @@
-// Portions derived from Goptical, hence is licensed under the GPL.
+// Copyright 2017-2025 Michael J. Hayford
+// Original software https://github.com/mjhoptics/ray-optics
+// Java version by Dibyendu Majumdar
+// See LICENSE-ray-optics.txt
+//
+// Portions derived from Goptical, hence is licensed under the GPL: the index computed
+// from nd/vd (compute_index_from_nd_vd, _q, _a) follows Goptical's material_abbe.
+// Goptical: Copyright (C) 2011 Free Software Foundation, Inc; Author: Alexandre Becoulet
+// See LICENSE-GPL-3.0.txt
+//
 // C++ port of org.redukti.rayoptics.seq.Glass
 #ifndef REDUKTI_RAYOPTICS_SEQ_GLASS_H
 #define REDUKTI_RAYOPTICS_SEQ_GLASS_H
