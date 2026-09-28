@@ -1,6 +1,5 @@
-// Generated from the JDK 25 run of DumpSpec.java -- do not hand edit.
-// Regenerate with:
-//   java -cp rayoptics/target/classes;mathlib/target/classes DumpSpec.java
+// Generated from the JDK 25 run of Beam43's org.redukti.cppport.DumpSpec -- do not hand edit.
+// Regenerate with tools/regen_expected.py; see tools/README.md.
 //
 // One literal per line: MSVC rejects a single string literal over 16380 bytes.
 #ifndef REDUKTI_TESTS_SPECEXPECTED_H

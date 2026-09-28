@@ -1,6 +1,6 @@
 // Generated from the JDK 25 run of DumpDecimalFormat.java -- do not hand edit.
 // Regenerate with:
-//   java -cp rayoptics/target/classes;mathlib/target/classes DumpDecimalFormat.java
+//   java -cp rayoptics/target/classes DumpDecimalFormat.java
 //
 // {maxFractionDigits, the value as Double.toString, the expected output}.
 // The value round-trips exactly through strtod, so both sides format the

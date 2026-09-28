@@ -1,6 +1,6 @@
 // Generated from the JDK 25 run of DumpRender.java -- do not hand edit.
 // Regenerate with:
-//   java -cp rayoptics/target/classes;mathlib/target/classes DumpRender.java
+//   java -cp rayoptics/target/classes DumpRender.java
 //
 // One literal per line: MSVC rejects a single string literal over 16380 bytes.
 #ifndef REDUKTI_TESTS_RENDEREXPECTED_H

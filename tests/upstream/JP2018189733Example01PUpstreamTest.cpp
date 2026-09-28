@@ -3127,9 +3127,8 @@ void ray_trace_f2_p1() {
     assertClose("ray.2.1.12.p.x", 0.0, s12.p.x, 1.0e-6);
     // Manually widened from 1.0e-6: field 2 is the outermost field (56.4 deg) and this is
     // the rim-most pupil sample, where find_real_enp_rev1's convergence tolerance amplifies
-    // furthest downstream. See Beam42's Documentation/UPSTREAM_VERIFICATION.md
-    // (https://github.com/BeamFour/Beam42/blob/main/Documentation/UPSTREAM_VERIFICATION.md).
-    // Will be reset to 1.0e-6 by the next regeneration.
+    // furthest downstream. See Beam42 Documentation/UPSTREAM_VERIFICATION.md. Will be reset to
+    // 1.0e-6 by the next regeneration.
     assertClose("ray.2.1.12.p.y", 1.0941744446452712, s12.p.y, 3.0e-6);
     assertClose("ray.2.1.12.p.z", 0.010390746185204136, s12.p.z, 1.0e-6);
     assertClose("ray.2.1.12.d.x", 0.0, s12.d.x, 1.0e-6);

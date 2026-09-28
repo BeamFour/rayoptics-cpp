@@ -1,6 +1,6 @@
 // Generated from the JDK 25 run of DumpAnalysis.java -- do not hand edit.
 // Regenerate with:
-//   java -cp rayoptics/target/classes;mathlib/target/classes DumpAnalysis.java
+//   java -cp rayoptics/target/classes DumpAnalysis.java
 #ifndef REDUKTI_TESTS_ANALYSISEXPECTED_H
 #define REDUKTI_TESTS_ANALYSISEXPECTED_H
 

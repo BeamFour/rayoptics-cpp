@@ -1,6 +1,6 @@
 // Generated from the JDK 25 run of DumpData.java -- do not hand edit.
 // Regenerate with:
-//   java -cp rayoptics/target/classes;mathlib/target/classes DumpData.java
+//   java -cp rayoptics/target/classes DumpData.java
 //
 // One literal per line: MSVC rejects a single string literal over 16380
 // bytes, and the full dump is bigger than that.

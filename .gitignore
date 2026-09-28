@@ -4,3 +4,6 @@ cmake-build-*/
 
 # JetBrains IDE (CLion) project settings
 .idea/
+
+# Python bytecode from running tools/
+__pycache__/
