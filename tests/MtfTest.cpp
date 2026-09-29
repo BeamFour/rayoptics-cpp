@@ -144,7 +144,7 @@ TEST(mtf_sampling_patterns_match_jvm) {
         "30 sag,0.754,0.709,0.506\n"
         "30 tan,0.754,0.648,0.589\n"
         "50 sag,0.519,0.47,0.414\n"
-        "50 tan,0.519,0.385,0.319\n";
+        "50 tan,0.519,0.385,0.32\n";
     const std::string expectedQuadrature =
         ",0,0.7,1\n"
         "10 sag,0.967,0.954,0.766\n"

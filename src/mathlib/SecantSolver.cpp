@@ -1,16 +1,30 @@
 // C++ port of org.redukti.mathlib.SecantSolver
 #include "redukti/mathlib/SecantSolver.h"
 
+#include "redukti/Exceptions.h"
+
 #include <cmath>
 
 namespace redukti::mathlib {
 
 RootResult SecantSolver::find_root(ScalarObjectiveFunction &f, double x0, int maxiter,
                                    double tol) {
+    return find_root(f, x0, std::optional<double>(), maxiter, tol);
+}
+
+RootResult SecantSolver::find_root(ScalarObjectiveFunction &f, double x0,
+                                   std::optional<double> x1, int maxiter, double tol) {
     const double eps = 1e-4;
     double p0 = x0;
-    double p1 = x0 * (1 + eps);
-    p1 += (p1 >= 0 ? eps : -eps);
+    double p1;
+    if (x1.has_value()) {
+        if (*x1 == x0)
+            throw IllegalArgumentException("x1 and x0 must be different");
+        p1 = *x1;
+    } else {
+        p1 = x0 * (1 + eps);
+        p1 += (p1 >= 0 ? eps : -eps);
+    }
     double q0 = f.eval(p0).value();
     double q1 = f.eval(p1).value();
     if (std::abs(q1) < std::abs(q0)) {

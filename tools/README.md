@@ -10,6 +10,7 @@ default to `../Beam43`, beside this repository, and take an argument when it is 
 | Tool | Does |
 | --- | --- |
 | `regen_expected.py` | Rewrites one `EXPECTED_*` array in a `tests/*Expected.h` from a Java dump |
+| `regen_raw.py` | The same for a block written as one raw string, `R"JV(...)JV"` |
 | `sync_upstream_tests.py` | Carries regenerated Java upstream-test expectations into `tests/upstream/*.cpp` |
 | `licence_audit.py` | Compares licence headers here with the Java headers they port. Read-only |
 | `benchmark.ps1` | Times this build against the Java, as [PERFORMANCE.md](../PERFORMANCE.md) describes |
@@ -21,10 +22,14 @@ changes deliberately, the C++ expectation is regenerated rather than edited. The
 programs live on the Java side, in `rayoptics/src/test/java/org/redukti/cppport/`, one
 per C++ test that carries a large expectation:
 
-| Java program | Feeds |
-| --- | --- |
-| `DumpSpec` | `tests/SpecExpected.h` |
-| `DumpLayout` | `tests/LayoutPlotterExpected.h`, one file per array |
+| Java program | Feeds | Applied with |
+| --- | --- | --- |
+| `DumpSpec` | `tests/SpecExpected.h` | `regen_expected.py` |
+| `DumpLayout` | `tests/LayoutPlotterExpected.h`, one file per array | `regen_expected.py` |
+| `DumpAnalysis` | `tests/AnalysisExpected.h`, one file per block | `regen_raw.py` |
+
+Which of the two appliers to use depends on how the header stores the block: an array of
+one string per line, or a single raw string. The table says which.
 
 Run one from the Beam43 checkout, having compiled it (`mvn -o test-compile`):
 

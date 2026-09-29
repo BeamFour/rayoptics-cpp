@@ -584,10 +584,14 @@ Vector2 VigCalc::iterate_pupil_ray(optical::OpticalModel *opt_model,
     Vector2 start_coord = Vector2::vector2_0;
     double start_r = 0;
     if (indx.has_value()) {
-        R_Pupil_Coordinate objective_fn(opt_model, *indx, xy, &fld, wvl, r_target);
         try {
-            start_r =
-                mathlib::SecantSolver::find_root(objective_fn, start_r0, 50, 1e-6).root;
+            // set `x1` so that search goes inward from the edge.
+            auto eps = 1e-4;
+            auto p1 = start_r0 * (1 - eps);
+            R_Pupil_Coordinate objective_fn(opt_model, *indx, xy, &fld, wvl, r_target);
+            start_r = mathlib::SecantSolver::find_root(objective_fn, start_r0, p1, 50,
+                                                       1e-6)
+                          .root;
         } catch (TraceException &rt_err) {
             REDUKTI_LOG_DEBUG(Rayoptics, "  " + rt_err.simple_name() +
                                              ": surf=" + std::to_string(rt_err.surf) +

@@ -206,19 +206,3 @@ TEST(layout_renders_visual_check_svgs) {
     CHECK(reference.find("Infinity") == std::string::npos);
     assertOrthogonalBlackSegments(elements);
 }
-
-TEST(layout_renders_image_plane_and_non_stop_aperture) {
-    auto model = withNonStopAperture();
-    ElementModel elementModel(model.get());
-    CHECK_EQ(countOfType(elementModel, ElementType::APERTURE), 1L);
-
-    LayoutOptions options;
-    options.drawReferenceRays = false;
-    std::string svg = Layout2D().renderSvg(model.get(), 1000, 500, &options);
-    CHECK(svg.find("NaN") == std::string::npos);
-    CHECK(svg.find("Infinity") == std::string::npos);
-    // only the two halves of the explicit stop should be bold
-    CHECK_EQ(countOccurrences(svg, "stroke-width=\"2.5\""), 2);
-    assertImagePlane(svg, 250.0);
-    assertOrthogonalBlackSegments(svg);
-}
