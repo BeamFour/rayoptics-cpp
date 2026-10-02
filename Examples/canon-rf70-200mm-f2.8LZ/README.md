@@ -100,7 +100,7 @@ Note that where glass types are shown the refractive index and abbe number is as
 | obj_na | 0
 | img_na | -0.173|
 ## Spot Analysis
-| Field | Spot Mean Radius | Spot Max Radius |
+| Field | Spot Mean Radius (µm) | Spot Max Radius (µm) |
 | ---   | ---              | ---             |
  | Field(x=0.0, y=0.0) | 3.444 | 9.824|
  | Field(x=0.0, y=0.1) | 3.448 | 14.618|
@@ -157,7 +157,7 @@ Note that where glass types are shown the refractive index and abbe number is as
 | obj_na | 0
 | img_na | -0.172|
 ## Spot Analysis
-| Field | Spot Mean Radius | Spot Max Radius |
+| Field | Spot Mean Radius (µm) | Spot Max Radius (µm) |
 | ---   | ---              | ---             |
  | Field(x=0.0, y=0.0) | 1.517 | 3.746|
  | Field(x=0.0, y=0.1) | 1.944 | 8.666|
@@ -186,4 +186,4 @@ Note that where glass types are shown the refractive index and abbe number is as
 
 Generated from `US20250155694_Example01P.txt`, status **TODO**
 
-Report / Zemax file generated using [Beam42](https://github.com/BeamFour/Beam42) on 2026-09-13
+Report / Zemax file generated using [Beam42](https://github.com/BeamFour/Beam42) on 2026-10-02

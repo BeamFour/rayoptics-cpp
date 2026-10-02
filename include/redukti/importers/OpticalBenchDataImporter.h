@@ -57,6 +57,9 @@ public:
             return parse_double(get_value(scenario));
         }
 
+        /** Numeric value of a referenced variable; zero is valid, missing data is not. */
+        double require_value_as_double(int scenario) const;
+
         int get_value_as_integer(int scenario, int defaultValue) const {
             return parse_integer(get_value(scenario), defaultValue);
         }
@@ -89,7 +92,7 @@ public:
     enum class AsphereType {
         Even,
         EvenA2,
-        Odd,
+        Radial,
     };
 
     class AsphericalData {
@@ -109,15 +112,26 @@ public:
 
         int get_surface_number() const { return _surface_number; }
         AsphereType get_asphere_type() const { return _asphere_type; }
-        bool is_odd_asphere() const { return _asphere_type == AsphereType::Odd; }
+        bool is_radial_asphere() const { return _asphere_type == AsphereType::Radial; }
 
         std::vector<double> get_coeffs() const;
+
+        int get_odd_count() const { return _odd_count; }
+
+        /** The Java sets the field directly from the enclosing parser. */
+        void set_odd_count(int odd_count) { _odd_count = odd_count; }
 
         double get_cc() const { return data(1); }
         double get_r() const { return data(0); }
 
     private:
+        // A3, A4, ... through the declared odd terms, then even powers only.
+        int radial_power(int index) const {
+            return index / 2 < _odd_count ? index + 3 : 2 * (index - _odd_count) + 4;
+        }
+
         AsphereType _asphere_type;
+        int _odd_count = 0;
         int _surface_number;
         std::vector<double> _data;
     };
@@ -147,6 +161,13 @@ public:
 
         double get_diameter(int scenario) const;
         void set_diameter(double value) { _diameter_by_scenario.push_back(value); }
+
+        /**
+         * The [variable distances] entries these values came from, when they did.
+         * Borrowed from the spec, which owns the variables and outlives the surface.
+         */
+        void set_thickness_variable(const Variable *v) { _thickness_variable = v; }
+        void set_diameter_variable(const Variable *v) { _diameter_variable = v; }
 
         double get_refractive_index() const { return _refractive_index; }
         void set_refractive_index(double v) { _refractive_index = v; }
@@ -183,6 +204,8 @@ public:
 
     private:
         int _id;
+        const Variable *_thickness_variable = nullptr;
+        const Variable *_diameter_variable = nullptr;
         SurfaceType _surface_type = SurfaceType::surface;
         double _radius = 0;
         std::vector<double> _thickness_by_scenario;
@@ -211,6 +234,8 @@ public:
         bool has_constant(const std::string &c) const {
             return constants_.find_variable(c) != nullptr;
         }
+
+        int get_aspherical_odd_count() const;
 
         double get_image_height() const;
         double get_focal_length() const;

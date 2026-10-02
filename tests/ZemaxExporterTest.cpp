@@ -61,7 +61,18 @@ TEST(zemax_exporter_matches_committed_zmx) {
     specs.parse_file(std::string(DIR) + "US20250155694_Example01P.txt");
     Prescription p = Prescription::build_prescription(specs, true, false, false);
 
-    std::string generated = ZemaxExporter().generate(p, false);
+    // LensTool2 exports the prescription it writes to prescription.txt, not the one it
+    // imported, so the committed file carries the glass values that survive that round
+    // trip. Reproduce the same path here, or the two differ in the last digit of every
+    // catalog nd and vd.
+    OpticalBenchDataImporter::LensSpecifications roundTripped;
+    std::string optBench;
+    p.to_opt_bench_str(optBench);
+    roundTripped.parse_buffer(optBench);
+    Prescription exported =
+        Prescription::build_prescription(roundTripped, true, p._wvls, p._wts);
+
+    std::string generated = ZemaxExporter().generate(exported, false);
     std::string committed = readFile(std::string(DIR) + "US20250155694_Example01P.zmx");
 
     auto actual = lines(generated);

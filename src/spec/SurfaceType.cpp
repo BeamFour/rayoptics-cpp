@@ -6,6 +6,7 @@
 // C++ port of org.redukti.spec.SurfaceType
 #include "redukti/spec/SurfaceType.h"
 
+#include "redukti/Exceptions.h"
 #include "redukti/Text.h"
 #include "redukti/rayoptics/seq/Glass.h"
 
@@ -82,6 +83,23 @@ std::string &SurfaceType::to_opt_bench_str(std::string &sb, bool is_last) const 
 }
 
 std::string &SurfaceType::aspherics_to_opt_bench_str(std::string &sb) const {
+    return aspherics_to_opt_bench_str(sb, required_odd_count());
+}
+
+int SurfaceType::required_odd_count() const {
+    if (!is_radial_asphere())
+        return 0;
+    int count = 1;
+    if (_coeffs.has_value()) {
+        for (std::size_t i = 2; i < _coeffs->size(); i += 2) {
+            if ((*_coeffs)[i] != 0.0)
+                count = static_cast<int>(i / 2);
+        }
+    }
+    return count;
+}
+
+std::string &SurfaceType::aspherics_to_opt_bench_str(std::string &sb, int odd_count) const {
     if (_k == 0 && (!_coeffs.has_value() || _coeffs->empty()))
         return sb;
     sb += _id;
@@ -90,11 +108,35 @@ std::string &SurfaceType::aspherics_to_opt_bench_str(std::string &sb) const {
     sb += "\t";
     sb += d(_k);
     sb += "\t";
+    if (odd_count > 0) {
+        if (!is_radial_asphere() && _coeffs.has_value() && !_coeffs->empty() &&
+            (*_coeffs)[0] != 0.0)
+            throw IllegalArgumentException(
+                "Optical Bench odd format cannot represent an A2 term");
+        int max_power = !_coeffs.has_value()
+                            ? 2
+                            : (is_radial_asphere()
+                                   ? static_cast<int>(_coeffs->size())
+                                   : 2 * static_cast<int>(_coeffs->size()));
+        for (int power = 3; power <= max_power; power++) {
+            if (power % 2 != 0 && (power - 1) / 2 > odd_count)
+                continue;
+            double value = is_radial_asphere()
+                               ? (*_coeffs)[static_cast<std::size_t>(power - 1)]
+                               : (power % 2 == 0
+                                      ? (*_coeffs)[static_cast<std::size_t>(power / 2 - 1)]
+                                      : 0.0);
+            sb += d(value);
+            sb += "\t";
+        }
+        sb += "\n";
+        return sb;
+    }
     int start = 0;
     // Skip the unused params for optical bench format
     if (_asph_type == ASPH_EVEN)
         start = 1;
-    else if (_asph_type == ASPH_ODD)
+    else if (_asph_type == ASPH_RADIAL)
         start = 2;
     for (int j = start; j < static_cast<int>(_coeffs->size()); j++) {
         sb += d((*_coeffs)[static_cast<std::size_t>(j)]);
@@ -125,8 +167,8 @@ std::string SurfaceType::asphere_type() const {
     case ASPH_EVEN:
     case ASPH_EVEN_A2:
         return "EVEN";
-    case ASPH_ODD:
-        return "ODD";
+    case ASPH_RADIAL:
+        return "RADIAL";
     }
     return "";
 }

@@ -131,7 +131,7 @@ double GoalSpotDeviation::value() {
                            : intercepts.y[static_cast<std::size_t>(_sample_index)];
     // SpotAnalysis stores system units (normally mm); public spot radii and
     // optimization targets use microns.
-    return 1000.0 *
+    return field.system_units_to_micrometres *
            std::sqrt(intercepts.weights[static_cast<std::size_t>(_sample_index)]) *
            deviation;
 }

@@ -79,6 +79,8 @@ public:
         std::vector<SpotIntercepts> intercepts;
         double max_radius = 0;
         double mean_radius = 0;
+        /** Conversion captured with the intercepts, which remain in model units. */
+        double system_units_to_micrometres = 1000.0;
 
         SpotResultsForField(specs::Field *fld_,
                             std::vector<raytr::TraceGridByWvl> trace_results_,
@@ -86,8 +88,10 @@ public:
 
         std::string toString() const;
 
-        double get_max_radius() const { return max_radius * 1000; }
-        double get_mean_radius() const { return mean_radius * 1000; }
+        double get_max_radius() const { return max_radius * system_units_to_micrometres; }
+        double get_mean_radius() const {
+            return mean_radius * system_units_to_micrometres;
+        }
 
         /**
          * Histogram grid for this field's geometric MTF, sized to the field's spot

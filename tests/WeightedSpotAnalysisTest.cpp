@@ -5,18 +5,28 @@
 // known weights make that arithmetic checkable without tracing anything.
 #include "TestHarness.h"
 
+#include "redukti/Exceptions.h"
 #include "redukti/mathlib/Matrix3.h"
 #include "redukti/mathlib/Vector2.h"
 #include "redukti/mathlib/Vector3.h"
+#include "redukti/optim/Analysis.h"
+#include "redukti/optim/Goals.h"
+#include "redukti/plotter/Plotter.h"
 #include "redukti/rayoptics/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/analysis/SpotIntercepts.h"
 #include "redukti/rayoptics/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/math/Tfm3d.h"
+#include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/specs/Field.h"
+#include "redukti/rayoptics/specs/OpticalSpecs.h"
+#include "redukti/rayoptics/util/Orientation.h"
+#include "redukti/tools/LensTool2.h"
 
 #include <cmath>
 #include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace {
@@ -33,7 +43,65 @@ using redukti::rayoptics::raytr::ReferenceSphere;
 using redukti::rayoptics::raytr::TraceGridByWvl;
 using redukti::rayoptics::specs::Field;
 
+bool contains(const std::string &text, const std::string &part) {
+    return text.find(part) != std::string::npos;
+}
+
 } // namespace
+
+TEST(spot_reports_physical_sizes_in_micrometres_for_every_supported_unit) {
+    const char *const units[] = {"m", "cm", "mm", "in", "ft", "MM"};
+    const double factors[] = {1e6, 1e4, 1e3, 25400.0, 304800.0, 1e3};
+    std::optional<std::string> referencePlot;
+    for (std::size_t i = 0; i < 6; i++) {
+        redukti::rayoptics::optical::OpticalModel model;
+        model.system_spec->dimensions = units[i];
+        auto *field = model.optical_spec->fov->fields[0].get();
+        field->ref_sphere = std::make_shared<ReferenceSphere>(
+            Vector3::ZERO, Vector3::ZERO, 1.0, Tfm3d(Matrix3::IDENTITY, Vector3::ZERO));
+        std::vector<GridItem> items{
+            GridItem(Vector2(3.0 / factors[i], 4.0 / factors[i]), nullptr)};
+        TraceGridByWvl trace(550.0, items);
+        SpotAnalysisResult::SpotResultsForField result(
+            field, std::vector<TraceGridByWvl>{trace}, 550.0, false);
+        CHECK_CLOSE(result.get_mean_radius(), 5.0, 1e-12);
+        CHECK_CLOSE(result.get_max_radius(), 5.0, 1e-12);
+        CHECK_CLOSE(result.max_radius, 5.0 / factors[i], 1e-15);
+
+        redukti::optim::Analysis analysis(nullptr, std::vector<double>{0.0},
+                                          std::vector<int>{});
+        analysis._spots =
+            std::vector<SpotAnalysisResult::SpotResultsForField>{std::move(result)};
+        const auto &stored = (*analysis._spots)[0];
+        redukti::optim::GoalSpotDeviation x(&analysis, 1, 0, 0,
+                                            redukti::rayoptics::util::Orientation::X, 1.0);
+        redukti::optim::GoalSpotDeviation y(&analysis, 1, 0, 0,
+                                            redukti::rayoptics::util::Orientation::Y, 1.0);
+        CHECK_CLOSE(std::hypot(x.value(), y.value()), 5.0, 1e-12);
+        std::string plot = redukti::plotter::SpotDiagram(stored).plot(std::nullopt);
+        if (!referencePlot.has_value())
+            referencePlot = plot;
+        else
+            CHECK_STR_EQ(plot, *referencePlot);
+        std::string table;
+        redukti::tools::LensTool2::spotResultsMarkdownTable(SpotAnalysisResult(false),
+                                                            table);
+        CHECK(contains(table, "(\xc2\xb5m)"));
+
+        // Existing results retain the units of their stored intercepts.
+        model.system_spec->dimensions = "ft";
+        CHECK_CLOSE(stored.get_mean_radius(), 5.0, 1e-12);
+    }
+}
+
+TEST(spot_rejects_unsupported_model_units) {
+    redukti::rayoptics::optical::OpticalModel model;
+    model.system_spec->dimensions = "unknown";
+    CHECK_THROWS(SpotAnalysisResult::SpotResultsForField(
+                     model.optical_spec->fov->fields[0].get(), std::vector<TraceGridByWvl>{},
+                     550.0, false),
+                 redukti::IllegalArgumentException);
+}
 
 TEST(spot_computes_weighted_centroid_and_rms_radius) {
     std::vector<GridItem> items{GridItem(Vector2(0.0, 0.0), nullptr).withWeight(0.75),

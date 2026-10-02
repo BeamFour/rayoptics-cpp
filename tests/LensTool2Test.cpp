@@ -15,6 +15,11 @@
 // being the only test that exercises the tool exactly as a user does.
 #include "TestHarness.h"
 
+#include "redukti/Exceptions.h"
+#include "redukti/rayoptics/optical/OpticalModel.h"
+#include "redukti/rayoptics/seq/SequentialModel.h"
+#include "redukti/rayoptics/specs/OpticalSpecs.h"
+#include "redukti/spec/Prescription.h"
 #include "redukti/tools/LensTool2.h"
 #include "redukti/util/Args.h"
 
@@ -22,6 +27,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -218,7 +226,7 @@ TEST(lenstool2_reproduces_committed_example) {
     arguments.specfile = (work / SPEC_NAME).string();
     // A fixed date so the README is reproducible; the Java stamps
     // LocalDate.now() here, which is why the tool takes it as a parameter.
-    LensTool2::run(arguments, "2026-09-13");
+    LensTool2::run(arguments, "2026-10-02");
 
     for (const char *f : EXACT_FILES)
         compareExact((work / f).string(), std::string(REF_DIR) + f, f);
@@ -281,6 +289,214 @@ TEST(lenstool2_reports_and_weighted_spectrum_keep_final_airspaces) {
     CHECK(originalReport != report);
     CHECK(report.find("43.25") != std::string::npos);
     CHECK(report.find("52.75") != std::string::npos);
+}
+
+// ---------------------------------------------------------------------------
+// Referenced [variable distances] values, the apertures an analysis settles on,
+// and how a configuration index selects its OpticalBench scenario.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+using redukti::spec::Prescription;
+using redukti::spec::VigType;
+
+std::string replaceOnce(std::string text, const std::string &from, const std::string &to) {
+    std::size_t at = text.find(from);
+    CHECK(at != std::string::npos);
+    if (at != std::string::npos)
+        text.replace(at, from.size(), to);
+    return text;
+}
+
+/** The fixture with an explicit stop, so an aperture can vary per configuration. */
+Prescription stoppedPrescription() {
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(replaceOnce(WEIGHTED_INPUT, "2\t-50\tBf\t\t20",
+                                   "2\t-50\t2\t\t20\n3\tAS\tBf\t\t10"));
+    return LensTool2::createPrescription(specs, true, false);
+}
+
+std::string messageOf(const std::function<void()> &call) {
+    try {
+        call();
+    } catch (const redukti::IllegalArgumentException &e) {
+        return e.getMessage();
+    }
+    ::redukti::test::reportFailure(__FILE__, __LINE__,
+                                   "expected an IllegalArgumentException");
+    return "";
+}
+
+bool mentions(const std::string &message, const std::string &part) {
+    return message.find(part) != std::string::npos;
+}
+
+} // namespace
+
+TEST(lenstool2_referenced_distances_reject_missing_and_undefined_selected_values) {
+    for (const char *values : {"45", "45\tundefined", "45\t", "45\tNaN", "45\tnonsense"}) {
+        LensTool2::LensSpecifications specs;
+        specs.parse_buffer(
+            replaceOnce(WEIGHTED_INPUT, "Bf\t45\t55", std::string("Bf\t") + values));
+        std::string error =
+            messageOf([&] { LensTool2::createPrescription(specs, true, false); });
+        CHECK(mentions(error, "Bf"));
+        CHECK(mentions(error, "scenario"));
+    }
+    std::string error = messageOf([&] {
+        LensTool2::LensSpecifications missing;
+        missing.parse_buffer(replaceOnce(WEIGHTED_INPUT, "Bf\t45\t55\n", ""));
+    });
+    CHECK(mentions(error, "Referenced variable 'Bf'"));
+}
+
+TEST(lenstool2_referenced_values_validate_only_selected_scenarios_and_allow_zero) {
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(replaceOnce(
+        replaceOnce(WEIGHTED_INPUT, "Bf\t45\t55", "Bf\tundefined\t0"),
+        "scenarios\t0\t1\nnames\tWide\tLong", "scenarios\t1\nnames\tLong"));
+    auto prescription = LensTool2::createPrescription(specs, true, false);
+    CHECK_EQ(prescription.get_surfaces()[1]._thickness, 0.0);
+}
+
+TEST(lenstool2_aperture_diameter_rejects_missing_selected_value) {
+    std::string optBench;
+    stoppedPrescription().to_opt_bench_str(optBench);
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(replaceOnce(optBench, "[variable distances]",
+                                   "[variable distances]\nAperture Diameter\t10\tundefined"));
+    std::string error =
+        messageOf([&] { LensTool2::createPrescription(specs, true, false); });
+    CHECK(mentions(error, "Aperture Diameter"));
+    CHECK(mentions(error, "scenario 1"));
+}
+
+TEST(lenstool2_saved_analysis_apertures_keep_configuration_stops_and_largest_shared) {
+    auto prescription = stoppedPrescription();
+    std::vector<std::unique_ptr<redukti::rayoptics::optical::OpticalModel>> owned;
+    std::vector<redukti::rayoptics::optical::OpticalModel *> models;
+    for (int config = 0; config < 2; config++) {
+        owned.push_back(LensTool2::createSystem(prescription, true, VigType::None, false,
+                                                std::vector<double>{0.0, 1.0}, config));
+        models.push_back(owned.back().get());
+        models[static_cast<std::size_t>(config)]->seq_model->ifcs[1]->max_aperture =
+            config == 0 ? 12 : 11;
+        models[static_cast<std::size_t>(config)]->seq_model->ifcs[3]->max_aperture =
+            config == 0 ? 4 : 5;
+    }
+    auto saved = LensTool2::prescriptionWithAnalysisApertures(prescription, models,
+                                                              VigType::SetApertures);
+    CHECK_EQ(saved.get_surfaces()[0]._diameter, 24.0);
+    CHECK(saved.get_surfaces()[2]._diameter_by_scenario ==
+          std::optional<std::vector<double>>(std::vector<double>{8, 10}));
+    CHECK_EQ(saved.get_surfaces()[2]._diameter, 8.0);
+    CHECK_EQ(prescription.get_surfaces()[0]._diameter, 20.0);
+    CHECK(!prescription.get_surfaces()[2]._diameter_by_scenario.has_value());
+
+    LensTool2::LensSpecifications restoredSpecs;
+    std::string savedText;
+    saved.to_opt_bench_str(savedText);
+    restoredSpecs.parse_buffer(savedText);
+    auto restored = LensTool2::createPrescription(restoredSpecs, true, false);
+    CHECK(restored.get_surfaces()[2]._diameter_by_scenario ==
+          std::optional<std::vector<double>>(std::vector<double>{8, 10}));
+    CHECK_EQ(restored.get_surfaces()[0]._diameter, 24.0);
+
+    auto stopOnly = LensTool2::prescriptionWithAnalysisApertures(prescription, models,
+                                                                 VigType::SetStopAperture);
+    CHECK_EQ(stopOnly.get_surfaces()[0]._diameter, 20.0);
+    CHECK(stopOnly.get_surfaces()[2]._diameter_by_scenario ==
+          std::optional<std::vector<double>>(std::vector<double>{8, 10}));
+    auto unchanged = LensTool2::prescriptionWithAnalysisApertures(prescription, models,
+                                                                  VigType::SetPupil);
+    CHECK_EQ(unchanged.get_surfaces()[2]._diameter, 10.0);
+}
+
+TEST(lenstool2_actual_aperture_sizing_is_saved) {
+    for (auto mode : {VigType::SetStopAperture, VigType::SetApertures, VigType::SetFnum}) {
+        auto prescription = stoppedPrescription();
+        std::vector<std::unique_ptr<redukti::rayoptics::optical::OpticalModel>> owned;
+        std::vector<redukti::rayoptics::optical::OpticalModel *> models;
+        for (int config = 0; config < 2; config++) {
+            owned.push_back(LensTool2::createSystem(prescription, true, mode, false,
+                                                    std::vector<double>{0.0, 1.0}, config));
+            models.push_back(owned.back().get());
+        }
+        auto saved = LensTool2::prescriptionWithAnalysisApertures(prescription, models, mode);
+        for (int config = 0; config < 2; config++) {
+            double expected =
+                models[static_cast<std::size_t>(config)]->seq_model->ifcs[3]->surface_od() * 2;
+            CHECK_CLOSE(saved.get_surfaces()[2].get_diameter_by_scenario(config), expected,
+                        0.00005);
+        }
+        if (mode != VigType::SetApertures)
+            CHECK(prescription.get_surfaces()[2]._diameter !=
+                  saved.get_surfaces()[2]._diameter);
+    }
+}
+
+TEST(lenstool2_notes_keep_only_source_filename_and_do_not_change_geometry) {
+    auto prescription = stoppedPrescription();
+    // Built with the platform separator, so the path is stripped on every OS
+    fs::path specFile = fs::absolute(fs::path("lenses") / "test lens-trial3.txt");
+    std::string output = LensTool2::prescriptionOutput(prescription, specFile.string());
+    CHECK(output.find("[notes]\n") != std::string::npos);
+    CHECK(output.find("source prescription\ttest lens-trial3.txt\n") != std::string::npos);
+    CHECK(output.find(specFile.parent_path().string()) == std::string::npos);
+    CHECK(output.find("argument ") == std::string::npos);
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(output);
+    auto restored = LensTool2::createPrescription(specs, true, false);
+    CHECK_EQ(restored.get_surfaces()[2]._thickness,
+             prescription.get_surfaces()[2]._thickness);
+}
+
+TEST(lenstool2_first_selected_scenario_supplies_defaults) {
+    for (const char *report :
+         {"scenarios\t1\nnames\tLong", "scenarios\t1\t0\nnames\tLong\tWide"}) {
+        std::string input =
+            replaceOnce(WEIGHTED_INPUT, "scenarios\t0\t1\nnames\tWide\tLong", report);
+        CHECK(input != WEIGHTED_INPUT);
+        LensTool2::LensSpecifications specs;
+        specs.parse_buffer(input);
+        auto prescription = LensTool2::createPrescription(specs, true, false);
+        CHECK_EQ(prescription._focal_length, 60.0);
+        CHECK_EQ(prescription._fno, 5.0);
+        CHECK_EQ(prescription._angle_of_view_in_degrees, 35.0);
+        CHECK_EQ(prescription.get_surfaces()[1]._thickness, 55.0);
+        CHECK_EQ(prescription.get_surfaces()[1].get_thickness_by_scenario(0), 55.0);
+        auto model = LensTool2::createSystem(prescription, true, VigType::None, false,
+                                             std::vector<double>{0.0, 1.0}, 0);
+        CHECK_EQ(model->optical_spec->pupil->value, 5.0);
+        CHECK_EQ(model->optical_spec->fov->value, 17.5);
+        auto weighted = LensTool2::createWeightedPrescription(prescription, false);
+        CHECK_EQ(weighted._focal_length, 60.0);
+        CHECK_EQ(weighted._fno, 5.0);
+        CHECK_EQ(weighted._angle_of_view_in_degrees, 35.0);
+    }
+}
+
+TEST(lenstool2_configuration_index_resolves_through_selected_scenarios) {
+    LensTool2::LensSpecifications reordered;
+    reordered.parse_buffer(replaceOnce(WEIGHTED_INPUT, "scenarios\t0\t1\nnames\tWide\tLong",
+                                       "scenarios\t1\t0\nnames\tLong\tWide"));
+    CHECK_EQ(Prescription::scenario_of_configuration(reordered, 0), 1);
+    CHECK_EQ(Prescription::scenario_of_configuration(reordered, 1), 0);
+    CHECK_THROWS(Prescription::scenario_of_configuration(reordered, 2),
+                 redukti::IllegalArgumentException);
+    CHECK_THROWS(Prescription::scenario_of_configuration(reordered, -1),
+                 redukti::IllegalArgumentException);
+    CHECK_THROWS(Prescription::build_prescription(reordered, true,
+                                                  std::vector<double>{587.5618},
+                                                  std::vector<double>{1.0}, 2),
+                 redukti::IllegalArgumentException);
+
+    // Without selected configurations the index is the scenario itself
+    LensTool2::LensSpecifications unconfigured;
+    unconfigured.parse_buffer(
+        replaceOnce(WEIGHTED_INPUT, "scenarios\t0\t1\nnames\tWide\tLong\n", ""));
+    CHECK_EQ(Prescription::scenario_of_configuration(unconfigured, 1), 1);
 }
 
 TEST(lenstool2_weighted_d_line_keeps_final_prime_back_focus_and_ignored_glass_types) {

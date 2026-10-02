@@ -73,3 +73,6 @@ link	https://patents.google.com/patent/US20250155694A1/en
 lens name	Canon RF 70-200mm F2.8 L IS USM Z
 scenarios	0	1
 names	70mm f2.8	200mm f2.8
+
+[notes]
+source prescription	US20250155694_Example01P.txt

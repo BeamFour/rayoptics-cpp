@@ -14,6 +14,7 @@
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <string>
@@ -117,9 +118,10 @@ Prescription &Prescription::asph(int asph_type, double k,
                                  const std::vector<double> &coeffs) {
     if (asph_type == SurfaceType::ASPH_EVEN && coeffs[0] != 0.0)
         throw IllegalArgumentException("EVEN aspheres must have 0 as first coefficient");
-    else if (asph_type == SurfaceType::ASPH_ODD && (coeffs[0] != 0.0 || coeffs[1] != 0.0))
+    else if (asph_type == SurfaceType::ASPH_RADIAL &&
+             (coeffs[0] != 0.0 || coeffs[1] != 0.0))
         throw IllegalArgumentException(
-            "ODD aspheres must have 0 as first and second coefficients");
+            "RADIAL aspheres must have 0 as first and second coefficients");
     SurfaceType &lastSurface = _surface_list.back();
     lastSurface._asph_type = asph_type;
     lastSurface._k = k;
@@ -191,8 +193,8 @@ Prescription &Prescription::import_surface(
         case OpticalBenchDataImporter::AsphereType::EvenA2:
             asph_type = SurfaceType::ASPH_EVEN_A2;
             break;
-        case OpticalBenchDataImporter::AsphereType::Odd:
-            asph_type = SurfaceType::ASPH_ODD;
+        case OpticalBenchDataImporter::AsphereType::Radial:
+            asph_type = SurfaceType::ASPH_RADIAL;
             break;
         }
         double k = aspherical_data->get_cc();
@@ -295,13 +297,15 @@ double require_positive_value(const Prescription::LensSpecifications &specs,
  * @param use_glass_types If true will use glass types if glass names are provided
  * @param wvls Wavelengths to use
  * @param wts Wavelength weights - mainly used for Spot diagrams and MTFs
- * @param default_scenario Default scenario - use 0 if input has no scenarios
+ * @param default_configuration Configuration that supplies the default values; see
+ *                              scenario_of_configuration for how it is resolved
  */
 Prescription Prescription::build_prescription(const LensSpecifications &specs,
                                               bool use_glass_types,
                                               const std::vector<double> &wvls,
                                               const std::vector<double> &wts,
-                                              int default_scenario) {
+                                              int default_configuration) {
+    int default_scenario = scenario_of_configuration(specs, default_configuration);
     // We use default values variables that can change in a multi-configuration setup.
     // The defaults are useful as they are the ones that are manipulated during optimization
     Prescription prescription(
@@ -312,6 +316,7 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
                                "the full angle of view in degrees", default_scenario),
         specs.get_image_height(), wvls, wts);
     prescription._title = specs.get_descriptive_data().get_value("title");
+    prescription._aspherical_odd_count = specs.get_aspherical_odd_count();
     const auto &patent_info_n = specs.get_patent_info();
     if (patent_info_n.count() > 0) {
         // New style
@@ -355,6 +360,13 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
     prescription.add_configurations(specs);
     const auto &surfaces = specs.get_surfaces();
     for (std::size_t k = 0; k < surfaces.size(); k++) {
+        if (prescription._configurations.has_value()) {
+            // Below is just for validation checks
+            for (int scenario : *prescription._configurations) {
+                surfaces[k].get_thickness(scenario);
+                surfaces[k].get_diameter(scenario);
+            }
+        }
         prescription.import_surface(surfaces[k], default_scenario, use_glass_types);
         if (prescription._configurations.has_value())
             prescription.add_configuration_data(surfaces[k]);
@@ -389,12 +401,45 @@ void Prescription::add_configuration_data(
     }
 }
 
-Prescription &Prescription::add_configurations(const LensSpecifications &specs) {
+namespace {
+
+/**
+ * The report's `scenarios` list, or null when the report selects no configurations.
+ * The list only counts when it is non-empty and every entry has a name.
+ */
+const OpticalBenchDataImporter::Variable *
+configured_scenarios(const OpticalBenchDataImporter::LensSpecifications &specs) {
     const auto *configurations = specs.get_report_data().find_variable("scenarios");
     const auto *configuration_names = specs.get_report_data().find_variable("names");
     if (configurations != nullptr && configurations->num_values() > 0 &&
         configuration_names != nullptr &&
-        configuration_names->num_values() == configurations->num_values()) {
+        configuration_names->num_values() == configurations->num_values())
+        return configurations;
+    return nullptr;
+}
+
+} // namespace
+
+int Prescription::scenario_of_configuration(const LensSpecifications &specs,
+                                            int configuration) {
+    if (configuration < 0)
+        throw IllegalArgumentException("configuration must be non-negative, got " +
+                                       intToString(configuration));
+    const auto *configurations = configured_scenarios(specs);
+    if (configurations == nullptr)
+        return configuration;
+    if (configuration >= configurations->num_values())
+        throw IllegalArgumentException(
+            "configuration " + intToString(configuration) +
+            " requested but the prescription selects " +
+            intToString(configurations->num_values()));
+    return configurations->get_value_as_integer(configuration, 0);
+}
+
+Prescription &Prescription::add_configurations(const LensSpecifications &specs) {
+    const auto *configurations = configured_scenarios(specs);
+    if (configurations != nullptr) {
+        const auto *configuration_names = specs.get_report_data().find_variable("names");
         std::vector<int> configs(static_cast<std::size_t>(configurations->num_values()));
         std::vector<std::string> names(
             static_cast<std::size_t>(configuration_names->num_values()));
@@ -503,9 +548,9 @@ int Prescription::update_apertures_from(rayoptics::optical::OpticalModel *opm, i
     return changed;
 }
 
-bool Prescription::has_odd_aspheric() const {
+bool Prescription::has_radial_aspheric() const {
     for (const auto &s : _surface_list) {
-        if (s.is_odd_asphere())
+        if (s.is_radial_asphere())
             return true;
     }
     return false;
@@ -579,11 +624,14 @@ void Prescription::add_report_section(std::string &sb) const {
 }
 
 std::string &Prescription::to_opt_bench_str(std::string &sb) const {
+    int odd_count = _aspherical_odd_count;
+    for (const auto &surface : _surface_list)
+        odd_count = std::max(odd_count, surface.required_odd_count());
     sb += "[descriptive data]\n";
     sb += "title\t" + _title + "\n";
     sb += "[constants]\n";
-    if (has_odd_aspheric())
-        sb += "AsphericalOddCount\t1\n";
+    if (odd_count > 0)
+        sb += "AsphericalOddCount\t" + i(odd_count) + "\n";
     else if (has_even_a2_aspheric())
         sb += "AsphericalA2\n";
     sb += "[variable distances]\n";
@@ -659,7 +707,7 @@ std::string &Prescription::to_opt_bench_str(std::string &sb) const {
     }
     sb += "[aspherical data]\n";
     for (const auto &surface : _surface_list)
-        surface.aspherics_to_opt_bench_str(sb);
+        surface.aspherics_to_opt_bench_str(sb, odd_count);
     sb += "[notes]\n";
     sb += "Generated by Beam42\n";
     add_patent_section(sb);

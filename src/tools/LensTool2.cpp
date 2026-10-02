@@ -119,6 +119,79 @@ std::unique_ptr<optical::OpticalModel> LensTool2::createSystem(
                              config);
 }
 
+/** Save analysis apertures without changing the prescription used to compute the analyses. */
+spec::Prescription LensTool2::prescriptionWithAnalysisApertures(
+    const spec::Prescription &prescription,
+    const std::vector<optical::OpticalModel *> &models, spec::VigType vigType) {
+    LensSpecifications specs;
+    std::string text;
+    prescription.to_opt_bench_str(text);
+    specs.parse_buffer(text);
+    auto result = createPrescription(specs, true, prescription._wvls, prescription._wts);
+    if (vigType != spec::VigType::SetStopAperture &&
+        vigType != spec::VigType::SetApertures && vigType != spec::VigType::SetFnum)
+        return result;
+    auto &surfaces = result.get_surfaces();
+    // Glass apertures are shared across configurations; the stop may vary.
+    std::vector<double> sharedDiameters(surfaces.size(), 0.0);
+    for (auto &surface : surfaces) {
+        if (surface.is_aperture_stop() && result.get_num_configurations() > 0 &&
+            !surface._diameter_by_scenario.has_value())
+            surface._diameter_by_scenario =
+                std::vector<double>(models.size(), surface._diameter);
+    }
+    for (std::size_t config = 0; config < models.size(); config++) {
+        std::vector<int> targets;
+        for (std::size_t i = 0; i < surfaces.size(); i++) {
+            if (vigType != spec::VigType::SetStopAperture ||
+                surfaces[i].is_aperture_stop())
+                targets.push_back(static_cast<int>(i));
+        }
+        result.update_apertures_from(models[config], static_cast<int>(config), nullptr,
+                                     &targets, spec::Prescription::APERTURE_DECIMALS);
+        for (int i : targets) {
+            auto k = static_cast<std::size_t>(i);
+            if (!surfaces[k].is_aperture_stop())
+                sharedDiameters[k] = std::max(sharedDiameters[k], surfaces[k]._diameter);
+        }
+    }
+    if (vigType != spec::VigType::SetStopAperture) {
+        for (std::size_t i = 0; i < surfaces.size(); i++) {
+            if (!surfaces[i].is_aperture_stop())
+                surfaces[i]._diameter = sharedDiameters[i];
+        }
+    }
+    return result;
+}
+
+namespace {
+
+std::string escapeNote(const std::string &value) {
+    std::string out;
+    for (char c : value) {
+        switch (c) {
+        case '\\': out += "\\\\"; break;
+        case '\t': out += "\\t"; break;
+        case '\r': out += "\\r"; break;
+        case '\n': out += "\\n"; break;
+        default: out += c; break;
+        }
+    }
+    return out;
+}
+
+} // namespace
+
+/** Record the source filename without its local filesystem path. */
+std::string LensTool2::prescriptionOutput(const spec::Prescription &prescription,
+                                          const std::string &specFile) {
+    std::string sb;
+    prescription.to_opt_bench_str(sb);
+    sb += "\n[notes]\n";
+    sb += "source prescription\t" + escapeNote(Helper::getFilename(specFile)) + "\n";
+    return sb;
+}
+
 void LensTool2::outputSpotAnalysis(
     const analysis::SpotAnalysisResult::SpotResultsForField &result,
     const std::optional<std::string> &output_file, std::optional<double> radius) {
@@ -161,7 +234,9 @@ std::string &LensTool2::fodToMarkdown(const parax::FirstOrderData &fod, std::str
 std::string &LensTool2::spotResultsMarkdownTable(
     const analysis::SpotAnalysisResult &spotAnalysisResult, std::string &sb) {
     const DecimalFormat &f = decimalFormat();
-    sb += "| Field | Spot Mean Radius | Spot Max Radius |\n";
+    // The Java writes micro sign U+00B5; these are its UTF-8 bytes, spelled out so the
+    // output does not depend on the compiler's source encoding.
+    sb += "| Field | Spot Mean Radius (\xc2\xb5m) | Spot Max Radius (\xc2\xb5m) |\n";
     sb += "| ---   | ---              | ---             |\n";
     for (const auto &result : spotAnalysisResult.spot_results) {
         sb += " | " + result.fld->toString();
@@ -647,8 +722,20 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         createPrescription(specs, arguments.use_glass_types, arguments.only_d_line);
     if (arguments.optimize)
         runDefaultOptimizations(prescription, arguments, OPTIMIZATION_VIG_TYPE);
-    std::string prescription_output;
-    prescription.to_opt_bench_str(prescription_output);
+    // The vignetting can alter the prescription (aperture diameters)
+    // So we want to capture the changed values
+    std::vector<std::unique_ptr<optical::OpticalModel>> analysisModelsOwned;
+    std::vector<optical::OpticalModel *> analysisModels;
+    for (int config = 0; config < std::max(prescription.get_num_configurations(), 1);
+         config++) {
+        analysisModelsOwned.push_back(createSystem(prescription, true, analysisVigType,
+                                                   realRayAiming, fields, config));
+        analysisModels.push_back(analysisModelsOwned.back().get());
+    }
+    auto outputPrescription =
+        prescriptionWithAnalysisApertures(prescription, analysisModels, analysisVigType);
+    std::string prescription_output =
+        prescriptionOutput(outputPrescription, *arguments.specfile);
     Helper::createOutputFile(Helper::getOutputFileWithPath(*arguments.specfile,
                                                            "prescription.txt",
                                                            arguments.outdir),
@@ -661,8 +748,8 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         Helper::replaceExtension(Helper::getFilename(*arguments.specfile), ".zmx");
     Helper::createOutputFile(
         Helper::getOutputFileWithPath(*arguments.specfile, zmxName, arguments.outdir),
-        zemaxExporter.generate(prescription, arguments.only_d_line));
-    std::string SB = startREADME(prescription);
+        zemaxExporter.generate(outputPrescription, arguments.only_d_line));
+    std::string SB = startREADME(outputPrescription);
     auto prescriptionForWeightedMTF =
         createWeightedPrescription(prescription, arguments.only_d_line);
     const int configs = std::max(prescription.get_num_configurations(), 1);
@@ -673,7 +760,7 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         std::string scenario_filesuffix =
             prescription.get_num_configurations() > 0 ? ("-" + std::to_string(config))
                                                       : "";
-        auto opm = createSystem(prescription, true, analysisVigType, realRayAiming, fields, config);
+        auto *opm = analysisModels[static_cast<std::size_t>(config)];
         auto sm = opm->seq_model.get();
         auto osp = opm->optical_spec.get();
         const auto &fod = opm->optical_spec->parax_data->fod;
@@ -698,7 +785,7 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
                                                         ".txt"),
                                           arguments.outdir),
             fod.toString());
-        doLayoutDiagrams(prescription, arguments, config, scenario_filesuffix);
+        doLayoutDiagrams(outputPrescription, arguments, config, scenario_filesuffix);
         //            StringBuilder buf = new StringBuilder();
         //            for (int i = 0; i < fields.length; i++) {
         //                Trace.list_ray(buf,osp.fov.fields[i].chief_ray.chief_ray,null,null);
@@ -706,28 +793,30 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         //            System.out.println(buf.toString());
         //            buf = new StringBuilder();
                         //System.out.println(Trace.list_ray(buf,Trace.trace_ray(opm, Vector2.vector2_0,osp.fov.fields[4],sm.central_wavelength(),new TraceOptions()).pkg,null,null).toString());
-        auto spotAnalysis = generateSpotDiagrams(opm.get(), arguments,
+        auto spotAnalysis = generateSpotDiagrams(opm, arguments,
                                                  !arguments.auto_size_spots,
                                                  scenario_filesuffix);
         if (arguments.output_pupil_maps)
-            generatePupilMaps(opm.get(), arguments, scenario_filesuffix);
+            generatePupilMaps(opm, arguments, scenario_filesuffix);
         addLayoutsToREADME(SB, scenario_filesuffix);
         addSpotDiagramsToREADME(SB, scenario_filesuffix);
         addFodToREADME(SB, fod);
         addSpotReportToREADME(SB, spotAnalysis);
         addMTFsToREADME(SB, scenario_filesuffix, arguments.mtf_freqs);
-        generateMTFs(opm.get(), arguments, fields, prescription.get_wvl_wts(), "mtf",
+        generateMTFs(opm, arguments, fields, prescription.get_wvl_wts(), "mtf",
                      scenario_filesuffix);
         if (arguments.do_ray_aberrations)
-            generateRayAberrationPlots(opm.get(), arguments, scenario_filesuffix);
-        // Generate MTF with weighted average across wavelengths
-        opm = createSystem(prescriptionForWeightedMTF, true, analysisVigType, realRayAiming, fields,
-                           config);
-        generateMTFs(opm.get(), arguments, fields,
+            generateRayAberrationPlots(opm, arguments, scenario_filesuffix);
+        // Generate MTF with weighted average across wavelengths. The Java reassigns
+        // its own opm here; this model is a separate owner because the analysis
+        // models above are kept for the whole run.
+        auto weighted = createSystem(prescriptionForWeightedMTF, true, analysisVigType,
+                                     realRayAiming, fields, config);
+        generateMTFs(weighted.get(), arguments, fields,
                      prescriptionForWeightedMTF.get_wvl_wts(), "mtf-w",
                      scenario_filesuffix);
     }
-    createREADME(SB, *arguments.specfile, prescription,
+    createREADME(SB, *arguments.specfile, outputPrescription,
                  Helper::getOutputFileWithPath(*arguments.specfile, "README.md",
                                                arguments.outdir),
                  generated_on);

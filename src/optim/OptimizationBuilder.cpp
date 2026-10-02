@@ -306,8 +306,8 @@ int OptimizationBuilder::asphereTypeOf(int surface) const {
     const auto &definition = prescription_->_surface_list[static_cast<std::size_t>(surface)];
     if (definition.is_aspheric())
         return definition._asph_type;
-    if (prescription_->has_odd_aspheric())
-        return spec::SurfaceType::ASPH_ODD;
+    if (prescription_->has_radial_aspheric())
+        return spec::SurfaceType::ASPH_RADIAL;
     if (prescription_->has_even_a2_aspheric())
         return spec::SurfaceType::ASPH_EVEN_A2;
     return spec::SurfaceType::ASPH_EVEN;
@@ -315,12 +315,12 @@ int OptimizationBuilder::asphereTypeOf(int surface) const {
 
 int OptimizationBuilder::powerOf(int asphereType, int index) {
     switch (asphereType) {
-    case spec::SurfaceType::ASPH_ODD:
+    case spec::SurfaceType::ASPH_RADIAL:
         if (index >= 2)
             return index + 1;
         throw IllegalArgumentException(
             "coefficient " + intToString(index) +
-            " is not a term of an odd asphere, whose terms start at index 2, the A3 term");
+            " is not a term of a radial asphere, whose terms start at index 2, the A3 term");
     case spec::SurfaceType::ASPH_EVEN_A2:
         return 2 * (index + 1);
     default:

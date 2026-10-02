@@ -48,6 +48,16 @@ public:
         const spec::Prescription &prescription, bool fov_angle, spec::VigType vig_type,
         bool use_wideangle_aiming, const std::vector<double> &fields, int config);
 
+    /** Save analysis apertures without changing the prescription the analyses used. */
+    static spec::Prescription prescriptionWithAnalysisApertures(
+        const spec::Prescription &prescription,
+        const std::vector<rayoptics::optical::OpticalModel *> &models,
+        spec::VigType vigType);
+
+    /** Record the source filename without its local filesystem path. */
+    static std::string prescriptionOutput(const spec::Prescription &prescription,
+                                          const std::string &specFile);
+
     static void outputSpotAnalysis(
         const rayoptics::analysis::SpotAnalysisResult::SpotResultsForField &result,
         const std::optional<std::string> &output_file, std::optional<double> radius);

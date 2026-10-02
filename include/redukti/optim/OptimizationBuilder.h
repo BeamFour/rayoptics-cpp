@@ -285,7 +285,7 @@ public:
 
     /**
      * Vary one aspheric coefficient, `_coeffs[index]` of the surface: on an even asphere
-     * the coefficient of r^(2(index+1)), so index 1 is A4; on an odd asphere the
+     * the coefficient of r^(2(index+1)), so index 1 is A4; on a radial asphere the
      * coefficient of r^(index+1), so index 2 is A3. A spherical surface becomes an
      * asphere of the type the prescription already uses, even when it has none, and a
      * coefficient the surface does not have starts at zero.

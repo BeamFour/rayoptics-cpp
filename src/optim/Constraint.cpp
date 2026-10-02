@@ -111,7 +111,7 @@ std::unique_ptr<profiles::SurfaceProfile> make_profile(const spec::SurfaceType &
     double radius = surface.get_radius_of_curvature();
     if (!surface.is_aspheric())
         return std::make_unique<profiles::Spherical>(radius == 0.0 ? 0.0 : 1.0 / radius);
-    if (surface.is_odd_asphere()) {
+    if (surface.is_radial_asphere()) {
         auto prof = std::make_unique<profiles::RadialPolynomial>();
         prof->r(radius)->cc(surface.get_cc())->setCoefs(surface.get_aspheric_coeffs());
         return prof;

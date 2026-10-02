@@ -122,10 +122,16 @@ std::string OpticalBenchDataImporter::VarSet::get_value(const std::string &name)
 // ---------------------------------------------------------------------------
 
 std::vector<double> OpticalBenchDataImporter::AsphericalData::get_coeffs() const {
+    if (is_radial_asphere()) {
+        int count = static_cast<int>(_data.size()) - 2;
+        int length = count == 0 ? 2 : radial_power(count - 1);
+        std::vector<double> coeffs(static_cast<std::size_t>(length), 0.0);
+        for (int i = 0; i < count; i++)
+            coeffs[static_cast<std::size_t>(radial_power(i) - 1)] = data(i + 2);
+        return coeffs;
+    }
     int a = 0;
-    if (get_asphere_type() == AsphereType::Odd)
-        a = 2;
-    else if (get_asphere_type() == AsphereType::Even)
+    if (get_asphere_type() == AsphereType::Even)
         a = 1;
     std::vector<double> coeffs(static_cast<std::size_t>(
                                    static_cast<int>(_data.size()) - 2 + a),
@@ -139,7 +145,26 @@ std::vector<double> OpticalBenchDataImporter::AsphericalData::get_coeffs() const
 // LensSurface
 // ---------------------------------------------------------------------------
 
+double OpticalBenchDataImporter::Variable::require_value_as_double(int scenario) const {
+    if (scenario < 0 || scenario >= static_cast<int>(_values.size()))
+        throw IllegalArgumentException("Variable '" + _name + "' has no value for scenario " +
+                                       intToString(scenario));
+    const std::string &value = _values[static_cast<std::size_t>(scenario)];
+    try {
+        double result = std::stod(value);
+        if (std::isnan(result))
+            throw std::invalid_argument("NaN");
+        return result;
+    } catch (const std::exception &) {
+        throw IllegalArgumentException("Variable '" + _name + "' specifies '" + value +
+                                       "' for scenario " + intToString(scenario) +
+                                       "; expected a numeric value");
+    }
+}
+
 double OpticalBenchDataImporter::LensSurface::get_thickness(int scenario) const {
+    if (_thickness_variable != nullptr)
+        return _thickness_variable->require_value_as_double(scenario);
     if (scenario < static_cast<int>(_thickness_by_scenario.size()))
         return _thickness_by_scenario[static_cast<std::size_t>(scenario)];
     // Java asserts there is exactly one and falls back to it.
@@ -147,6 +172,8 @@ double OpticalBenchDataImporter::LensSurface::get_thickness(int scenario) const 
 }
 
 double OpticalBenchDataImporter::LensSurface::get_diameter(int scenario) const {
+    if (_diameter_variable != nullptr)
+        return _diameter_variable->require_value_as_double(scenario);
     if (scenario < static_cast<int>(_diameter_by_scenario.size()))
         return _diameter_by_scenario[static_cast<std::size_t>(scenario)];
     return _diameter_by_scenario[0];
@@ -353,8 +380,9 @@ bool OpticalBenchDataImporter::LensSpecifications::parse_lines(
             break;
         }
         case Section::ASPHERICAL_DATA: {
-            if (has_constant("AsphericalOddCount"))
-                asphere_type = AsphereType::Odd;
+            int odd_count = get_aspherical_odd_count();
+            if (odd_count > 0)
+                asphere_type = AsphereType::Radial;
             else if (has_constant("AsphericalA2"))
                 asphere_type = AsphereType::EvenA2;
             else
@@ -366,6 +394,7 @@ bool OpticalBenchDataImporter::LensSpecifications::parse_lines(
                 throw RuntimeException("Unknown surface " + optBenchID);
             int id = it->second;
             auto aspherical_data = std::make_unique<AsphericalData>(asphere_type, id);
+            aspherical_data->set_odd_count(odd_count);
             for (std::size_t i = 1; i < words.size(); i++)
                 aspherical_data->add_data(parse_double(words[i]));
             aspherical_data_.push_back(std::move(aspherical_data));
@@ -395,14 +424,15 @@ void OpticalBenchDataImporter::LensSpecifications::parse_thickness(
         surface_builder.add_thickness(0.0);
         return;
     }
-    if (std::isalpha(static_cast<unsigned char>(value[0]))) {
+    if (std::isalpha(static_cast<unsigned char>(value[0])) && value != "Infinity") {
         Variable *var = find_variable(value);
         if (var != nullptr) {
+            surface_builder.set_thickness_variable(var);
             for (int i = 0; i < var->num_scenarios(); i++)
                 surface_builder.add_thickness(parse_double(var->get_value(i)));
         } else {
-            //fprintf (stderr, "Variable %s was not found\n", value);
-            surface_builder.add_thickness(0.0);
+            throw IllegalArgumentException("Referenced variable '" + value +
+                                           "' was not found in [variable distances]");
         }
     } else {
         surface_builder.add_thickness(parse_double(value));
@@ -417,12 +447,23 @@ void OpticalBenchDataImporter::LensSpecifications::parse_diameter(
     } else {
         Variable *var = find_variable("Aperture Diameter");
         if (var != nullptr) {
+            surface_builder.set_diameter_variable(var);
             for (int i = 0; i < var->num_scenarios(); i++)
                 surface_builder.set_diameter(parse_double(var->get_value(i)));
         } else {
             surface_builder.set_diameter(dValue);
         }
     }
+}
+
+int OpticalBenchDataImporter::LensSpecifications::get_aspherical_odd_count() const {
+    const Variable *value = constants_.find_variable("AsphericalOddCount");
+    if (value == nullptr)
+        return 0;
+    int count = value->num_scenarios() == 1 ? value->get_value_as_integer(0, -1) : -1;
+    if (count < 0)
+        throw IllegalArgumentException("AsphericalOddCount must be a non-negative integer");
+    return count;
 }
 
 double OpticalBenchDataImporter::LensSpecifications::get_image_height() const {

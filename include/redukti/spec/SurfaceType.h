@@ -25,7 +25,7 @@ class SurfaceType {
 public:
     static constexpr int ASPH_EVEN = 1;
     static constexpr int ASPH_EVEN_A2 = 2;
-    static constexpr int ASPH_ODD = 3;
+    static constexpr int ASPH_RADIAL = 3;
 
     std::string _id;
     double _radius;
@@ -50,7 +50,8 @@ public:
     /**
      * Coefficients are stored in  a normalized way
      * For Even polynomials, first coefficient is 0, as this is the A2 term
-     * For Odd polynomials first 2 coefficients are 0.
+     * For radial polynomials, index i is A(i+1): the first 2 coefficients
+     * are 0 and omitted odd powers are also represented by zeros.
      * But in OpticalBench the data is output so that
      * these values are skipped
      */
@@ -106,12 +107,17 @@ public:
     const std::optional<std::string> &get_catalog_name() const { return _catalog_name; }
 
     bool is_aspheric() const { return _asph_type != 0; }
-    bool is_odd_asphere() const { return is_aspheric() && _asph_type == ASPH_ODD; }
+    bool is_radial_asphere() const { return is_aspheric() && _asph_type == ASPH_RADIAL; }
     bool is_even_a2_asphere() const { return is_aspheric() && _asph_type == ASPH_EVEN_A2; }
     bool is_even_asphere() const { return is_aspheric() && _asph_type == ASPH_EVEN; }
 
     std::string &to_opt_bench_str(std::string &sb, bool is_last) const;
     std::string &aspherics_to_opt_bench_str(std::string &sb) const;
+
+    /** Minimum Optical Bench odd count needed to retain this surface's nonzero terms. */
+    int required_odd_count() const;
+
+    std::string &aspherics_to_opt_bench_str(std::string &sb, int odd_count) const;
 
     static std::string &aspheric_markdown_table_header(std::string &sb, int max_coeffs);
     std::string &asherics_to_markdown_table_row(std::string &sb, int max_coeffs) const;

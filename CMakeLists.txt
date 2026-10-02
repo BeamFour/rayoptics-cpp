@@ -146,6 +146,9 @@ add_executable(mathlib_tests
     tests/SpecTest.cpp
     tests/LayoutPlotterTest.cpp
     tests/ZemaxExporterTest.cpp
+    tests/ZemaxRadialExportTest.cpp
+    tests/OpticalBenchAsphereTest.cpp
+    tests/AsphericOptimizationTest.cpp
     tests/FormatFTest.cpp
     tests/FormatETest.cpp
     tests/LensTool2Test.cpp

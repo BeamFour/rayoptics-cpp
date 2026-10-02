@@ -103,11 +103,43 @@ SpotOptions &SpotOptions::check_apertures(bool value) {
 // SpotAnalysisResult::SpotResultsForField
 // ---------------------------------------------------------------------------
 
+namespace {
+
+/** Java's String.equalsIgnoreCase, for the ASCII unit names. */
+bool equals_ignore_case(const std::string &a, const char *b) {
+    std::size_t n = std::char_traits<char>::length(b);
+    if (a.size() != n)
+        return false;
+    for (std::size_t k = 0; k < n; k++) {
+        if (std::tolower(static_cast<unsigned char>(a[k])) !=
+            std::tolower(static_cast<unsigned char>(b[k])))
+            return false;
+    }
+    return true;
+}
+
+} // namespace
+
 SpotAnalysisResult::SpotResultsForField::SpotResultsForField(
     specs::Field *fld_, std::vector<TraceGridByWvl> trace_results_, double ref_wvl,
     bool use_centroid)
-    : fld(std::make_shared<const specs::FieldSnapshot>(*fld_)), image_pt(fld_->ref_sphere->image_pt),
-      trace_results(std::move(trace_results_)) {
+    : fld(std::make_shared<const specs::FieldSnapshot>(*fld_)),
+      image_pt(mathlib::Vector3::ZERO), trace_results(std::move(trace_results_)) {
+    // The units check comes before the reference sphere is read, as in the Java: a field
+    // with unsupported units is rejected whether or not it has been traced.
+    if (fld_->fov == nullptr) {
+        // Standalone fields historically use millimetres.
+        system_units_to_micrometres = 1000.0;
+    } else {
+        auto *model = fld_->fov->optical_spec->opt_model;
+        const std::string &units = model->system_spec->dimensions;
+        if (!(equals_ignore_case(units, "m") || equals_ignore_case(units, "cm") ||
+              equals_ignore_case(units, "mm") || equals_ignore_case(units, "in") ||
+              equals_ignore_case(units, "ft")))
+            throw IllegalArgumentException("Unsupported spot model units: " + units);
+        system_units_to_micrometres = 1.0 / model->nm_to_sys_units(1000.0);
+    }
+    image_pt = fld_->ref_sphere->image_pt;
     // The traced grids have to be in their final home before the intercepts are
     // built: each SpotIntercepts keeps a pointer into this vector.
     std::optional<Vector2> centroid;

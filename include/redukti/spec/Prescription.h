@@ -128,6 +128,8 @@ public:
      * lens report.
      */
     std::string _title;
+    /** Optical Bench's number of included odd powers, starting at A3. */
+    int _aspherical_odd_count = 0;
     std::optional<std::string> _lens_name;
     /** How far along this prescription is - one of TODO, Candidate or Accepted.
      * A lens folder often holds several prescriptions and this says which of them
@@ -206,7 +208,20 @@ public:
                                            bool use_glass_types,
                                            const std::vector<double> &wvls,
                                            const std::vector<double> &wts,
-                                           int default_scenario);
+                                           int default_configuration);
+
+    /**
+     * Resolve a configuration index to the OpticalBench scenario it selects.
+     *
+     * When the report selects configurations, configuration `i` is the scenario named by
+     * the `i`th entry of `scenarios`. Otherwise there is no indirection, and the
+     * configuration index is the scenario itself.
+     *
+     * Throws IllegalArgumentException if the index is negative, or beyond the
+     * configurations the report selects.
+     */
+    static int scenario_of_configuration(const LensSpecifications &specs,
+                                         int configuration);
 
     const std::string &get_title() const { return _title; }
 
@@ -257,7 +272,7 @@ public:
     const std::vector<SurfaceType> &get_surfaces() const { return _surface_list; }
     std::vector<SurfaceType> &get_surfaces() { return _surface_list; }
 
-    bool has_odd_aspheric() const;
+    bool has_radial_aspheric() const;
     bool has_even_a2_aspheric() const;
     /** The status of this prescription, defaulting to TODO when the file does not say. */
     std::string get_status() const;

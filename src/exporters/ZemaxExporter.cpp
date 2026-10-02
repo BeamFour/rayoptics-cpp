@@ -6,6 +6,7 @@
 // C++ port of org.redukti.exporters.ZemaxExporter
 #include "redukti/exporters/ZemaxExporter.h"
 
+#include "redukti/Exceptions.h"
 #include "redukti/Text.h"
 
 namespace redukti::exporters {
@@ -106,8 +107,8 @@ void ZemaxExporter::output_surfaces(const Prescription &prescription, std::strin
         if (s.is_aperture_stop())
             sb += "  STOP\n";
         if (s.is_aspheric()) {
-            if (s.is_odd_asphere())
-                sb += "  TYPE ODDASPHE\n";
+            if (s.is_radial_asphere())
+                sb += "  TYPE XOSPHERE\n";
             else
                 sb += "  TYPE EVENASPH\n";
         } else {
@@ -120,16 +121,28 @@ void ZemaxExporter::output_surfaces(const Prescription &prescription, std::strin
         sb += "  MIRR 2 0\n";
         if (s.is_aspheric()) {
             std::vector<double> aspherics = s.get_aspheric_coeffs();
-            for (std::size_t a = 1; a <= aspherics.size(); a++) {
-                sb += "  PARM " + i(static_cast<int>(a)) + " ";
-                sb += d(aspherics[a - 1]) + "\n";
+            if (s.is_radial_asphere()) {
+                int count = static_cast<int>(aspherics.size());
+                if (count > 240)
+                    throw IllegalArgumentException(
+                        "XOSPHERE supports at most 240 radial terms");
+                // Extra Data: term count, normalization radius, then A1, A2, ... .
+                // A unit normalization radius preserves our dimensional coefficients.
+                sb += "  XDAT 1 " + i(count) + "\n";
+                sb += "  XDAT 2 1.0\n";
+                for (int a = 0; a < count; a++)
+                    sb += "  XDAT " + i(a + 3) + " " +
+                          d(aspherics[static_cast<std::size_t>(a)]) + "\n";
+            } else {
+                for (std::size_t a = 1; a <= aspherics.size(); a++) {
+                    sb += "  PARM " + i(static_cast<int>(a)) + " ";
+                    sb += d(aspherics[a - 1]) + "\n";
+                }
             }
         }
         sb += "  DISZ " + d(thickness) + "\n";
         if (s.is_aspheric()) {
-            // For Odd aspheres we have to supply ec, for Even aspheres cc
-            double k_conic = s.is_odd_asphere() ? s.get_cc() + 1 : s.get_cc();
-            sb += "  CONI " + d(k_conic) + "\n";
+            sb += "  CONI " + d(s.get_cc()) + "\n";
         }
         if (s.get_refractive_index() != 0.0) {
             sb += "  GLAS ";

@@ -140,7 +140,7 @@ void RayOpticsModelBuilder::add_surface(seq::SequentialModel *sm, const SurfaceT
     }
     if (s.is_aspheric()) {
         auto idx = static_cast<std::size_t>(*sm->cur_surface);
-        if (s.is_odd_asphere()) {
+        if (s.is_radial_asphere()) {
             auto prof = std::make_shared<profiles::RadialPolynomial>();
             prof->r(s.get_radius_of_curvature())
                 ->cc(s.get_cc())

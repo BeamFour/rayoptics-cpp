@@ -84,19 +84,20 @@ Rgb Colors::get_wavelen_color(double wl) {
 
 std::string SpotDiagram::plot(std::optional<double> radius_in) const {
     RendererSvg r(640, 640, Rgb::rgb_black);
-    double radius = radius_in.has_value() ? *radius_in : result->max_radius * 1000;
+    double radius = radius_in.has_value() ? *radius_in : result->get_max_radius();
     r.set_window(Vector2Pair(Vector2(-radius, -radius), Vector2(radius, radius)), true);
     PlotAxes axes;
     axes.set_show_axes(false, PlotAxes::AxisMask::XY);
     axes.set_label("Sagittal distance", PlotAxes::AxisMask::X);
     axes.set_label("Tangential distance", PlotAxes::AxisMask::Y);
-    axes.set_unit("m", true, true, -3, PlotAxes::AxisMask::XY);
+    axes.set_unit("m", true, true, -6, PlotAxes::AxisMask::XY);
     axes.set_tics_count(3, PlotAxes::AxisMask::XY);
     PlotRenderer plotRenderer;
     plotRenderer.draw_axes_2d(r, axes);
     for (const auto &intercepts : result->intercepts) {
         for (std::size_t i = 0; i < intercepts.x.size(); i++) {
-            r.draw_point(Vector2(intercepts.x[i] * 1000, intercepts.y[i] * 1000),
+            r.draw_point(Vector2(intercepts.x[i] * result->system_units_to_micrometres,
+                                 intercepts.y[i] * result->system_units_to_micrometres),
                          Colors::get_wavelen_color(intercepts.wvl),
                          Renderer::PointStyle::PointStyleDot);
         }
