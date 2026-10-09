@@ -60,10 +60,13 @@ public:
                                        specs::Field &field, double wavelength,
                                        double spatialFrequency);
 
-    /** Iterate the entrance pupil coordinate until the ray lands on `target`. */
+    /**
+     * Iterate the entrance pupil coordinate until the ray lands on
+     * `targetExitPupilCoord`.
+     */
     static Result aim(optical::OpticalModel *opticalModel,
-                      const mathlib::Vector2 &initialPupil,
-                      const mathlib::Vector2 &target, specs::Field &field,
+                      const mathlib::Vector2 &initialEntrancePupilCoord,
+                      const mathlib::Vector2 &targetExitPupilCoord, specs::Field &field,
                       double wavelength, const TraceOptions &traceOptions);
 
     /** Exit-pupil coordinate of a traced ray, or null if not computable. */

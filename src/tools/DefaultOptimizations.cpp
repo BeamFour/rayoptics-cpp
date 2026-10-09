@@ -50,18 +50,27 @@ int DefaultOptimizations::findBackFocusSurface(const spec::Prescription &prescri
 }
 
 std::vector<int> DefaultOptimizations::findVariableThicknesses(
-    const spec::Prescription &prescription, int backFocusSurface) {
+    const spec::Prescription &prescription) {
     const auto &surfaces = prescription.get_surfaces();
     std::vector<int> result;
     for (int i = 0; i < static_cast<int>(surfaces.size()); i++)
-        if (isVariableAirspace(surfaces[static_cast<std::size_t>(i)], i, backFocusSurface))
+        if (isVariableAirspace(surfaces[static_cast<std::size_t>(i)]))
             result.push_back(i);
     return result;
 }
 
-bool DefaultOptimizations::isVariableAirspace(const spec::SurfaceType &surface, int index,
-                                              int backFocusSurface) {
-    return index != backFocusSurface && surface._thickness_by_scenario.has_value() &&
+bool DefaultOptimizations::variesByConfiguration(
+    const std::optional<std::vector<double>> &thickness_by_scenario) {
+    if (!thickness_by_scenario.has_value())
+        return false;
+    for (std::size_t i = 1; i < thickness_by_scenario->size(); i++)
+        if ((*thickness_by_scenario)[i] != (*thickness_by_scenario)[0])
+            return true;
+    return false;
+}
+
+bool DefaultOptimizations::isVariableAirspace(const spec::SurfaceType &surface) {
+    return variesByConfiguration(surface._thickness_by_scenario) &&
            surface.get_refractive_index() == 0.0;
 }
 

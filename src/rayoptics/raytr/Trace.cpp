@@ -696,29 +696,10 @@ std::vector<Vector2> generate_points(const TraceRingsDef &grid_rng, int num_ring
     return points;
 }
 
-/** Ported for completeness; nothing in the codebase calls it. */
-[[maybe_unused]] std::vector<Vector2> generate_gaussian(const TraceRingsDef &grid_rng,
-                                                        int ncircles,
-                                                        double max_radius) {
-    std::vector<Vector2> points;
-    double cx = grid_rng.cx, cy = grid_rng.cy;
-    points.push_back(Vector2(cx, cy));
-    double sigma = max_radius / std::sqrt(2.0 * std::log(1 + ncircles));
-    for (int icirc = 1; icirc <= ncircles; icirc++) {
-        double daz = 60.0 / icirc;
-        double offset = (icirc % 2 == 0) ? 0.0 : 0.5 * daz;
-        double p = M::square(icirc) / (ncircles + M::square(ncircles));
-        double r = sigma * std::sqrt(2.0 * std::log(1 / (1 - p)));
-        for (int jaz = 0; jaz < 6 * icirc; jaz++) {
-            double angle_deg = offset + jaz * daz;
-            double angle_rad = M::toRadians(angle_deg);
-            double x = cx + r * std::cos(angle_rad);
-            double y = cy + r * std::sin(angle_rad);
-            points.push_back(Vector2(x, y));
-        }
-    }
-    return points;
-}
+///////////////////////////////////////////////////////////////////////////////////////////
+/// Gaussian Quadrature is a Beam42 enhancement
+/// See Documentation/GAUSSIAN_QUADRATURE.md
+//////////////////////////////////////////////////////////////////////////////////////////
 
 /** Computes Gauss-Legendre nodes and weights on [-1, 1]. */
 std::vector<std::vector<double>> gauss_legendre_nodes_and_weights(int order) {
@@ -942,6 +923,12 @@ std::vector<GridItem> Trace::trace_gaussian_quadrature(
     return grid;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Contrast trace is a Beam42 enhancement.
+/// Its main use is in optimization
+/// See Documentation/OPTIMIZER_NOTES.md
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 std::vector<ContrastRayTriplet> Trace::trace_contrast(
     optical::OpticalModel *opt_model, const TraceRingsDef &grid_rng,
     std::optional<int> num_spokes, const Vector2 &sagittal_shift,
@@ -978,9 +965,15 @@ std::vector<ContrastRayTriplet> Trace::trace_contrast(
     auto points = generate_contrast_quadrature(grid_rng, num_spokes, sagittal_shift,
                                                tangential_shift, fld);
     for (const auto &point : points) {
+        // Each sample traces a reference ray and sagittal/tangential partners.
+        // The supplied shifts are normalized entrance-pupil offsets.
+        // When aim_exit_pupil is enabled, these provide initial guesses;
+        // each partner is inverse-aimed to a physical reference-sphere separation
+        // Delta = |R| lambda nu / |n_img| from the reference ray.
+        // Here lambda is in system length units and nu is image-space frequency.
         auto pupil = point.pupil;
-        auto sagittalPupil = pupil.plus(sagittal_shift);
-        auto tangentialPupil = pupil.plus(tangential_shift);
+        auto sagittalEntrancePupil = pupil.plus(sagittal_shift);
+        auto tangentialEntrancePupil = pupil.plus(tangential_shift);
         auto reference = trace_safe(opt_model, pupil, fld, wvl, trace_options);
         RayResult sagittal;
         RayResult tangential;
@@ -994,22 +987,26 @@ std::vector<ContrastRayTriplet> Trace::trace_contrast(
                 sagittal = RayResult(nullptr, error);
                 tangential = RayResult(nullptr, error);
             } else {
-                Vector2 sagittalTarget(referenceCoordinate->x + sagittal_exit_shift->x,
-                                       referenceCoordinate->y + sagittal_exit_shift->y);
-                Vector2 tangentialTarget(
+                Vector2 sagittalExitPupilTarget(
+                    referenceCoordinate->x + sagittal_exit_shift->x,
+                    referenceCoordinate->y + sagittal_exit_shift->y);
+                Vector2 tangentialExitPupilTarget(
                     referenceCoordinate->x + tangential_exit_shift->x,
                     referenceCoordinate->y + tangential_exit_shift->y);
-                sagittal = ExitPupilAiming::aim(opt_model, sagittalPupil, sagittalTarget,
-                                                fld, wvl, trace_options)
+                sagittal = ExitPupilAiming::aim(opt_model, sagittalEntrancePupil,
+                                                sagittalExitPupilTarget, fld, wvl,
+                                                trace_options)
                                .ray;
-                tangential = ExitPupilAiming::aim(opt_model, tangentialPupil,
-                                                  tangentialTarget, fld, wvl,
+                tangential = ExitPupilAiming::aim(opt_model, tangentialEntrancePupil,
+                                                  tangentialExitPupilTarget, fld, wvl,
                                                   trace_options)
                                  .ray;
             }
         } else {
-            sagittal = trace_safe(opt_model, sagittalPupil, fld, wvl, trace_options);
-            tangential = trace_safe(opt_model, tangentialPupil, fld, wvl, trace_options);
+            sagittal =
+                trace_safe(opt_model, sagittalEntrancePupil, fld, wvl, trace_options);
+            tangential =
+                trace_safe(opt_model, tangentialEntrancePupil, fld, wvl, trace_options);
         }
         samples.push_back(ContrastRayTriplet(pupil, reference.pkg, sagittal.pkg,
                                              tangential.pkg, reference.err,

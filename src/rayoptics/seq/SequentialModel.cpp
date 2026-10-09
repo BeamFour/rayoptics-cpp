@@ -779,6 +779,11 @@ std::vector<raytr::TraceGridByWvl> SequentialModel::trace_rings(
     return grids;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////
+/// Gaussian Quadrature is a Beam42 enhancement
+/// See Documentation/GAUSSIAN_QUADRATURE.md
+//////////////////////////////////////////////////////////////////////////////////////////
+
 std::vector<raytr::TraceGridByWvl> SequentialModel::trace_gaussian_quadrature(
     const raytr::TraceGridCallback &fct, int fi, std::optional<int> wl, int num_rings,
     std::optional<int> num_spokes, bool append_if_none,

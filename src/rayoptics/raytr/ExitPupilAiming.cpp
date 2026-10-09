@@ -75,13 +75,13 @@ ExitPupilAiming::Evaluation ExitPupilAiming::evaluate(
 }
 
 ExitPupilAiming::Result ExitPupilAiming::aim(optical::OpticalModel *opticalModel,
-                                             const Vector2 &initialPupil,
-                                             const Vector2 &target, specs::Field &field,
-                                             double wavelength,
+                                             const Vector2 &initialEntrancePupilCoord,
+                                             const Vector2 &targetExitPupilCoord,
+                                             specs::Field &field, double wavelength,
                                              const TraceOptions &traceOptions) {
     if (field.chief_ray == nullptr || field.ref_sphere == nullptr ||
         M::is_kinda_big(field.ref_sphere->ref_sphere_radius)) {
-        return failed(initialPupil,
+        return failed(initialEntrancePupilCoord,
                       std::make_shared<ExitPupilAimException>(
                           "Finite exit-pupil reference sphere required"));
     }
@@ -91,9 +91,9 @@ ExitPupilAiming::Result ExitPupilAiming::aim(optical::OpticalModel *opticalModel
     // A tighter threshold stalls on trace/intersection roundoff for off-axis rays.
     double targetTolerance = std::max(1.0e-10, pupilRadius * 2.0e-7);
     double acceptableTolerance = std::max(targetTolerance, pupilRadius * 1.0e-6);
-    Vector2 pupil = initialPupil;
-    Evaluation current =
-        evaluate(opticalModel, pupil, target, field, wavelength, traceOptions);
+    Vector2 pupil = initialEntrancePupilCoord;
+    Evaluation current = evaluate(opticalModel, pupil, targetExitPupilCoord, field,
+                                  wavelength, traceOptions);
     if (current.ray.err != nullptr) {
         return Result(pupil, current.ray, current.coordinate, 0,
                       std::numeric_limits<double>::quiet_NaN());
@@ -109,11 +109,11 @@ ExitPupilAiming::Result ExitPupilAiming::aim(optical::OpticalModel *opticalModel
         if (iteration == MAX_ITERATIONS)
             break;
         Evaluation xProbe = evaluate(opticalModel,
-                                     pupil.plus(Vector2(ENTRANCE_STEP, 0.0)), target,
-                                     field, wavelength, traceOptions);
+                                     pupil.plus(Vector2(ENTRANCE_STEP, 0.0)),
+                                     targetExitPupilCoord, field, wavelength, traceOptions);
         Evaluation yProbe = evaluate(opticalModel,
-                                     pupil.plus(Vector2(0.0, ENTRANCE_STEP)), target,
-                                     field, wavelength, traceOptions);
+                                     pupil.plus(Vector2(0.0, ENTRANCE_STEP)),
+                                     targetExitPupilCoord, field, wavelength, traceOptions);
         if (!xProbe.coordinate.has_value() || !yProbe.coordinate.has_value())
             break;
         double j00 = (xProbe.coordinate->x - current.coordinate->x) / ENTRANCE_STEP;
@@ -137,8 +137,8 @@ ExitPupilAiming::Result ExitPupilAiming::aim(optical::OpticalModel *opticalModel
         for (int lineSearch = 0; lineSearch < 8; lineSearch++) {
             double scale = std::scalbn(1.0, -lineSearch);
             Vector2 trialPupil = pupil.plus(Vector2(dx * scale, dy * scale));
-            Evaluation trial = evaluate(opticalModel, trialPupil, target, field,
-                                        wavelength, traceOptions);
+            Evaluation trial = evaluate(opticalModel, trialPupil, targetExitPupilCoord,
+                                        field, wavelength, traceOptions);
             if (trial.coordinate.has_value() && trial.residual->len() < error) {
                 accepted = trial;
                 acceptedPupil = trialPupil;

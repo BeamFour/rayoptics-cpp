@@ -152,6 +152,7 @@ add_executable(mathlib_tests
     tests/FormatFTest.cpp
     tests/FormatETest.cpp
     tests/LensTool2Test.cpp
+    tests/DefaultOptimizationsTest.cpp
     tests/OptimTest.cpp
     tests/OptimSolveTest.cpp
     tests/OtusOptimTest.cpp

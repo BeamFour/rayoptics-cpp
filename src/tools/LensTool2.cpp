@@ -532,7 +532,7 @@ void LensTool2::runDefaultOptimizations(Prescription &prescription, const Args &
         std::vector<int> surfaces;
         std::string what;
         if (zoom) {
-            surfaces = DefaultOptimizations::findVariableThicknesses(prescription, backFocus);
+            surfaces = DefaultOptimizations::findVariableThicknesses(prescription);
             what = "variable airspaces";
         } else if (backFocus >= 0) {
             surfaces = {backFocus};
@@ -802,6 +802,9 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         addSpotDiagramsToREADME(SB, scenario_filesuffix);
         addFodToREADME(SB, fod);
         addSpotReportToREADME(SB, spotAnalysis);
+        // The Java drops its reference here (spotAnalysis = null) so that the traced
+        // rays are not held across the MTF passes below.
+        spotAnalysis.spot_results.clear();
         addMTFsToREADME(SB, scenario_filesuffix, arguments.mtf_freqs);
         generateMTFs(opm, arguments, fields, prescription.get_wvl_wts(), "mtf",
                      scenario_filesuffix);

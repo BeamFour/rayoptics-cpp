@@ -216,9 +216,9 @@ private:
 
     /**
      * Runs the routine airspace optimization. A prime gets its back focus
-     * varied; a zoom gets the other variable airspaces varied, one
-     * configuration at a time, because a variable cannot yet be shared across
-     * configurations.
+     * varied; a zoom gets the airspaces that change between zoom settings
+     * varied, one configuration at a time, because a variable cannot yet be
+     * shared across configurations.
      */
     static void runDefaultOptimizations(spec::Prescription &prescription,
                                         const util::Args &arguments,

@@ -63,8 +63,9 @@ int main(int argc, char **argv) {
                      "index at the e line rather than the d line\n";
         std::cerr << "         --abbe-line e  when it also quotes the Abbe number as ve; Leica "
                      "patents use ne with ve, ne with vd is usually an error\n";
-        std::cerr << "       --optimize varies the back focus on a prime, or the other "
-                     "variable airspaces on a zoom, at the central field\n";
+        std::cerr << "       --optimize varies the back focus on a prime, or airspaces "
+                     "whose thickness differs across the selected configurations on a "
+                     "zoom, at the central field\n";
         std::cerr << "       --optimize-goal defaults to contrast; mtf uses the geometric "
                      "MTF directly, which stalls more easily\n";
         std::cerr << "       --optimize n runs the specfile's [trial n] section, writes "

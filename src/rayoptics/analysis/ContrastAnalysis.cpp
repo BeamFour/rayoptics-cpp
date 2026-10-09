@@ -167,16 +167,35 @@ ContrastAnalysisResult ContrastAnalysis::eval(optical::OpticalModel *opticalMode
         for (std::size_t wavelengthIndex = 0; wavelengthIndex < wavelengths.size();
              wavelengthIndex++) {
             double wavelength = wavelengths[wavelengthIndex];
+            // Convert frequency to a nominal shift in normalized entrance-pupil radius units.
+            // The paper requires the shift to be calculated at exit pupil, so this
+            // strategy is only good when there is little pupil aberration.
+            // In practice, it seems to work well except for outer-most fields / wide lenses
+            // For those scenarios we have additional calibration below but these are optional.
             double shift = normalized_entry_pupil_shift(opticalModel, wavelength,
                                                         options.spatialFrequency);
-            double sagittalShift =
-                shift * exit_pupil_frequency_calibration(opticalModel, *fields[fieldIndex],
-                                                         wavelength, shift,
-                                                         Orientation::X, options);
-            double tangentialShift =
-                shift * exit_pupil_frequency_calibration(opticalModel, *fields[fieldIndex],
-                                                         wavelength, shift,
-                                                         Orientation::Y, options);
+            double sagittalShift = shift;
+            double tangentialShift = shift;
+            if (options.calibrateFrequency) {
+                // This is the first calibration:
+                // Block calibration applies one scale per orientation for this field and wavelength.
+                // This traces one probe pair per field, wavelength and direction at ±shift/2,
+                // measures the realised direction-cosine difference, and scales the entrance-pupil
+                // shift by λν / realised.
+                // Four extra rays per field and wavelength.
+                // This is a relatively cheap entrance to exit pupil correction that gets us
+                // 90% of the required correction.
+                sagittalShift *= exit_pupil_frequency_calibration(
+                    opticalModel, *fields[fieldIndex], wavelength, shift, Orientation::X,
+                    options);
+                tangentialShift *= exit_pupil_frequency_calibration(
+                    opticalModel, *fields[fieldIndex], wavelength, shift, Orientation::Y,
+                    options);
+            }
+            // For greater accuracy in calibration,
+            // Direct exit-pupil aiming is the alternative: when enabled, trace_contrast() adjusts each
+            // partner separately. This is an expensive iterative adjustment of the shift amount.
+            // It is enabled by options.aimExitPupil. By default, aimExitPupil is off.
             raytr::ContrastTraceCallback<ContrastAnalysisResult::Sample> callback =
                 [opticalModel, &options](const ContrastRayTriplet &rays,
                                          specs::Field &field, double tracedWavelength,

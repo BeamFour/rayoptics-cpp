@@ -9,6 +9,7 @@
 
 #include "redukti/spec/Prescription.h"
 
+#include <optional>
 #include <vector>
 
 namespace redukti::tools {
@@ -26,7 +27,8 @@ namespace redukti::tools {
  * Only one configuration is optimized per call. There is no support for a
  * variable shared across configurations, so a zoom is optimized one
  * configuration at a time and nothing here tries to hold the back focus common
- * between them.
+ * between them - instead the airspaces that have to stay common are left out of
+ * the solve, which findVariableThicknesses explains.
  */
 class DefaultOptimizations {
 public:
@@ -57,12 +59,24 @@ public:
     static int findBackFocusSurface(const spec::Prescription &prescription);
 
     /**
-     * The airspaces a zoom varies between configurations, excluding the back
-     * focus. These are the surfaces whose thickness came from a multi valued
-     * row of [variable distances].
+     * The airspaces a zoom varies between configurations. These are the surfaces
+     * whose thickness came from a multi valued row of [variable distances] and
+     * whose value actually differs between the configurations being reported.
+     *
+     * That second half of the test is what keeps the back focus out, and it is
+     * deliberately a test on the value rather than on the position. A gap holding
+     * the same value at every zoom setting is one that has to stay common - the
+     * cover glass to sensor spacing, typically - and since a variable cannot yet
+     * be shared across configurations, varying it per configuration would hand
+     * each zoom setting its own sensor position.
+     *
+     * Excluding findBackFocusSurface instead would be wrong on a design
+     * that ends in a cover glass: there the airspace in front of the cover glass is
+     * the one that moves with the zoom, so that rule points at a genuine zoom
+     * airspace, and dropping it would leave the rear group's spacing out of the
+     * solve while admitting the fixed sensor gap behind the cover glass.
      */
-    static std::vector<int> findVariableThicknesses(const spec::Prescription &prescription,
-                                                    int backFocusSurface);
+    static std::vector<int> findVariableThicknesses(const spec::Prescription &prescription);
 
     /**
      * Runs the solver over the given surfaces' thicknesses for one
@@ -78,8 +92,21 @@ public:
 private:
     DefaultOptimizations() = delete;
 
-    static bool isVariableAirspace(const spec::SurfaceType &surface, int index,
-                                   int backFocusSurface);
+    /**
+     * True when the thickness row this surface references holds more than one distinct
+     * value across the configurations.
+     *
+     * The array is indexed by configuration, not by the scenario numbering of the
+     * input: Prescription fills it from the scenarios the report's
+     * scenarios list selects, so the scenarios a patent tabulated but this
+     * report does not use are already absent and cannot make an airspace look as though
+     * it varies. A value those selected scenarios are missing is rejected while the
+     * prescription is built, so nothing here has to allow for one.
+     */
+    static bool variesByConfiguration(
+        const std::optional<std::vector<double>> &thickness_by_scenario);
+
+    static bool isVariableAirspace(const spec::SurfaceType &surface);
 };
 
 } // namespace redukti::tools

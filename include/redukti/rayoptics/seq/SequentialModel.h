@@ -376,6 +376,12 @@ public:
             std::optional<mathlib::Vector2> sagittalExitShift;
             std::optional<mathlib::Vector2> tangentialExitShift;
             if (aim_exit_pupil) {
+                // Convert image-space frequency to a physical separation on this field's
+                // wavelength-specific reference sphere: Delta = |R| lambda |nu| / |n_img|,
+                // with lambda in system length units and nu in reciprocal length units.
+                // The vectors below are target offsets from each reference ray's sphere
+                // coordinate. Trace.trace_contrast() inverse-aims the partners to those targets;
+                // the supplied normalized entrance-pupil shifts provide the initial guesses.
                 double physicalShift = raytr::ExitPupilAiming::referenceSphereShift(
                     opt_model, field, wavelength, spatial_frequency);
                 sagittalExitShift = mathlib::Vector2(physicalShift, 0.0);
