@@ -58,8 +58,6 @@ std::string OptimizationConfiguration::toTrial(int number) const {
     line(sb, "configuration", intToString(scenario));
     if (fields.has_value())
         line(sb, "fields", OptimizationTrial::format(*fields));
-    if (mtfFrequencies.has_value())
-        line(sb, "frequencies", OptimizationTrial::format(*mtfFrequencies));
     line(sb, "weighted", yesNo(weighted));
     line(sb, "d-line-only", yesNo(dLineOnly));
     line(sb, "vignetting", OptimizationTrial::kebab(util::Args::vig_type_name(vigType)) +

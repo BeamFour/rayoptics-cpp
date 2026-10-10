@@ -137,7 +137,7 @@ TEST(aspheric_coefficient_variable_changes_a6_and_analysis_rebuilds_the_sag) {
 
 TEST(aspheric_explicit_terms_override_existing_and_introduce_an_omitted_odd_power) {
     std::string text = LENS +
-                       "\n[trial 1]\nfields 0\nfrequencies 20\nvary aspherics existing\n"
+                       "\n[trial 1]\nfields 0\nvary aspherics existing\n"
                        "vary aspherics 0 4\ngoal spot-rms 1\n";
     auto builder = OptimizationTrial::read(text, 1, false);
     auto setup = builder.builder.build();
@@ -167,7 +167,6 @@ TEST(aspheric_lenstool_trials_and_pipelines_preserve_coefficient_powers) {
     std::string text = LENS + "\n"
                               "[trial 1]\n"
                               "fields 0\n"
-                              "frequencies 20\n"
                               "vary aspherics 0 5\n"
                               "goal spot-rms 1\n"
                               "goal spot sampling hexapolar 2\n"

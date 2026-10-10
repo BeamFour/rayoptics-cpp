@@ -67,7 +67,6 @@ OptimizationBuilder otusBuilder(Prescription *prescription_, bool weighted, bool
 const char *const TRIAL = R"([trial 1]
 description       MTF targets, selected curvatures and the back focus
 fields            0 0.3 0.7 1.0
-frequencies       10 20 40
 
 vary curvatures   all except 7 10 24
 vary thicknesses  25

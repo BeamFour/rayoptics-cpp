@@ -168,7 +168,6 @@ template <typename Call> std::string trialErrorOf(Call call) {
 }
 
 const char *const MTF_FIVE_FIELDS = R"(fields        0 to 1 step 0.25
-frequencies   20
 goal mtf      20 sag   50 50 50 50 50
 goal mtf      20 tan   50 50 50 50 50
 )";
@@ -240,7 +239,7 @@ TEST(trial_effectiveAnalysesAndSamplingSurviveRoundTrip) {
         {"goal spot sampling hexapolar 32\n", false, false, false, true}};
     for (const Case &c : cases) {
         std::string text =
-            withTrials(SUMMICRON, std::string("[trial 1]\nfields 0\nfrequencies 20\n") + c.goals);
+            withTrials(SUMMICRON, std::string("[trial 1]\nfields 0\n") + c.goals);
         auto trial = read(text);
         auto setup = trial.builder.build();
         auto *analysis = setup.analysis();
@@ -367,7 +366,6 @@ vary thicknesses  6 9
 TEST(trial_fieldShorthandGivesTheDecimalValues) {
     auto trial = read(withTrials(SUMMICRON, R"([trial 1]
 fields        0 to 1 step 0.1
-frequencies   20
 vary thicknesses 10
 )"));
     auto setup = trial.builder.build();
@@ -380,7 +378,6 @@ vary thicknesses 10
 TEST(trial_focalLengthGoalReplacesTheAutomaticOne) {
     auto trial = read(withTrials(SUMMICRON, R"([trial 1]
 fields        0
-frequencies   20
 vary thicknesses 10
 goal paraxial efl 42 weight 2
 goal paraxial bfl 30
@@ -430,7 +427,6 @@ description           Everything a trial can say
 outdir                trials/one
 configuration         0
 fields                0 0.25 0.5 0.75 1
-frequencies           10 20
 weighted              no
 d-line-only           yes
 vignetting            set-vig frozen
@@ -471,7 +467,6 @@ goal paraxial bfl 37
 description   Everything a trial can say   # a comment is not kept
 outdir  trials/one
 fields 0 to 1 step 0.25
-frequencies 10 20
 weighted no
 d-line-only yes
 vignetting set-vig frozen
@@ -520,7 +515,6 @@ TEST(trial_writesASetupBuiltInCode) {
     auto owned = prescription(lens, true, false);
     auto builder = OptimizationBuilder::builder(&owned)
                        .fields({0.0, 0.5, 1.0})
-                       .mtfFrequencies({10})
                        .varyThicknesses({10, 4})
                        .varyAsphericCoefficient(0, 1, 1e5)
                        .spotDeviationGoals({1, 2, 3}, {1, 1, 1})
@@ -530,7 +524,6 @@ TEST(trial_writesASetupBuiltInCode) {
     CHECK_STR_EQ(written, R"([trial 7]
 configuration         0
 fields                0 0.5 1
-frequencies           10
 weighted              yes
 d-line-only           no
 vignetting            set-pupil
@@ -622,7 +615,6 @@ TEST(trial_writesAZoomWithItsConfiguredScenariosOnly) {
     auto trial = read(withTrials(ZOOM, R"([trial 1]
 configuration     1
 fields            0
-frequencies       10
 vary thicknesses  8 10
 goal mtf          10 sag 50
 goal mtf          10 tan 50
@@ -696,11 +688,6 @@ TEST(trial_sharedDomainRulesRejectBothEntryPointsWithSourceContext) {
              b.mtfGoals({OptimizationBuilder::mtf(20, std::vector<double>{101.0},
                                                   std::vector<double>{50.0})});
          }},
-        {"goal mtf 30 sag 50\ngoal mtf 30 tan 50\n", "goal mtf 30 sag 50",
-         [](OptimizationBuilder &b) {
-             b.mtfGoals({OptimizationBuilder::mtf(30, std::vector<double>{50.0},
-                                                  std::vector<double>{50.0})});
-         }},
         {"goal contrast 20 20\n", "goal contrast 20 20", [](OptimizationBuilder &b) {
              b.contrastGoals({OptimizationBuilder::contrast(20, std::vector<double>{1.0}),
                               OptimizationBuilder::contrast(20, std::vector<double>{1.0})});
@@ -711,7 +698,7 @@ TEST(trial_sharedDomainRulesRejectBothEntryPointsWithSourceContext) {
         auto builder = OptimizationBuilder::builder(&owned).fields({0.0}).mtfFrequencies({20});
         c.configure(builder);
         CHECK_THROWS(builder.build(), IllegalArgumentException);
-        std::string text = lens + "\n[trial 1]\nfields 0\nfrequencies 20\n" + c.rows;
+        std::string text = lens + "\n[trial 1]\nfields 0\n" + c.rows;
         std::string message = trialErrorOf([&] { OptimizationTrial::parse(text, 1); });
         int line = lineOf(text, c.offendingRow);
         if (message.rfind("trial 1, line " + redukti::intToString(line) + ":", 0) != 0)
@@ -742,7 +729,7 @@ TEST(trial_incompatibleSpotSamplingReportsTheConflictingLineInEitherOrder) {
                 std::string rows = reverse ? std::string(conflict) + "\n" + deviation
                                            : std::string(deviation) + "\n" + conflict;
                 std::string text =
-                    withTrials(SUMMICRON, "[trial 1]\nfields 0\nfrequencies 20\n" + rows);
+                    withTrials(SUMMICRON, "[trial 1]\nfields 0\n" + rows);
                 std::string message = trialErrorOf([&] { OptimizationTrial::parse(text, 1); });
                 CHECK_STR_EQ(message, "trial 1, line " + redukti::intToString(lineCount(text)) +
                                           ": spot deviation goals require Gaussian-quadrature "
@@ -753,7 +740,7 @@ TEST(trial_incompatibleSpotSamplingReportsTheConflictingLineInEitherOrder) {
 }
 
 TEST(trial_trialSamplingMatchesTheAvailableTracerPatterns) {
-    std::string prefix = "[trial 1]\nfields 0\nfrequencies 20\n";
+    std::string prefix = "[trial 1]\nfields 0\n";
     std::string lens = withTrials(SUMMICRON, "");
     for (int spokes : {1, 2}) {
         std::string text = lens + prefix + "goal contrast 20\ngoal contrast sampling 1 " +
@@ -788,8 +775,10 @@ TEST(trial_trialSamplingMatchesTheAvailableTracerPatterns) {
 TEST(trial_rejectsMistakes) {
     checkMentions(rejection("[trial 1]\nfields 0\nfields 0\n"),
                   "'fields' is given more than once");
-    checkMentions(rejection("[trial 1]\nfields 0\n"), "'frequencies' is required");
-    checkMentions(rejection("[trial 1]\nfields 0 to 1 step 0.25\nfrequencies 20\n"
+    // MTF goal rows carry their own frequency; the old 'frequencies' line is gone.
+    checkMentions(rejection("[trial 1]\nfields 0\nfrequencies 20\n"),
+                  "unknown keyword 'frequencies'");
+    checkMentions(rejection("[trial 1]\nfields 0 to 1 step 0.25\n"
                             "goal mtf 20 sag 50 50 50\ngoal mtf 20 tan 50 50 50 50 50\n"),
                   "expected 5 targets, one per field, but found 3");
     checkMentions(rejection(trialOf("vary curvatures 11\n")),
@@ -803,21 +792,21 @@ TEST(trial_rejectsMistakes) {
                   "expected K or a coefficient index, found 'A4'");
     checkMentions(rejection(trialOf("vary aspherics 5 K\n")),
                   "surface 5 is a stop; it cannot be aspheric");
-    checkMentions(rejection("[trial 1]\nfields 0 0.5\nfrequencies 20\ngoal contrast sag 1 1\n"),
+    checkMentions(rejection("[trial 1]\nfields 0 0.5\ngoal contrast sag 1 1\n"),
                   "contrast settings need a 'goal contrast <frequencies>' line");
-    checkMentions(rejection("[trial 1]\nfields 0 0.5\nfrequencies 20\nvary thicknesses 10\n"
+    checkMentions(rejection("[trial 1]\nfields 0 0.5\nvary thicknesses 10\n"
                             "goal contrast 20\ngoal contrast balance all except 0.3\n"),
                   "there is no field 0.3 in 'fields'");
-    checkMentions(rejection("[trial 1]\nfields 0 0.5\nfrequencies 20\ngoal spot-deviation 1 1\n"
+    checkMentions(rejection("[trial 1]\nfields 0 0.5\ngoal spot-deviation 1 1\n"
                             "goal spot-deviation x 1 1\n"),
                   "either as one row or as x and y rows");
-    checkMentions(rejection("[trial 1]\nfields 0\nfrequencies 20\ngoal paraxial focus 3\n"),
+    checkMentions(rejection("[trial 1]\nfields 0\ngoal paraxial focus 3\n"),
                   "unknown paraxial quantity 'focus'");
 }
 
 TEST(trial_namesTheTrialsAFileDefines) {
     std::string text = withTrials(
-        SUMMICRON, "[trial 1]\nfields 0\nfrequencies 20\n[trial 4]\nfields 0\nfrequencies 20\n");
+        SUMMICRON, "[trial 1]\nfields 0\n[trial 4]\nfields 0\n");
     try {
         OptimizationTrial::read(text, 2, true);
         CHECK(false);

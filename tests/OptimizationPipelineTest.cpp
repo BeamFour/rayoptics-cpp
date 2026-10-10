@@ -32,12 +32,10 @@ std::string readFile(const std::string &path) {
 
 const char *const TRIALS = R"([trial 1]
 fields        0
-frequencies   20
 vary thicknesses 10
 
 [trial 2]
 fields        0
-frequencies   20
 vary thicknesses 0
 )";
 
@@ -192,7 +190,7 @@ TEST(pipeline_mixedHeadersAndUnrelatedSectionsRoundTrip) {
     CHECK(pipeline.has_value());
     if (!pipeline.has_value())
         return;
-    std::string written = withSections(trial + "\n[trial 2]\nfields 0\nfrequencies 20\n" +
+    std::string written = withSections(trial + "\n[trial 2]\nfields 0\n" +
                                        pipeline->toPipeline());
     CHECK_STR_EQ(OptimizationTrial::parse(written, 1).toTrial(built.prescription.get()), trial);
     CHECK_STR_EQ(OptimizationTrial::readPipeline(written, 7)->toPipeline(),

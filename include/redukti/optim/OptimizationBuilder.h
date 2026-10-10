@@ -114,6 +114,13 @@ public:
     // ------------------------------------------------------------------
 
     OptimizationBuilder &fields(const std::vector<double> &fields_);
+
+    /**
+     * Frequencies, in cycles/mm, at which the geometric MTF is measured. Optional: left
+     * unset, the MTF goals' own frequencies are used. Setting it adds frequencies that are
+     * measured without being goals, which only has an effect when some MTF goal exists,
+     * since otherwise no MTF is computed.
+     */
     OptimizationBuilder &mtfFrequencies(const std::vector<int> &frequencies);
 
     /** Use the prescription's wavelength weights; false assigns every wavelength weight 1.0. */

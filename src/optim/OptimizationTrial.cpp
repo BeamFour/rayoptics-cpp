@@ -522,7 +522,6 @@ private:
     std::optional<std::string> outdir;
     int configuration = 0;
     std::optional<std::vector<double>> fields;
-    std::optional<std::vector<int>> frequencies;
     std::optional<spec::VigType> vignetting;
     bool freezeVignetting = false;
     std::optional<bool> checkSpotApertures;
@@ -632,9 +631,6 @@ void OptimizationTrial::Reader::read(int line, const std::string &raw) {
     } else if (keyword == "fields") {
         once(line, "fields");
         fields = fieldList(line, w);
-    } else if (keyword == "frequencies") {
-        once(line, "frequencies");
-        frequencies = positiveInts(line, w, 1, "frequencies");
     } else if (keyword == "weighted") {
         once(line, "weighted");
         weighted = yesNo(line, w, 1);
@@ -1009,8 +1005,6 @@ void OptimizationTrial::Reader::paraxialGoal(int line, const std::vector<std::st
 void OptimizationTrial::Reader::finish() {
     if (!fields.has_value())
         throw TrialException("trial " + intToString(number) + ": 'fields' is required");
-    if (!frequencies.has_value())
-        throw TrialException("trial " + intToString(number) + ": 'frequencies' is required");
 
     checkPerField(contrastSagittal, "weights");
     checkPerField(contrastTangential, "weights");
@@ -1043,10 +1037,6 @@ void OptimizationTrial::Reader::finish() {
         if (!rows.sagittal.has_value() || !rows.tangential.has_value())
             throw error(rows.line, "MTF goals at " + intToString(frequency) +
                                        " need both a sag and a tan row of targets");
-        if (std::find(frequencies->begin(), frequencies->end(), frequency) ==
-            frequencies->end())
-            throw error(rows.line, "MTF goal frequency " + intToString(frequency) +
-                                       " is not one of 'frequencies'");
         checkPerField(rows.sagittal, "targets");
         checkPerField(rows.tangential, "targets");
         for (const std::optional<PerField> *targets : {&rows.sagittal, &rows.tangential})
@@ -1204,7 +1194,13 @@ OptimizationConfiguration OptimizationTrial::Reader::toConfiguration() const {
     c.description = description;
     c.outdir = outdir;
     c.fields = *fields;
-    c.mtfFrequencies = *frequencies;
+    // The MTF goal rows are the only statement of which frequencies to measure.
+    std::vector<int> mtfFrequencies;
+    mtfFrequencies.reserve(mtf.size());
+    for (const auto &entry : mtf)
+        mtfFrequencies.push_back(entry.first);
+    std::sort(mtfFrequencies.begin(), mtfFrequencies.end());
+    c.mtfFrequencies = mtfFrequencies;
     c.scenario = configuration;
     c.weighted = weighted;
     c.dLineOnly = dLineOnly;

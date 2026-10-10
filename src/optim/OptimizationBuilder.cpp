@@ -930,8 +930,12 @@ void OptimizationBuilder::validate() const {
     if (fields_[0] != 0.0)
         throw IllegalArgumentException("the first field must be 0.0");
 
-    if (!configuration->mtfFrequencies.has_value() || configuration->mtfFrequencies->empty())
-        throw IllegalArgumentException("at least one MTF frequency is required");
+    if (!configuration->mtfFrequencies.has_value() || configuration->mtfFrequencies->empty()) {
+        std::set<int> derived;
+        for (const auto &curve : configuration->mtfGoals)
+            derived.insert(curve.frequency);
+        configuration->mtfFrequencies = std::vector<int>(derived.begin(), derived.end());
+    }
     std::set<int> frequencies;
     for (int frequency : *configuration->mtfFrequencies)
         OptimizationValidation::positiveUnique(frequency, frequencies, [] {
