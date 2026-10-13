@@ -44,8 +44,12 @@ public:
     std::vector<int> thicknessSurfaces;
     bool allThicknessSurfaces = false;
     bool includeExistingAspherics = false;
-    bool weighted = true;
-    bool dLineOnly = false;
+    /**
+     * The wavelengths every goal and analysis sees, and the weight each one carries. Null
+     * until a builder fills it from its prescription, which is the usual case: the set is
+     * chosen when the prescription is built. A trial sets it from its own line.
+     */
+    std::optional<spec::WavelengthSet> wavelengths;
     bool addRayAberrationGoals = false;
     bool useHexapolarSpotPattern = false;
     int hexapolarSpotRays = DEFAULT_HEXAPOLAR_RAYS;

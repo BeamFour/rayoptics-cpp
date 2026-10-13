@@ -184,6 +184,9 @@ public:
 /** Static physical-element view of a sequential optical model. */
 class ElementModel {
 public:
+    /** Surface label that marks a field stop. */
+    static constexpr const char *FIELD_STOP_LABEL = "FS";
+
     explicit ElementModel(optical::OpticalModel *opticalModel);
 
     void updateModel();
@@ -191,6 +194,10 @@ public:
     const std::vector<std::shared_ptr<Element>> &elements() const { return _elements; }
 
     static bool isAperture(seq::SequentialModel *sm, int surfaceIndex, double wavelength);
+
+    /** Returns true for a field stop explicitly identified by the prescription builder. */
+    static bool isFieldStop(const std::shared_ptr<seq::Interface> &ifc);
+
     static bool isAir(const std::shared_ptr<seq::Gap> &gap, double wavelength);
 
 private:

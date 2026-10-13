@@ -47,7 +47,8 @@ Prescription prescription(const std::string &text, bool weighted, bool dLineOnly
 }
 
 /** ZeissOtusML50mm.createSetup. */
-OptimizationBuilder otusBuilder(Prescription *prescription_, bool weighted, bool dLineOnly) {
+OptimizationBuilder otusBuilder(Prescription *prescription_, bool /*weighted*/,
+                                bool /*dLineOnly*/) {
     return OptimizationBuilder::builder(prescription_)
         .fields({0.0, 0.3, 0.7, 1.0})
         .mtfFrequencies({10, 20, 40})
@@ -55,8 +56,6 @@ OptimizationBuilder otusBuilder(Prescription *prescription_, bool weighted, bool
                          22, 23})
         .varyThicknesses({25})
         .varyExistingAspherics()
-        .weighted(weighted)
-        .dLineOnly(dLineOnly)
         .rayAberrationGoals()
         .mtfGoals({OptimizationBuilder::mtf(10, {93, 93, 94, 93}, {93, 93, 90, 82}),
                    OptimizationBuilder::mtf(20, {85, 85, 85, 80}, {85, 85, 78, 62}),

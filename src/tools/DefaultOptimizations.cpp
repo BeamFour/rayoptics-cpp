@@ -77,7 +77,7 @@ bool DefaultOptimizations::isVariableAirspace(const spec::SurfaceType &surface) 
 DefaultOptimizations::Result DefaultOptimizations::optimizeThicknesses(
     spec::Prescription *prescription, const std::vector<int> &surfaces,
     const std::vector<int> &mtfFrequencies, int configuration, spec::VigType vigType,
-    bool dLineOnly, Objective objective) {
+    Objective objective) {
     if (surfaces.empty())
         throw IllegalArgumentException("no surfaces to optimize");
     auto builder = OptimizationBuilder::builder(prescription);
@@ -85,7 +85,6 @@ DefaultOptimizations::Result DefaultOptimizations::optimizeThicknesses(
         .mtfFrequencies(mtfFrequencies)
         .scenario(configuration)
         .vignetting(vigType)
-        .dLineOnly(dLineOnly)
         .varyThicknesses(surfaces)
         .applyThicknessConstraints();
     // Goals at the central field, both meridians, driving contrast up. Without

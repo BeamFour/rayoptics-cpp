@@ -122,6 +122,13 @@ public:
     static std::string format(const std::vector<double> &values);
     static std::string format(const std::vector<int> &values);
 
+    /**
+     * A wavelength set as a trial writes it: the letters, then a weights clause unless
+     * every weight is 1.0. A weighting with a name is written by that name rather than as
+     * its numbers.
+     */
+    static std::string format(const spec::WavelengthSet &wavelengths);
+
     /** One line of a trial or pipeline: the keyword padded to a column, then its values. */
     static void line(std::string &sb, const std::string &key, const std::string &values);
 

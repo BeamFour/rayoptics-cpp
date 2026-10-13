@@ -87,7 +87,7 @@ public:
                                       const std::vector<int> &surfaces,
                                       const std::vector<int> &mtfFrequencies,
                                       int configuration, spec::VigType vigType,
-                                      bool dLineOnly, Objective objective);
+                                      Objective objective);
 
 private:
     DefaultOptimizations() = delete;

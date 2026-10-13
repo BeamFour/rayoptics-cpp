@@ -22,6 +22,7 @@
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/specs/PupilSpec.h"
 #include "redukti/rayoptics/specs/WvlSpec.h"
+#include "redukti/spec/Prescription.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -33,6 +34,7 @@
 namespace {
 
 using namespace redukti::rayoptics;
+using redukti::rayoptics::layout::Aperture;
 using redukti::rayoptics::layout::CementedElement;
 using redukti::rayoptics::layout::ElementModel;
 using redukti::rayoptics::layout::ElementType;
@@ -135,12 +137,13 @@ std::unique_ptr<optical::OpticalModel> leicaSummicron() {
     return opm;
 }
 
-std::unique_ptr<optical::OpticalModel> withNonStopAperture() {
+std::unique_ptr<optical::OpticalModel> withNonStopAperture(double thickness) {
     auto opm = leicaSummicron();
     auto sm = opm->seq_model.get();
-    sm->set_cur_surface(sm->get_num_surfaces() - 2);
-    seq::SurfaceData sd(0.0, 0.0);
-    sd.max_aperture(7.0);
+    // Inserted in the airspace behind the first element, as surface 3.
+    sm->set_cur_surface(2);
+    seq::SurfaceData sd(0.0, thickness);
+    sd.max_aperture(13.0);
     sm->add_surface(sd);
     opm->update_model();
     raytr::VigCalc::set_pupil(opm.get());
@@ -157,6 +160,83 @@ TEST(layout_creates_static_element_model) {
     CHECK_EQ(countOfType(elements, ElementType::CEMENTED_LENS), 2L);
     CHECK_EQ(countOfType(elements, ElementType::STOP), 1L);
     CHECK_EQ(countOfType(elements, ElementType::DUMMY_INTERFACE), 2L);
+}
+
+TEST(layout_identifies_planar_air_to_air_apertures_regardless_of_following_thickness) {
+    auto model = withNonStopAperture(1.5);
+    auto sm = model->seq_model.get();
+    double wavelength = sm->central_wavelength();
+    int aperture = 3;
+
+    CHECK(*sm->stop_surface != aperture);
+    CHECK_EQ(sm->gaps[static_cast<std::size_t>(aperture)]->thi, 1.5);
+    CHECK(ElementModel::isAperture(sm, aperture, wavelength));
+    ElementModel elements(model.get());
+    std::vector<const Aperture *> apertures;
+    for (const auto &e : elements.elements())
+        if (const auto *a = dynamic_cast<const Aperture *>(e.get()))
+            apertures.push_back(a);
+    CHECK_EQ(static_cast<int>(apertures.size()), 1);
+    if (apertures.size() == 1)
+        CHECK_EQ(apertures[0]->surfaceIndex, aperture);
+}
+
+TEST(layout_rejects_planar_surfaces_bounded_by_glass) {
+    auto model = leicaSummicron();
+    auto sm = model->seq_model.get();
+    double wavelength = sm->central_wavelength();
+
+    // Surface 4 is a planar cemented interface, surface 10 a planar air-to-glass face.
+    CHECK(!ElementModel::isAperture(sm, 4, wavelength));
+    CHECK(!ElementModel::isAperture(sm, 10, wavelength));
+
+    // A planar glass-to-air face is not an aperture even with a zero following airspace.
+    sm->ifcs[5]->profile->cv = 0.0;
+    sm->gaps[5]->thi = 0.0;
+    CHECK(!ElementModel::isAperture(sm, 5, wavelength));
+}
+
+TEST(layout_identifies_labelled_field_stops) {
+    auto model = leicaSummicron();
+    auto surface =
+        std::dynamic_pointer_cast<elem::surface::Surface>(model->seq_model->ifcs[5]);
+    CHECK(surface != nullptr);
+    if (surface == nullptr)
+        return;
+
+    CHECK(!ElementModel::isFieldStop(surface));
+    surface->label = ElementModel::FIELD_STOP_LABEL;
+    CHECK(ElementModel::isFieldStop(surface));
+}
+
+// Not in the Java, whose Layout2DIntegrationTest covers this with a prescription file
+// that is not among the fixtures here: a field stop written in a prescription is
+// labelled by the model builder and drawn whatever airspace follows it.
+TEST(layout_model_builder_labels_prescription_field_stops) {
+    using redukti::spec::Prescription;
+    using redukti::spec::RayOpticsModelBuilder;
+    using redukti::spec::VigType;
+    Prescription p = Prescription(50.0, 1.4, 40.0, 43.28, true)
+                         .surf(50.0, 5.0, 30.0, 1.5, 50.0)
+                         .surf(-50.0, 2.0, 30.0)
+                         .field_stop(18.0, 25.0)
+                         .stop(1.0, 20.0)
+                         .surf(0.0, 5.0, 30.0)
+                         .build();
+    auto model = RayOpticsModelBuilder(p).build_optical_model(
+        true, std::vector<double>{0.0, 1.0}, false, VigType::None, false, 0);
+    auto sm = model->seq_model.get();
+
+    CHECK(ElementModel::isFieldStop(sm->ifcs[3]));
+    CHECK(!ElementModel::isFieldStop(sm->ifcs[4]));
+    ElementModel elements(model.get());
+    std::vector<const Aperture *> apertures;
+    for (const auto &e : elements.elements())
+        if (const auto *a = dynamic_cast<const Aperture *>(e.get()))
+            apertures.push_back(a);
+    CHECK(!apertures.empty());
+    if (!apertures.empty())
+        CHECK_EQ(apertures[0]->surfaceIndex, 3);
 }
 
 TEST(layout_groups_consecutive_glass_gaps_into_cemented_elements) {

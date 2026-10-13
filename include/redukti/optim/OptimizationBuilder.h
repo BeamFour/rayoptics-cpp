@@ -123,11 +123,16 @@ public:
      */
     OptimizationBuilder &mtfFrequencies(const std::vector<int> &frequencies);
 
-    /** Use the prescription's wavelength weights; false assigns every wavelength weight 1.0. */
-    OptimizationBuilder &weighted(bool weighted_);
-
-    /** Restrict enabled ray-aberration goals to the Fraunhofer d-line. */
-    OptimizationBuilder &dLineOnly(bool dLineOnly_);
+    /**
+     * The wavelengths to evaluate, and the weight each one carries. Every per-wavelength
+     * residual's weight is its field and orientation weight times its wavelength weight,
+     * and the analyses combine wavelengths with the same weights, so this is one decision
+     * rather than two. The default is WavelengthSet::standardFiveColor().
+     *
+     * A prescription built for other wavelengths than these is a different design to
+     * the one being optimized; build it from the same set.
+     */
+    OptimizationBuilder &wavelengths(const spec::WavelengthSet &wavelengths_);
 
     /**
      * Which configuration of a multi-configuration prescription to optimize;
@@ -633,6 +638,12 @@ private:
         Analysis *analysis, const std::vector<std::shared_ptr<Var>> &variables) const;
 
     void validate() const;
+    /**
+     * The prescription carries the wavelengths into the optical model, and the goals take
+     * their wavelength weights from it, so a prescription built for a different set than
+     * the one configured would optimize a different design than the one requested.
+     */
+    void validateWavelengths() const;
     void validateSurfaces(const std::vector<int> &surfaces, const char *kind) const;
 
     /**

@@ -61,10 +61,14 @@ Prescription::Prescription(double focal_length, double fno,
                            double angle_of_view_degrees, double diameter_image_circle,
                            bool d_line_only)
     : Prescription(focal_length, fno, angle_of_view_degrees, diameter_image_circle,
-                   d_line_only ? std::vector<double>{587.5618}
-                               : std::vector<double>{587.5618, 486.1327, 656.2725},
-                   d_line_only ? std::vector<double>{1.0}
-                               : std::vector<double>{1.0, 1.0, 1.0}) {}
+                   d_line_only ? WavelengthSet::dLine()
+                               : WavelengthSet::standardTriColor()) {}
+
+Prescription::Prescription(double focal_length, double fno,
+                           double angle_of_view_degrees, double diameter_image_circle,
+                           const WavelengthSet &wavelengths)
+    : Prescription(focal_length, fno, angle_of_view_degrees, diameter_image_circle,
+                   wavelengths.wavelengths(), wavelengths.weights()) {}
 
 Prescription::Prescription(double focal_length, double fno,
                            double angle_of_view_degrees, double diameter_image_circle,
@@ -209,8 +213,7 @@ Prescription Prescription::build_prescription_d_line(const LensSpecifications &s
 }
 
 Prescription Prescription::build_prescription_e_line(const LensSpecifications &specs) {
-    return build_prescription(specs, true, std::vector<double>{546.074},
-                              std::vector<double>{1.0}, 0);
+    return build_prescription(specs, true, WavelengthSet::eLine());
 }
 
 Prescription Prescription::build_prescription(const LensSpecifications &specs,
@@ -226,21 +229,19 @@ Prescription Prescription::build_prescription(const LensSpecifications &specs,
 }
 
 Prescription Prescription::build_prescription(const LensSpecifications &specs,
+                                              bool use_glass_types,
+                                              const WavelengthSet &wavelengths) {
+    return build_prescription(specs, use_glass_types, wavelengths.wavelengths(),
+                              wavelengths.weights(), 0);
+}
+
+Prescription Prescription::build_prescription(const LensSpecifications &specs,
                                               bool use_glass_types, bool weighted,
                                               bool d_line) {
-    std::vector<double> wvls;
-    std::vector<double> wts;
-    if (d_line) {
-        wvls = {Glass::d};
-        wts = {1.0};
-    } else if (weighted) {
-        wvls = {Glass::d, Glass::C, Glass::e, Glass::F, Glass::g};
-        wts = {WT_d, WT_C, WT_e, WT_F, WT_g};
-    } else {
-        wvls = {Glass::d, Glass::F, Glass::C};
-        wts = {1.0, 1.0, 1.0};
-    }
-    return build_prescription(specs, use_glass_types, wvls, wts, 0);
+    WavelengthSet wavelengths = d_line     ? WavelengthSet::dLine()
+                                : weighted ? WavelengthSet::standardFiveColor()
+                                           : WavelengthSet::standardTriColor();
+    return build_prescription(specs, use_glass_types, wavelengths);
 }
 
 namespace {

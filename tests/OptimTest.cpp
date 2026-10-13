@@ -55,17 +55,28 @@ using redukti::rayoptics::seq::Glass;
 using redukti::spec::Prescription;
 using redukti::spec::SurfaceType;
 using redukti::spec::VigType;
+using redukti::spec::WavelengthSet;
 namespace Orientation = redukti::rayoptics::util::Orientation;
 
-Prescription prescription() {
-    return Prescription(50.0, 1.4, 40.0, 43.28, std::vector<double>{Glass::d, Glass::F, Glass::C},
-                        std::vector<double>{1.0, 0.5, 0.25})
-        .surf(50.0, 5.0, 30.0, 1.5, 50.0)
+Prescription lens(Prescription prescription) {
+    return prescription.surf(50.0, 5.0, 30.0, 1.5, 50.0)
         .asph(SurfaceType::ASPH_EVEN, -0.5, {0.0, 2.5e-6, 0.0, -4.0e-10})
         .surf(-50.0, 20.0, 30.0)
         .stop(1.0, 20.0)
         .surf(0.0, 5.0, 30.0)
         .build();
+}
+
+/** The same lens evaluated at the d line alone. */
+Prescription dLinePrescription() {
+    return lens(Prescription(50.0, 1.4, 40.0, 43.28, std::vector<double>{Glass::d},
+                             std::vector<double>{1.0}));
+}
+
+Prescription prescription() {
+    return lens(Prescription(50.0, 1.4, 40.0, 43.28,
+                             std::vector<double>{Glass::d, Glass::F, Glass::C},
+                             std::vector<double>{1.0, 0.5, 0.25}));
 }
 
 /** Every goal in `goals` that is a T, in order. */
@@ -96,16 +107,6 @@ std::vector<double> vignettingOf(Analysis &analysis, int fieldIndex) {
     return {field->vux, field->vlx, field->vuy, field->vly};
 }
 
-/** Sum of squares of the merit's own contrast residuals for one field and orientation. */
-double blockSumOfSquares(const OptimizationBuilder::OptimizationSetup &setup, int orientation,
-                         int field) {
-    double sum = 0.0;
-    for (auto *goal : goalsOfType<GoalContrast>(setup.goals()))
-        if (goal->_field == field && goal->_orientation == orientation)
-            sum += goal->value() * goal->value();
-    return sum;
-}
-
 double wavelengthSumOfSquares(const OptimizationBuilder::OptimizationSetup &setup, int orientation,
                               int field, int wavelength) {
     double sum = 0.0;
@@ -114,6 +115,23 @@ double wavelengthSumOfSquares(const OptimizationBuilder::OptimizationSetup &setu
             goal->_wavelength_index == wavelength)
             sum += goal->value() * goal->value();
     return sum;
+}
+
+/**
+ * What the balance goal should read: each wavelength's residual energies, scaled by
+ * that wavelength's weight - the prescription's 1.0, 0.5 and 0.25 - and by the field's
+ * sagittal and tangential weights.
+ */
+double weightedDifference(const OptimizationBuilder::OptimizationSetup &setup, int field,
+                          double sagittalWeight, double tangentialWeight) {
+    const double weights[] = {1.0, 0.5, 0.25};
+    double difference = 0.0;
+    for (int w = 0; w < 3; w++) {
+        double sagittal = wavelengthSumOfSquares(setup, Orientation::SAGITTAL, field, w);
+        double tangential = wavelengthSumOfSquares(setup, Orientation::TANGENTIAL, field, w);
+        difference += weights[w] * (sagittalWeight * sagittal - tangentialWeight * tangential);
+    }
+    return difference;
 }
 
 } // namespace
@@ -330,13 +348,15 @@ TEST(optim_builds_variables_and_curve_oriented_mtf_goals) {
     }
 }
 
-TEST(optim_supports_d_line_only_and_unweighted_goals) {
-    auto p = prescription();
+/**
+ * The wavelength set is the prescription's: a d-line prescription produces d-line
+ * goals, and there is no separate switch that could disagree with it.
+ */
+TEST(optim_goals_cover_exactly_the_prescriptions_wavelengths) {
+    auto p = dLinePrescription();
     auto setup = OptimizationBuilder::builder(&p)
                      .fields({0.0, 1.0})
                      .mtfFrequencies({10})
-                     .weighted(false)
-                     .dLineOnly(true)
                      .rayAberrationGoals()
                      .build();
 
@@ -346,6 +366,27 @@ TEST(optim_supports_d_line_only_and_unweighted_goals) {
         CHECK_EQ(goal->_wvl, Glass::d);
         CHECK_EQ(goal->_weight, 1.0);
     }
+}
+
+/** Requesting other wavelengths than the prescription carries is a mistake, not a mode. */
+TEST(optim_rejects_a_wavelength_set_the_prescription_was_not_built_for) {
+    auto p = prescription();
+    bool threw = false;
+    std::string message;
+    try {
+        OptimizationBuilder::builder(&p)
+            .fields({0.0})
+            .mtfFrequencies({10})
+            .wavelengths(WavelengthSet::dLine())
+            .rayAberrationGoals()
+            .build();
+    } catch (const redukti::IllegalArgumentException &e) {
+        threw = true;
+        message = e.what();
+    }
+    CHECK(threw);
+    CHECK(message.find("build the prescription from the same wavelength set") !=
+          std::string::npos);
 }
 
 TEST(optim_ray_aberration_goals_are_optional_and_disabled_by_default) {
@@ -425,7 +466,6 @@ TEST(optim_appends_user_supplied_variables_and_analysis_bound_goals) {
     auto setup = OptimizationBuilder::builder(&p)
                      .fields({0.0})
                      .mtfFrequencies({10})
-                     .dLineOnly(true)
                      .additionalVariables({customVariable})
                      .additionalGoals({[](Analysis *analysis) -> std::shared_ptr<Goal> {
                          return std::make_shared<GoalSpotRMS>(analysis, 1, 7.5, 4.0);
@@ -653,9 +693,6 @@ TEST(optim_contrast_balance_reads_zero_when_meridians_are_equal) {
     auto setup = OptimizationBuilder::builder(&p)
                      .fields({0.0, 1.0})
                      .mtfFrequencies({10})
-                     // Unweighted so the goal's wavelength pooling and the sum
-                     // below coincide; weighted pooling is covered separately.
-                     .weighted(false)
                      .contrastSampling(2, 4)
                      .contrastGoals({OptimizationBuilder::contrast(10, {1, 1})})
                      .contrastBalanceGoals({true, true})
@@ -682,14 +719,9 @@ TEST(optim_contrast_balance_reads_zero_when_meridians_are_equal) {
     // gets the same tolerance as the off-axis comparison below.
     CHECK_CLOSE(onAxis->value(), 0.0, 1.0e-9);
 
-    double sagittal = blockSumOfSquares(setup, Orientation::SAGITTAL, 1);
-    double tangential = blockSumOfSquares(setup, Orientation::TANGENTIAL, 1);
-    // balance must equal the difference the two meridians contribute to the merit.
-    // Relative, unlike the Java's absolute 1e-9: the goal and blockSumOfSquares add the
-    // same terms in a different order, and on this lens the difference is of order 1e6,
-    // where that costs more than an absolute nanounit of slack.
-    CHECK_CLOSE(offAxis->value(), sagittal - tangential,
-                1.0e-9 * std::abs(sagittal - tangential));
+    double difference = weightedDifference(setup, 1, 1.0, 1.0);
+    // balance must equal the difference the two meridians contribute to the merit
+    CHECK_CLOSE(offAxis->value(), difference, 1.0e-9);
 }
 
 /**
@@ -702,7 +734,6 @@ TEST(optim_contrast_balance_pools_wavelengths_with_the_configured_weights) {
     auto setup = OptimizationBuilder::builder(&p)
                      .fields({0.0, 1.0})
                      .mtfFrequencies({10})
-                     .weighted(true) // prescription weights are 1.0, 0.5, 0.25
                      .contrastSampling(2, 4)
                      .contrastGoals({OptimizationBuilder::contrast(10, {1, 1})})
                      .contrastBalanceGoals({false, true})
@@ -730,7 +761,6 @@ TEST(optim_contrast_balance_includes_sagittal_and_tangential_field_weights) {
         OptimizationBuilder::builder(&p)
             .fields({0.0, 1.0})
             .mtfFrequencies({10})
-            .weighted(false)
             .contrastSampling(2, 4)
             .contrastGoals({OptimizationBuilder::contrast(10, {1.0, 2.5}, {1.0, 0.4})})
             .contrastBalanceGoals({false, true})
@@ -742,10 +772,8 @@ TEST(optim_contrast_balance_includes_sagittal_and_tangential_field_weights) {
     if (balance.empty())
         return;
 
-    double sagittal = blockSumOfSquares(setup, Orientation::SAGITTAL, 1);
-    double tangential = blockSumOfSquares(setup, Orientation::TANGENTIAL, 1);
     // balance must include the contrast merit's field/orientation weights
-    CHECK_CLOSE(balance[0]->value(), 2.5 * sagittal - 0.4 * tangential, 1.0e-9);
+    CHECK_CLOSE(balance[0]->value(), weightedDifference(setup, 1, 2.5, 0.4), 1.0e-9);
 }
 
 TEST(optim_uses_gaussian_quadrature_by_default) {
@@ -928,7 +956,6 @@ TEST(optim_computes_contrast_goals_without_computing_spot_mtf) {
     auto setup = OptimizationBuilder::builder(&p)
                      .fields({0.0})
                      .mtfFrequencies({20})
-                     .dLineOnly(true)
                      .contrastSampling(2, 4)
                      .contrastGoals({OptimizationBuilder::contrast(10, {1.0}),
                                      OptimizationBuilder::contrast(20, {1.0})})
@@ -957,7 +984,6 @@ TEST(optim_builds_per_ray_spot_goals_whose_sum_matches_rms_spot_radius) {
     auto setup = OptimizationBuilder::builder(&p)
                      .fields({0.0})
                      .mtfFrequencies({20})
-                     .weighted(false)
                      .gaussianQuadratureSampling(2, 4)
                      .spotDeviationGoals({1.0}, {1.0})
                      .build();
@@ -996,7 +1022,6 @@ TEST(optim_per_ray_spot_goals_improve_spot_merit_during_optimization) {
                      .fields({0.0})
                      .mtfFrequencies({20})
                      .varyCurvatures({0})
-                     .weighted(false)
                      .gaussianQuadratureSampling(2, 4)
                      .spotDeviationGoals({1.0})
                      .build();
@@ -1061,7 +1086,6 @@ TEST(optim_builder_products_keep_analysis_alive_after_temporary_setup_dies) {
                      .fields({0.0})
                      .mtfFrequencies({20})
                      .varyCurvatures({0})
-                     .weighted(false)
                      .gaussianQuadratureSampling(2, 4)
                      .spotDeviationGoals({1.0})
                      .build()
@@ -1077,7 +1101,6 @@ TEST(optim_builder_products_keep_analysis_alive_after_temporary_setup_dies) {
                                    .fields({0.0})
                                    .mtfFrequencies({20})
                                    .varyCurvatures({0})
-                                   .weighted(false)
                                    .gaussianQuadratureSampling(2, 4)
                                    .spotDeviationGoals({1.0})
                                    .build()

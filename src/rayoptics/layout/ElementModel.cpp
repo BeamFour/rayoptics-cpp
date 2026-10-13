@@ -52,7 +52,7 @@ void ElementModel::updateModel() {
             next.push_back(std::make_shared<Mirror>(i, ifc));
         if (sm->stop_surface.has_value() && *sm->stop_surface == i) {
             next.push_back(std::make_shared<Stop>(i, ifc));
-        } else if (isAperture(sm, i, wvl)) {
+        } else if (isFieldStop(ifc) || isAperture(sm, i, wvl)) {
             next.push_back(std::make_shared<Aperture>(i, ifc));
         }
     }
@@ -109,11 +109,16 @@ bool ElementModel::isAperture(SequentialModel *sm, int surfaceIndex, double wave
         surfaceIndex >= static_cast<int>(sm->gaps.size()))
         return false;
     auto ifc = sm->ifcs[static_cast<std::size_t>(surfaceIndex)];
-    // Java binds the preceding gap here and never reads it; kept out.
+    auto precedingGap = sm->gaps[static_cast<std::size_t>(surfaceIndex - 1)];
     auto followingGap = sm->gaps[static_cast<std::size_t>(surfaceIndex)];
     return ifc->interact_mode != InteractMode::REFLECT && ifc->profile != nullptr &&
-           std::abs(ifc->profile->cv) < 1.0e-12 && std::abs(followingGap->thi) < 1.0e-12 &&
+           std::abs(ifc->profile->cv) < 1.0e-12 && isAir(precedingGap, wavelength) &&
            isAir(followingGap, wavelength);
+}
+
+bool ElementModel::isFieldStop(const std::shared_ptr<seq::Interface> &ifc) {
+    auto surface = std::dynamic_pointer_cast<Surface>(ifc);
+    return surface != nullptr && surface->label == FIELD_STOP_LABEL;
 }
 
 bool ElementModel::isAir(const std::shared_ptr<Gap> &gap, double wavelength) {

@@ -9,6 +9,7 @@
 
 #include "redukti/importers/OpticalBenchDataImporter.h"
 #include "redukti/spec/SurfaceType.h"
+#include "redukti/spec/WavelengthSet.h"
 
 #include <map>
 #include <memory>
@@ -145,16 +146,13 @@ public:
     std::string _current_assignee;
     std::string _patent_link;
 
-    static constexpr double WT_d = 1.0;
-    static constexpr double WT_C = 0.475;
-    static constexpr double WT_e = 0.98;
-    static constexpr double WT_F = 0.49;
-    static constexpr double WT_g = 0.15;
-
     static constexpr int APERTURE_DECIMALS = 4;
 
     Prescription(double focal_length, double fno, double angle_of_view_degrees,
                  double diameter_image_circle, bool d_line_only);
+
+    Prescription(double focal_length, double fno, double angle_of_view_degrees,
+                 double diameter_image_circle, const WavelengthSet &wavelengths);
 
     Prescription(double focal_length, double fno, double angle_of_view_degrees,
                  double diameter_image_circle, std::vector<double> wvls,
@@ -201,6 +199,11 @@ public:
                                            bool use_glass_types,
                                            const std::vector<double> &wvls,
                                            const std::vector<double> &wts);
+    /** Build with a chosen set of wavelengths and their weights. */
+    static Prescription build_prescription(const LensSpecifications &specs,
+                                           bool use_glass_types,
+                                           const WavelengthSet &wavelengths);
+    /** The three sets WavelengthSet defines, selected the way the old trials did. */
     static Prescription build_prescription(const LensSpecifications &specs,
                                            bool use_glass_types, bool weighted,
                                            bool d_line);

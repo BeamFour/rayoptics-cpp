@@ -58,8 +58,8 @@ std::string OptimizationConfiguration::toTrial(int number) const {
     line(sb, "configuration", intToString(scenario));
     if (fields.has_value())
         line(sb, "fields", OptimizationTrial::format(*fields));
-    line(sb, "weighted", yesNo(weighted));
-    line(sb, "d-line-only", yesNo(dLineOnly));
+    if (wavelengths.has_value())
+        line(sb, "wavelengths", OptimizationTrial::format(*wavelengths));
     line(sb, "vignetting", OptimizationTrial::kebab(util::Args::vig_type_name(vigType)) +
                                (freezeVignetting ? " frozen" : ""));
     if (!checkSpotApertures || (effective.spots && !configuredHexapolar))

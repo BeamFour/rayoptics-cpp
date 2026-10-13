@@ -104,6 +104,7 @@ add_library(rayoptics
     src/optim/ConfigurationReport.cpp
     src/spec/SurfaceType.cpp
     src/spec/Prescription.cpp
+    src/spec/WavelengthSet.cpp
     src/spec/RayOpticsModelBuilder.cpp
     src/render/Renderer.cpp
     src/render/RendererSvg.cpp
@@ -144,6 +145,7 @@ add_executable(mathlib_tests
     tests/DecimalFormatTest.cpp
     tests/RenderTest.cpp
     tests/SpecTest.cpp
+    tests/WavelengthSetTest.cpp
     tests/LayoutPlotterTest.cpp
     tests/ZemaxExporterTest.cpp
     tests/ZemaxRadialExportTest.cpp

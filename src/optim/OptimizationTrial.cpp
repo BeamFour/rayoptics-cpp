@@ -28,8 +28,23 @@
 namespace redukti::optim {
 
 using TrialException = OptimizationTrial::TrialException;
+using spec::WavelengthSet;
 
 namespace {
+
+/**
+ * The weightings a trial can name instead of listing their weights, each applying to
+ * one set of wavelengths. A trial reads these and OptimizationTrial::format(WavelengthSet)
+ * writes them back, so the two stay in step. In insertion order, as the Java's
+ * LinkedHashMap is.
+ */
+const std::vector<std::pair<std::string, WavelengthSet (*)()>> &NAMED_WEIGHTS() {
+    static const std::vector<std::pair<std::string, WavelengthSet (*)()>> named = {
+        {"standard", &WavelengthSet::standardFiveColor},
+        {"k9", &WavelengthSet::k9Tester},
+    };
+    return named;
+}
 
 std::string lower(const std::string &s) {
     std::string out;
@@ -460,8 +475,8 @@ public:
      */
     OptimizationConfiguration toConfiguration() const;
 
-    bool weighted = true;
-    bool dLineOnly = false;
+    /** Null unless the trial has a wavelengths line. */
+    std::optional<WavelengthSet> wavelengths;
 
 private:
     Reader(int number, std::vector<std::string> radii)
@@ -510,6 +525,7 @@ private:
     int positiveInt(int line, const std::string &value, const std::string &what);
     std::vector<int> positiveInts(int line, const std::vector<std::string> &w,
                                   std::size_t from, const std::string &what);
+    WavelengthSet wavelengthSet(int line, const std::vector<std::string> &w);
     std::vector<double> fieldList(int line, const std::vector<std::string> &w);
     Decimal decimal(int line, const std::string &value);
 
@@ -631,12 +647,9 @@ void OptimizationTrial::Reader::read(int line, const std::string &raw) {
     } else if (keyword == "fields") {
         once(line, "fields");
         fields = fieldList(line, w);
-    } else if (keyword == "weighted") {
-        once(line, "weighted");
-        weighted = yesNo(line, w, 1);
-    } else if (keyword == "d-line-only") {
-        once(line, "d-line-only");
-        dLineOnly = yesNo(line, w, 1);
+    } else if (keyword == "wavelengths") {
+        once(line, "wavelengths");
+        wavelengths = wavelengthSet(line, w);
     } else if (keyword == "check-spot-apertures") {
         once(line, "check-spot-apertures");
         checkSpotApertures = yesNo(line, w, 1);
@@ -1202,8 +1215,8 @@ OptimizationConfiguration OptimizationTrial::Reader::toConfiguration() const {
     std::sort(mtfFrequencies.begin(), mtfFrequencies.end());
     c.mtfFrequencies = mtfFrequencies;
     c.scenario = configuration;
-    c.weighted = weighted;
-    c.dLineOnly = dLineOnly;
+    // A trial without the line keeps the five-line standard set.
+    c.wavelengths = wavelengths.has_value() ? *wavelengths : WavelengthSet::standardFiveColor();
     if (vignetting.has_value())
         c.vigType = *vignetting;
     c.freezeVignetting = freezeVignetting;
@@ -1415,6 +1428,54 @@ std::vector<int> OptimizationTrial::Reader::positiveInts(int line, const std::ve
     return values;
 }
 
+/**
+ * 'wavelengths <letters> [weights standard|k9|<values>]'. Letters are the
+ * Fraunhofer ones and are case sensitive: C and c are different lines. Omitting
+ * the weights clause weights every wavelength 1.0. The named weightings exist to
+ * avoid retyping five numbers, and each applies only to its own wavelengths.
+ */
+WavelengthSet OptimizationTrial::Reader::wavelengthSet(int line, const std::vector<std::string> &w) {
+    std::vector<std::string> letters;
+    std::size_t i = 1;
+    for (; i < w.size() && lower(w[i]) != "weights"; i++)
+        letters.push_back(w[i]);
+    if (letters.empty())
+        throw error(line, "expected 'wavelengths <letters> [weights standard|k9|<values>]'");
+    std::optional<std::vector<double>> weights;
+    if (i < w.size()) {
+        if (i + 1 >= w.size())
+            throw error(line,
+                        "expected 'standard', 'k9' or one weight per wavelength after 'weights'");
+        std::string name = lower(w[i + 1]);
+        for (const auto &named : NAMED_WEIGHTS()) {
+            if (named.first != name)
+                continue;
+            if (w.size() != i + 2)
+                throw error(line, "'weights " + name + "' takes no values");
+            WavelengthSet set = named.second();
+            // Reject an unknown letter before complaining about the set.
+            for (const std::string &letter : letters) {
+                try {
+                    WavelengthSet::wavelengthOf(letter);
+                } catch (const IllegalArgumentException &e) {
+                    throw error(line, e.what());
+                }
+            }
+            if (join(letters, 0, letters.size()) != set.letters())
+                throw error(line, "'weights " + name + "' applies to the wavelengths '" +
+                                      set.letters() +
+                                      "'; give the weights explicitly for any other set");
+            return set;
+        }
+        weights = numbers(line, w, i + 1);
+    }
+    try {
+        return WavelengthSet::ofLetters(letters, weights);
+    } catch (const IllegalArgumentException &e) {
+        throw error(line, e.what());
+    }
+}
+
 std::vector<double> OptimizationTrial::Reader::fieldList(int line, const std::vector<std::string> &w) {
     std::vector<double> values;
     if (w.size() == 6 && lower(w[2]) == "to" && lower(w[4]) == "step") {
@@ -1477,7 +1538,7 @@ OptimizationTrial::Trial OptimizationTrial::TrialDefinition::createBuilder(
     importers::OpticalBenchDataImporter::LensSpecifications specs;
     specs.parse_buffer(prescriptionText);
     auto prescription = std::make_unique<spec::Prescription>(spec::Prescription::build_prescription(
-        specs, useGlassTypes, configuration->weighted, configuration->dLineOnly));
+        specs, useGlassTypes, *configuration->wavelengths));
     OptimizationBuilder builder = settings->apply(prescription.get(), *configuration);
     return Trial{std::move(prescription), std::move(builder)};
 }
@@ -1600,6 +1661,15 @@ std::string OptimizationTrial::format(const std::vector<double> &values) {
         result += format(value);
     }
     return result;
+}
+
+std::string OptimizationTrial::format(const WavelengthSet &wavelengths) {
+    for (const auto &named : NAMED_WEIGHTS())
+        if (wavelengths == named.second())
+            return wavelengths.letters() + "  weights " + named.first;
+    if (wavelengths.hasEqualWeights())
+        return wavelengths.letters();
+    return wavelengths.letters() + "  weights " + format(wavelengths.weights());
 }
 
 std::string OptimizationTrial::format(const std::vector<int> &values) {

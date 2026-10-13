@@ -12,7 +12,6 @@
 #include "redukti/optim/OptimizationTrial.h"
 #include "redukti/optim/OptimizationValidation.h"
 #include "redukti/optim/ParaxHelper.h"
-#include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/util/Orientation.h"
 #include "redukti/util/Args.h"
 
@@ -24,7 +23,7 @@
 namespace redukti::optim {
 
 namespace Orientation = rayoptics::util::Orientation;
-using rayoptics::seq::Glass;
+using spec::WavelengthSet;
 
 namespace {
 
@@ -36,6 +35,18 @@ std::vector<double> unitWeightsFor(const std::vector<double> &targets) {
 /** Java's OptimizationBuilder.contains(int[], int). */
 bool contains(const std::vector<int> &values, int value) {
     return std::find(values.begin(), values.end(), value) != values.end();
+}
+
+/** Java's Arrays.toString(double[]). */
+std::string arrayToString(const std::vector<double> &v) {
+    std::string sb = "[";
+    for (std::size_t i = 0; i < v.size(); i++) {
+        if (i > 0)
+            sb += ", ";
+        sb += doubleToString(v[i]);
+    }
+    sb += "]";
+    return sb;
 }
 
 /** True when any goal in the list is a T; the Java uses `instanceof`. */
@@ -61,6 +72,9 @@ OptimizationBuilder::OptimizationBuilder(spec::Prescription *prescription,
     // here the flag records the same thing without a second copy of the list.
     if (!prescription->_built)
         throw IllegalArgumentException("prescription must be built before optimization");
+    // The prescription's own set, unless a caller or a trial asked for one.
+    if (!configuration->wavelengths.has_value())
+        configuration->wavelengths = WavelengthSet::of(*prescription);
 }
 
 OptimizationBuilder::OptimizationBuilder(const OptimizationBuilder &other)
@@ -117,13 +131,9 @@ OptimizationBuilder &OptimizationBuilder::mtfFrequencies(
     return *this;
 }
 
-OptimizationBuilder &OptimizationBuilder::weighted(bool weighted_) {
-    configuration->weighted = weighted_;
-    return *this;
-}
-
-OptimizationBuilder &OptimizationBuilder::dLineOnly(bool dLineOnly_) {
-    configuration->dLineOnly = dLineOnly_;
+OptimizationBuilder &OptimizationBuilder::wavelengths(const WavelengthSet &wavelengths_) {
+    // The Java rejects null here; a reference cannot be one.
+    configuration->wavelengths = wavelengths_;
     return *this;
 }
 
@@ -794,8 +804,7 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
             auto f = static_cast<std::size_t>(field);
             for (int wavelength = 0; wavelength < static_cast<int>(wvls.size());
                  wavelength++) {
-                double wavelengthWeight =
-                    configuration->weighted ? wts[static_cast<std::size_t>(wavelength)] : 1.0;
+                double wavelengthWeight = wts[static_cast<std::size_t>(wavelength)];
                 for (int sample = 0; sample < contrastSamples; sample++) {
                     result.push_back(std::make_shared<GoalContrast>(
                         analysis, contrast_index, curve.frequency, field + 1, wavelength,
@@ -813,7 +822,7 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
     if (configuration->contrastBalanceFields.has_value()) {
         std::vector<double> wavelengthWeights(wvls.size(), 0.0);
         for (std::size_t w = 0; w < wavelengthWeights.size(); w++)
-            wavelengthWeights[w] = configuration->weighted ? wts[w] : 1.0;
+            wavelengthWeights[w] = wts[w];
         for (int contrast_index = 0;
              contrast_index < static_cast<int>(configuration->contrastGoals.size()); contrast_index++) {
             const auto &curve = configuration->contrastGoals[static_cast<std::size_t>(contrast_index)];
@@ -842,8 +851,7 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
             auto f = static_cast<std::size_t>(field);
             for (int wavelength = 0; wavelength < static_cast<int>(wvls.size());
                  wavelength++) {
-                double wavelengthWeight =
-                    configuration->weighted ? wts[static_cast<std::size_t>(wavelength)] : 1.0;
+                double wavelengthWeight = wts[static_cast<std::size_t>(wavelength)];
                 for (int sample = 0; sample < samples; sample++) {
                     result.push_back(std::make_shared<GoalSpotDeviation>(
                         analysis, field + 1, wavelength, sample, Orientation::X,
@@ -876,9 +884,7 @@ std::vector<std::shared_ptr<Goal>> OptimizationBuilder::buildGoals(
                 for (int wavelength = 0; wavelength < static_cast<int>(wvls.size());
                      wavelength++) {
                     auto w = static_cast<std::size_t>(wavelength);
-                    if (configuration->dLineOnly && !sameWavelength(wvls[w], Glass::d))
-                        continue;
-                    double weight = configuration->weighted ? wts[w] : 1.0;
+                    double weight = wts[w];
                     for (int sample = 0; sample < RAY_FAN_SAMPLES; sample++)
                         result.push_back(std::make_shared<GoalRayAberration>(
                             analysis, field, orientation, sample, wvls[w], 0.0, weight));
@@ -983,15 +989,23 @@ void OptimizationBuilder::validate() const {
     validateSurfaces(configuration->thicknessSurfaces, "thickness");
     validateSurfaces(configuration->curvatureExclusions, "excluded curvature");
     validateSurfaces(configuration->thicknessExclusions, "excluded thickness");
-    if (configuration->addRayAberrationGoals && configuration->dLineOnly) {
-        bool any = false;
-        for (double w : prescription_->_wvls)
-            if (sameWavelength(w, Glass::d))
-                any = true;
-        if (!any)
-            throw IllegalArgumentException("d-line optimization requires the "
-                                           "prescription to contain the d-line wavelength");
-    }
+    validateWavelengths();
+}
+
+void OptimizationBuilder::validateWavelengths() const {
+    const std::vector<double> &wavelengths_ = configuration->wavelengths->wavelengths();
+    const std::vector<double> &weights = configuration->wavelengths->weights();
+    const auto &wvls = prescription_->_wvls;
+    const auto &wts = prescription_->_wts;
+    bool same = wvls.size() == wavelengths_.size();
+    for (std::size_t i = 0; same && i < wavelengths_.size(); i++)
+        same = sameWavelength(wvls[i], wavelengths_[i]) && wts[i] == weights[i];
+    if (!same)
+        throw IllegalArgumentException(
+            "the prescription is built for wavelengths " + arrayToString(wvls) +
+            " weighted " + arrayToString(wts) + ", but the optimization requests " +
+            arrayToString(wavelengths_) + " weighted " + arrayToString(weights) +
+            "; build the prescription from the same wavelength set");
 }
 
 void OptimizationBuilder::validateSurfaces(const std::vector<int> &surfaces,

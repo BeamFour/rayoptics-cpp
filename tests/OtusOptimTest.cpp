@@ -72,8 +72,6 @@ OptimizationSetup frozenDirectSetup(Prescription *prescription) {
         .varyCurvatures(VARIED_CURVATURES)
         .varyThicknesses({25})
         .varyExistingAspherics()
-        .weighted(false)
-        .dLineOnly(false)
         .rayAberrationGoals()
         // A single goal frequency, like the contrast test - but at 40, not 20.
         // This is NOT the saving the contrast test got: MTF frequencies are
@@ -127,8 +125,6 @@ OptimizationSetup frozenContrastSetup(Prescription *prescription) {
         .varyCurvatures(VARIED_CURVATURES)
         .varyThicknesses({25})
         .varyExistingAspherics()
-        .weighted(false)
-        .dLineOnly(false)
         // Ray fans are opt-in now; they were unconditional when these values
         // were generated, so keep them to preserve the merit.
         .rayAberrationGoals()
@@ -310,7 +306,7 @@ TEST(otus_optimizes_patent_prescription_using_contrast) {
         spotRadii(SpotAnalysis::eval(analysis->_opt_model.get(), hexOptions).spot_results);
 
     // The one deterministic check: the merit function before the solve moves.
-    CHECK_CLOSE(initialRms, 0.08720132740272481, 1.0e-11);
+    CHECK_CLOSE(initialRms, 0.08720134142384303, 1.0e-11);
     checkClose(finalRms, 0.0071142877, CONVERGED_RTOL, "final RMS");
     checkArray(spotRms, {2.40301416, 3.42632001, 3.82472092, 3.96369239},
                CONVERGED_RTOL, "spot RMS");

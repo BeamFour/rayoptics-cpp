@@ -39,6 +39,7 @@ using redukti::optim::VarAsphK;
 using redukti::optim::VarThickness;
 using redukti::spec::Prescription;
 using redukti::spec::SurfaceType;
+using redukti::spec::WavelengthSet;
 using redukti::test::assertSameSetup;
 using redukti::IllegalArgumentException;
 using redukti::rayoptics::analysis::ContrastOptions;
@@ -176,16 +177,41 @@ std::string trialOf(const std::string &settings) {
     return std::string("[trial 1]\n") + MTF_FIVE_FIELDS + settings;
 }
 
+/**
+ * A named weighting saves retyping its numbers, and is written back by name. Giving
+ * the same numbers by hand is the same set, so it canonicalizes to the name too.
+ */
+TEST(trial_namedWavelengthWeightingsAreReadAndWrittenByName) {
+    const std::vector<std::pair<std::string, WavelengthSet>> namedSets = {
+        {"standard", WavelengthSet::standardFiveColor()},
+        {"k9", WavelengthSet::k9Tester()},
+    };
+    for (const auto &named : namedSets) {
+        const std::string &name = named.first;
+        const WavelengthSet &expected = named.second;
+        std::string text = withTrials(
+            SUMMICRON, trialOf("wavelengths " + expected.letters() + " weights " + name + "\n"));
+        auto trial = read(text);
+        CHECK(WavelengthSet::of(*trial.prescription) == expected);
+        checkMentions(trial.builder.toTrial(1), "weights " + name + "\n");
+
+        std::string spelledOut = withTrials(
+            SUMMICRON, trialOf("wavelengths " + expected.letters() + " weights " +
+                               OptimizationTrial::format(expected.weights()) + "\n"));
+        CHECK_STR_EQ(read(spelledOut).builder.toTrial(1), trial.builder.toTrial(1));
+    }
+}
+
 TEST(trial_reusesParsedDefinitionAndRoundTripsItsSettings) {
     std::string text =
-        withTrials(SUMMICRON, trialOf("vary thicknesses 10\nweighted no\nd-line-only yes\n"));
+        withTrials(SUMMICRON, trialOf("vary thicknesses 10\nwavelengths d\n"));
     auto definition = OptimizationTrial::parse(text, 1);
     auto first = definition.createBuilder(text, true);
     std::string canonical = definition.toTrial(first.prescription.get());
     CHECK_STR_EQ(definition.toTrial(), canonical);
     CHECK_STR_EQ(first.builder.toTrial(1), canonical);
     CHECK_EQ(definition.number(), 1);
-    CHECK(contains(canonical, "weighted"));
+    checkMentions(canonical, "wavelengths           d\n");
     {
         auto expectedTrial = read(text);
         auto expected = expectedTrial.builder.build();
@@ -346,6 +372,18 @@ std::string rejection(const std::string &trialText) {
     return rejection(SUMMICRON, trialText);
 }
 
+TEST(trial_namedWavelengthWeightingsApplyOnlyToTheirOwnWavelengths) {
+    checkMentions(rejection("[trial 1]\nfields 0\nwavelengths d F C weights k9\n"),
+                  "'weights k9' applies to the wavelengths 'd C e F g'");
+    checkMentions(rejection("[trial 1]\nfields 0\nwavelengths d weights standard\n"),
+                  "'weights standard' applies to the wavelengths 'd C e F g'");
+    checkMentions(
+        rejection("[trial 1]\nfields 0\nwavelengths d C e F g weights k9 1 1 1 1 1\n"),
+        "'weights k9' takes no values");
+    checkMentions(rejection("[trial 1]\nfields 0\nwavelengths d C e F g weights\n"),
+                  "expected 'standard', 'k9' or one weight per wavelength after 'weights'");
+}
+
 TEST(trial_ignoresTheIdsInTheFile) {
     // Position 6 is the stop, although the row with id 6 is an ordinary surface.
     checkMentions(rejection(FD300, trialOf("vary curvatures 6\n")), "surface 6 is a stop");
@@ -427,8 +465,7 @@ description           Everything a trial can say
 outdir                trials/one
 configuration         0
 fields                0 0.25 0.5 0.75 1
-weighted              no
-d-line-only           yes
+wavelengths           d C e F g  weights standard
 vignetting            set-vig frozen
 check-spot-apertures  no
 vary curvatures       all except 2 6
@@ -467,8 +504,6 @@ goal paraxial bfl 37
 description   Everything a trial can say   # a comment is not kept
 outdir  trials/one
 fields 0 to 1 step 0.25
-weighted no
-d-line-only yes
 vignetting set-vig frozen
 check-spot-apertures no
 vary curvatures all except 2 6
@@ -524,8 +559,7 @@ TEST(trial_writesASetupBuiltInCode) {
     CHECK_STR_EQ(written, R"([trial 7]
 configuration         0
 fields                0 0.5 1
-weighted              yes
-d-line-only           no
+wavelengths           d C e F g  weights standard
 vignetting            set-pupil
 check-spot-apertures  yes
 vary thicknesses      10 4

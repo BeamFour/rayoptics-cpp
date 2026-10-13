@@ -550,8 +550,7 @@ void LensTool2::runDefaultOptimizations(Prescription &prescription, const Args &
                              ? DefaultOptimizations::Objective::MTF
                              : DefaultOptimizations::Objective::CONTRAST;
         auto result = DefaultOptimizations::optimizeThicknesses(
-            &prescription, surfaces, arguments.mtf_freqs, config, vigType,
-            arguments.only_d_line, objective);
+            &prescription, surfaces, arguments.mtf_freqs, config, vigType, objective);
         std::cout << "Optimized " << what << " for configuration " << config << " on "
                   << arguments.optimize_goal << ": status " << result.status << ", merit "
                   << formatG(result.before, 0, 6) << " -> " << formatG(result.after, 0, 6)
