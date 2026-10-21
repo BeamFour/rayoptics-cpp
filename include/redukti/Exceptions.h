@@ -66,6 +66,13 @@ public:
     explicit NoSuchElementException(std::string message) : RuntimeException(std::move(message)) {}
 };
 
+/** java.lang.ArithmeticException. */
+class ArithmeticException : public RuntimeException {
+public:
+    ArithmeticException() = default;
+    explicit ArithmeticException(std::string message) : RuntimeException(std::move(message)) {}
+};
+
 class IndexOutOfBoundsException : public RuntimeException {
 public:
     IndexOutOfBoundsException() = default;

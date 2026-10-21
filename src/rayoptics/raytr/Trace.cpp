@@ -8,6 +8,7 @@
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
+#include "redukti/mathlib/GaussQ.h"
 #include "redukti/mathlib/M.h"
 #include "redukti/mathlib/MinPack.h"
 #include "redukti/mathlib/SecantSolver.h"
@@ -701,39 +702,6 @@ std::vector<Vector2> generate_points(const TraceRingsDef &grid_rng, int num_ring
 /// See Documentation/GAUSSIAN_QUADRATURE.md
 //////////////////////////////////////////////////////////////////////////////////////////
 
-/** Computes Gauss-Legendre nodes and weights on [-1, 1]. */
-std::vector<std::vector<double>> gauss_legendre_nodes_and_weights(int order) {
-    std::vector<double> nodes(static_cast<std::size_t>(order), 0.0);
-    std::vector<double> weights(static_cast<std::size_t>(order), 0.0);
-    int rootsToFind = (order + 1) / 2;
-    for (int i = 0; i < rootsToFind; i++) {
-        double x = std::cos(M::PI * (i + 0.75) / (order + 0.5));
-        double derivative;
-        double delta;
-        do {
-            double p0 = 1.0;
-            double p1 = x;
-            for (int degree = 2; degree <= order; degree++) {
-                double p2 =
-                    ((2.0 * degree - 1.0) * x * p1 - (degree - 1.0) * p0) / degree;
-                p0 = p1;
-                p1 = p2;
-            }
-            double polynomial = p1;
-            double previousPolynomial = p0;
-            derivative = order * (x * polynomial - previousPolynomial) / (x * x - 1.0);
-            delta = polynomial / derivative;
-            x -= delta;
-        } while (std::abs(delta) > 1.0e-15);
-        double weight = 2.0 / ((1.0 - x * x) * derivative * derivative);
-        nodes[static_cast<std::size_t>(i)] = -x;
-        nodes[static_cast<std::size_t>(order - 1 - i)] = x;
-        weights[static_cast<std::size_t>(i)] = weight;
-        weights[static_cast<std::size_t>(order - 1 - i)] = weight;
-    }
-    return {nodes, weights};
-}
-
 Vector2 apply_vignetting_pt(const Vector2 &pupil, const specs::Field &fld) {
     auto arr = pupil.as_array();
     auto vignetted = fld.apply_vignetting(std::vector<double>{arr[0], arr[1]});
@@ -801,7 +769,7 @@ std::vector<GaussianQuadraturePoint> Trace::generate_gaussian_quadrature(
             "Pupil radii must be finite and satisfy 0 <= min_radius < max_radius");
     }
     int spokes = !num_spokes.has_value() ? 4 * (num_rings + 1) : *num_spokes;
-    auto nodesAndWeights = gauss_legendre_nodes_and_weights(num_rings);
+    auto nodesAndWeights = mathlib::GaussQ::gauss_legendre_nodes_and_weights(num_rings);
     std::vector<GaussianQuadraturePoint> points;
     points.reserve(static_cast<std::size_t>(num_rings * spokes));
     for (int angle = 1; angle <= spokes; angle++) {

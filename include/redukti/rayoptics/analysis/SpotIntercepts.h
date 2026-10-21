@@ -27,8 +27,18 @@ public:
     double wvl;
     std::vector<double> x;
     std::vector<double> y;
+    /**
+     * Normally the weights are 1.0 except for
+     * gaussian quadrature pattern
+     */
     std::vector<double> weights;
-    /** Not vector<bool>: that is a bitfield and hands out proxies, not refs. */
+    /**
+     * We need to preserve all ray results
+     * to maintain correct positions in the arrays.
+     * We mark the failed ones as not valid
+     *
+     * Not vector<bool>: that is a bitfield and hands out proxies, not refs.
+     */
     std::vector<char> valid;
 
     explicit SpotIntercepts(const raytr::TraceGridByWvl &trace_data_);

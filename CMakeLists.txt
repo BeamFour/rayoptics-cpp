@@ -55,6 +55,7 @@ add_library(rayoptics
     src/mathlib/RootResult.cpp
     src/mathlib/BrentSolver.cpp
     src/mathlib/SecantSolver.cpp
+    src/mathlib/GaussQ.cpp
     src/mathlib/MinPack.cpp
     src/mathlib/fftpack/ComplexDoubleFFT_Mixed.cpp
     src/mathlib/fftpack/ComplexDoubleFFT.cpp
@@ -132,6 +133,7 @@ add_executable(mathlib_tests
     tests/VectorTest.cpp
     tests/TextTest.cpp
     tests/MatrixTest.cpp
+    tests/GaussQTest.cpp
     tests/SolverTest.cpp
     tests/MinPackTest.cpp
     tests/MinPackHybrdBatteryTest.cpp
