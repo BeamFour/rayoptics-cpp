@@ -11,7 +11,7 @@
 #include "redukti/mathlib/Vector3.h"
 #include "redukti/rayoptics/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
-#include "redukti/rayoptics/raytr/ExitPupilAiming.h"
+#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
@@ -31,8 +31,8 @@ namespace {
 using redukti::mathlib::Vector2;
 using redukti::rayoptics::analysis::ContrastAnalysis;
 using redukti::rayoptics::analysis::ContrastOptions;
-using redukti::rayoptics::raytr::ContrastRayTriplet;
-using redukti::rayoptics::raytr::ExitPupilAiming;
+using redukti::rayoptics::analysis::ContrastRayTriplet;
+using redukti::rayoptics::analysis::ExitPupilAiming;
 using redukti::rayoptics::raytr::Trace;
 using redukti::rayoptics::raytr::TraceOptions;
 using redukti::rayoptics::specs::Field;
@@ -52,7 +52,8 @@ TEST(contrast_exit_pupil_aiming_realises_both_requested_shear_vectors) {
     double normalizedShift =
         ContrastAnalysis::normalized_entry_pupil_shift(model.get(), wavelength, 40.0);
 
-    auto traced = model->seq_model->trace_contrast<Separation>(
+    auto traced = ContrastAnalysis::trace_by_wavelength<Separation>(
+        model.get(),
         [](const ContrastRayTriplet &rays, Field &field, double, double) -> Separation {
             CHECK(rays.referenceError == nullptr);
             CHECK(rays.sagittalError == nullptr);

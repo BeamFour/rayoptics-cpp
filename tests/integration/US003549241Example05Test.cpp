@@ -9,7 +9,7 @@
 #include "IntegrationModels.h"
 
 #include "redukti/rayoptics/analysis/ContrastAnalysis.h"
-#include "redukti/rayoptics/raytr/ExitPupilAiming.h"
+#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/raytr/VigCalc.h"
@@ -33,18 +33,18 @@ namespace Orientation = util::Orientation;
 /** The four transverse separations Java returns as a double[4]. */
 using Separations = std::array<double, 4>;
 
-Separations exitPupilSeparations(const raytr::ContrastRayTriplet &rays,
+Separations exitPupilSeparations(const analysis::ContrastRayTriplet &rays,
                                  specs::Field &field, double wavelength, double focus) {
     (void)wavelength;
     (void)focus;
     CHECK(rays.referenceError == nullptr);
     CHECK(rays.sagittalError == nullptr);
     CHECK(rays.tangentialError == nullptr);
-    auto reference = raytr::ExitPupilAiming::sphere_coord(rays.reference, field.chief_ray,
+    auto reference = analysis::ExitPupilAiming::sphere_coord(rays.reference, field.chief_ray,
                                                           field.ref_sphere);
-    auto sagittal = raytr::ExitPupilAiming::sphere_coord(rays.sagittal, field.chief_ray,
+    auto sagittal = analysis::ExitPupilAiming::sphere_coord(rays.sagittal, field.chief_ray,
                                                          field.ref_sphere);
-    auto tangential = raytr::ExitPupilAiming::sphere_coord(
+    auto tangential = analysis::ExitPupilAiming::sphere_coord(
         rays.tangential, field.chief_ray, field.ref_sphere);
     CHECK(reference.has_value());
     CHECK(sagittal.has_value());
@@ -82,12 +82,13 @@ TEST(integration_dense_optimizer_pattern_aims_every_field_and_wavelength) {
             double wavelength = wavelengths[wi];
             double shift = analysis::ContrastAnalysis::normalized_entry_pupil_shift(
                 model.get(), wavelength, 20.0);
-            raytr::ContrastTraceCallback<raytr::ContrastRayTriplet> keep =
-                [](const raytr::ContrastRayTriplet &rays, specs::Field &, double,
+            analysis::ContrastTraceCallback<analysis::ContrastRayTriplet> keep =
+                [](const analysis::ContrastRayTriplet &rays, specs::Field &, double,
                    double) { return rays; };
             raytr::TraceOptions options;
             auto traced =
-                model->seq_model->trace_contrast<raytr::ContrastRayTriplet>(
+                analysis::ContrastAnalysis::trace_by_wavelength<analysis::ContrastRayTriplet>(
+                    model.get(),
                     keep, static_cast<int>(fieldIndex), static_cast<int>(wi), 6, 12,
                     Vector2(shift, 0.0), Vector2(0.0, shift), 20.0, options, true);
             for (const auto &rays : traced[0].samples) {
@@ -112,12 +113,14 @@ TEST(integration_exit_pupil_aiming_corrects_full_field_shear) {
     specs::Field &field =
         *model->optical_spec->fov->fields[static_cast<std::size_t>(fieldIndex)];
 
-    raytr::ContrastTraceCallback<Separations> sep = exitPupilSeparations;
+    analysis::ContrastTraceCallback<Separations> sep = exitPupilSeparations;
     raytr::TraceOptions options;
-    auto unaimed = model->seq_model->trace_contrast<Separations>(
+    auto unaimed = analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
+        model.get(),
         sep, fieldIndex, wavelengthIndex, 1, 6, sagittalShift, tangentialShift, 40.0,
         options, false);
-    auto aimed = model->seq_model->trace_contrast<Separations>(
+    auto aimed = analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
+        model.get(),
         sep, fieldIndex, wavelengthIndex, 1, 6, sagittalShift, tangentialShift, 40.0,
         options, true);
 
@@ -129,11 +132,12 @@ TEST(integration_exit_pupil_aiming_corrects_full_field_shear) {
     double tangentialScale = analysis::ContrastAnalysis::exit_pupil_frequency_calibration(
         model.get(), field, wavelength, normalizedShift, Orientation::Y,
         calibrationOptions);
-    auto calibrated = model->seq_model->trace_contrast<Separations>(
+    auto calibrated = analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
+        model.get(),
         sep, fieldIndex, wavelengthIndex, 1, 6, sagittalShift.times(sagittalScale),
         tangentialShift.times(tangentialScale), 40.0, options, false);
 
-    double requestedShift = raytr::ExitPupilAiming::referenceSphereShift(
+    double requestedShift = analysis::ExitPupilAiming::referenceSphereShift(
         model.get(), field, wavelength, 40.0);
     double legacyParaxialShift =
         normalizedShift * std::abs(model->optical_spec->parax_data->fod.exp_radius);

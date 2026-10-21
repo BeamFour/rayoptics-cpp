@@ -3,10 +3,13 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of ContrastOptions, ContrastAnalysisResult and ContrastAnalysis.
+// C++ port of ContrastOptions, ContrastAnalysisResult and ContrastAnalysis,
+// including the contrast trace that was in raytr::Trace before the Java
+// refactor moved it here.
 #include "redukti/rayoptics/analysis/ContrastAnalysis.h"
 
 #include "redukti/Exceptions.h"
+#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
@@ -22,7 +25,6 @@ namespace redukti::rayoptics::analysis {
 namespace Orientation = util::Orientation;
 
 using mathlib::Vector2;
-using raytr::ContrastRayTriplet;
 using raytr::PupilType;
 using raytr::RayPkg;
 using raytr::Trace;
@@ -193,10 +195,10 @@ ContrastAnalysisResult ContrastAnalysis::eval(optical::OpticalModel *opticalMode
                     options);
             }
             // For greater accuracy in calibration,
-            // Direct exit-pupil aiming is the alternative: when enabled, trace_contrast() adjusts each
+            // Direct exit-pupil aiming is the alternative: when enabled, trace_triplets() adjusts each
             // partner separately. This is an expensive iterative adjustment of the shift amount.
             // It is enabled by options.aimExitPupil. By default, aimExitPupil is off.
-            raytr::ContrastTraceCallback<ContrastAnalysisResult::Sample> callback =
+            ContrastTraceCallback<ContrastAnalysisResult::Sample> callback =
                 [opticalModel, &options](const ContrastRayTriplet &rays,
                                          specs::Field &field, double tracedWavelength,
                                          double focus) {
@@ -204,7 +206,8 @@ ContrastAnalysisResult ContrastAnalysis::eval(optical::OpticalModel *opticalMode
                                   options);
                 };
             auto traced =
-                opticalModel->seq_model->trace_contrast<ContrastAnalysisResult::Sample>(
+                trace_by_wavelength<ContrastAnalysisResult::Sample>(
+                    opticalModel,
                     callback, static_cast<int>(fieldIndex),
                     static_cast<int>(wavelengthIndex), options.numRings,
                     options.numSpokes, Vector2(sagittalShift, 0.0),
@@ -311,7 +314,7 @@ double ContrastAnalysis::exit_pupil_frequency_calibration(
     auto traceOptions = options.traceOptions.copy();
     traceOptions.pupil_type = PupilType::REL_PUPIL;
     traceOptions.apply_vignetting = false;
-    // Set the pupil up exactly as SequentialModel.trace_contrast does for the sampling
+    // Set the pupil up exactly as trace_by_wavelength does for the sampling
     // rays: take the reference image point from the central wavelength, then establish
     // this wavelength's chief ray and reference sphere against that point. Probing
     // through a differently configured pupil would measure a mapping the samples never
@@ -416,6 +419,222 @@ double ContrastAnalysis::opd(optical::OpticalModel *opticalModel,
                                                               : Vector2::vector2_0,
                                             0, ray, field, wavelength, focus)
         .value();
+}
+
+namespace {
+
+Vector2 apply_vignetting_pt(const Vector2 &pupil, const specs::Field &fld) {
+    auto arr = pupil.as_array();
+    auto vignetted = fld.apply_vignetting(std::vector<double>{arr[0], arr[1]});
+    return Vector2(vignetted[0], vignetted[1]);
+}
+
+/** Area element of Field#apply_vignetting at a nominal pupil point. */
+double vignetting_jacobian(const Vector2 &pupil, const specs::Field &fld) {
+    return fld.vignetting_scale_x(pupil.x) * fld.vignetting_scale_y(pupil.y);
+}
+
+/**
+ * Smallest usable contraction of the contrast quadrature pattern. Below this
+ * the samples crowd around the overlap centre, all three rays of a triplet
+ * report nearly the same wavefront, and the residuals collapse towards zero -
+ * which an optimizer would read as perfect contrast rather than as an
+ * unusable request. The pattern reaches this limit a little below the
+ * 0.707/(lambda*F#) frequency at which the overlap centre itself leaves the
+ * pupil, so both bounds are reported as errors rather than silently honoured.
+ */
+const double MIN_CONTRACTION = 0.1;
+
+bool valid_point(const Vector2 &pupil, const Vector2 &sagittalShift,
+                          const Vector2 &tangentialShift, const specs::Field &fld) {
+    return ContrastAnalysis::inside_vignetted_pupil(pupil, fld) &&
+           ContrastAnalysis::inside_vignetted_pupil(pupil.plus(sagittalShift), fld) &&
+           ContrastAnalysis::inside_vignetted_pupil(pupil.plus(tangentialShift), fld);
+}
+
+bool valid_pattern(const std::vector<Vector2> &offsets,
+                            const Vector2 &overlapCenter, double contraction,
+                            const Vector2 &sagittalShift, const Vector2 &tangentialShift,
+                            const specs::Field &fld) {
+    for (const auto &offset : offsets) {
+        auto pupil = overlapCenter.plus(offset.times(contraction));
+        if (!valid_point(pupil, sagittalShift, tangentialShift, fld)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+bool ContrastAnalysis::inside_vignetted_pupil(const Vector2 &pupil, const specs::Field &fld) {
+    double xScale = fld.vignetting_scale_x(pupil.x);
+    double yScale = fld.vignetting_scale_y(pupil.y);
+    if (!(xScale > 0.0) || !(yScale > 0.0)) {
+        return false;
+    }
+    double x = pupil.x / xScale;
+    double y = pupil.y / yScale;
+    return x * x + y * y <= 1.0 + 1.0e-14;
+}
+
+std::vector<raytr::GaussianQuadraturePoint> ContrastAnalysis::generate_quadrature(
+    const raytr::TraceRingsDef &grid_rng, std::optional<int> num_spokes,
+    const Vector2 &sagittal_shift, const Vector2 &tangential_shift, specs::Field &fld) {
+    auto nominal = Trace::generate_gaussian_quadrature(grid_rng, grid_rng.num_rings, num_spokes);
+    Vector2 nominalCenter(grid_rng.cx, grid_rng.cy);
+    auto physicalCenter = apply_vignetting_pt(nominalCenter, fld);
+    auto overlapCenter =
+        physicalCenter.minus(sagittal_shift.plus(tangential_shift).times(0.5));
+    if (!valid_point(overlapCenter, sagittal_shift, tangential_shift, fld)) {
+        throw IllegalArgumentException(
+            "The requested contrast shear has no common vignetted pupil overlap");
+    }
+    std::vector<Vector2> offsets;
+    // Map the nominal pattern into the physical pupil once. The contraction
+    // search only rescales these offsets, so the map must not be repeated
+    // inside the bisection loop.
+    offsets.reserve(nominal.size());
+    for (const auto &point : nominal)
+        offsets.push_back(apply_vignetting_pt(point.pupil, fld).minus(physicalCenter));
+    double contraction = 1.0;
+    if (!valid_pattern(offsets, overlapCenter, contraction, sagittal_shift,
+                                tangential_shift, fld)) {
+        double low = 0.0;
+        double high = 1.0;
+        // Converge to machine precision: the contraction must be a
+        // repeatable function of the design so that the finite-difference
+        // Jacobian does not see quantisation steps.
+        for (int iteration = 0; iteration < 60; iteration++) {
+            double trial = 0.5 * (low + high);
+            if (valid_pattern(offsets, overlapCenter, trial, sagittal_shift,
+                                       tangential_shift, fld)) {
+                low = trial;
+            } else {
+                high = trial;
+            }
+        }
+        contraction = low;
+    }
+    if (contraction < MIN_CONTRACTION) {
+        throw IllegalArgumentException(
+            "The requested contrast shear leaves too little vignetted pupil overlap to "
+            "sample: the pattern would contract to " +
+            doubleToString(contraction) + " of its nominal extent");
+    }
+    std::vector<raytr::GaussianQuadraturePoint> points;
+    points.reserve(nominal.size());
+    double weightSum = 0.0;
+    for (std::size_t i = 0; i < nominal.size(); i++) {
+        const auto &point = nominal[i];
+        auto pupil = overlapCenter.plus(offsets[i].times(contraction));
+        double weight = point.weight * vignetting_jacobian(point.pupil, fld);
+        points.push_back(raytr::GaussianQuadraturePoint(pupil, weight));
+        weightSum += weight;
+    }
+    if (!(weightSum > 0.0)) {
+        throw IllegalArgumentException("The vignetted pupil has zero area");
+    }
+    const double normalization = weightSum;
+    std::vector<raytr::GaussianQuadraturePoint> normalized;
+    normalized.reserve(points.size());
+    for (const auto &point : points)
+        normalized.push_back(
+            raytr::GaussianQuadraturePoint(point.pupil, point.weight / normalization));
+    return normalized;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Contrast trace is a Beam42 enhancement.
+/// Its main use is in optimization
+/// See Documentation/OPTIMIZER_NOTES.md
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
+    optical::OpticalModel *opt_model, const raytr::TraceRingsDef &grid_rng,
+    std::optional<int> num_spokes, const Vector2 &sagittal_shift,
+    const Vector2 &tangential_shift, specs::Field &fld, double wvl,
+    const raytr::TraceOptions &trace_options) {
+    return trace_triplets(opt_model, grid_rng, num_spokes, sagittal_shift,
+                          tangential_shift, std::nullopt, std::nullopt, fld, wvl,
+                          trace_options, false);
+}
+
+std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
+    optical::OpticalModel *opt_model, const raytr::TraceRingsDef &grid_rng,
+    std::optional<int> num_spokes, const Vector2 &sagittal_shift,
+    const Vector2 &tangential_shift, std::optional<Vector2> sagittal_exit_shift,
+    std::optional<Vector2> tangential_exit_shift, specs::Field &fld, double wvl,
+    const raytr::TraceOptions &trace_options_in, bool aim_exit_pupil) {
+    if (aim_exit_pupil &&
+        (!sagittal_exit_shift.has_value() || !tangential_exit_shift.has_value())) {
+        throw IllegalArgumentException(
+            "Physical exit-pupil shifts are required when aiming is enabled");
+    }
+    raytr::TraceOptions trace_options = trace_options_in.copy();
+    // The quadrature generator explicitly maps samples into the physical
+    // vignetted pupil. Applying Field vignetting in trace_base as well
+    // would independently scale the displaced rays and change their MTF
+    // shear, especially when a pair straddles a pupil axis.
+    // ContrastOptions defaults aperture checking off so temporary clipping does
+    // not become a discontinuous optimizer failure, but honour an explicit caller
+    // choice to validate against the physical surface apertures.
+    trace_options.pupil_type = PupilType::REL_PUPIL;
+    trace_options.apply_vignetting = false;
+    trace_options.rayerr_filter = std::string("summary");
+    std::vector<ContrastRayTriplet> samples;
+    auto points = generate_quadrature(grid_rng, num_spokes, sagittal_shift,
+                                               tangential_shift, fld);
+    for (const auto &point : points) {
+        // Each sample traces a reference ray and sagittal/tangential partners.
+        // The supplied shifts are normalized entrance-pupil offsets.
+        // When aim_exit_pupil is enabled, these provide initial guesses;
+        // each partner is inverse-aimed to a physical reference-sphere separation
+        // Delta = |R| lambda nu / |n_img| from the reference ray.
+        // Here lambda is in system length units and nu is image-space frequency.
+        auto pupil = point.pupil;
+        auto sagittalEntrancePupil = pupil.plus(sagittal_shift);
+        auto tangentialEntrancePupil = pupil.plus(tangential_shift);
+        auto reference = Trace::trace_safe(opt_model, pupil, fld, wvl, trace_options);
+        raytr::RayResult sagittal;
+        raytr::RayResult tangential;
+        if (aim_exit_pupil && reference.pkg != nullptr) {
+            auto referenceCoordinate = ExitPupilAiming::sphere_coord(
+                reference.pkg, fld.chief_ray, fld.ref_sphere);
+            if (!referenceCoordinate.has_value()) {
+                auto error = std::make_shared<ExitPupilAiming::ExitPupilAimException>(
+                    "Reference ray has no finite exit-pupil coordinate");
+                error->surf = -1;
+                sagittal = raytr::RayResult(nullptr, error);
+                tangential = raytr::RayResult(nullptr, error);
+            } else {
+                Vector2 sagittalExitPupilTarget(
+                    referenceCoordinate->x + sagittal_exit_shift->x,
+                    referenceCoordinate->y + sagittal_exit_shift->y);
+                Vector2 tangentialExitPupilTarget(
+                    referenceCoordinate->x + tangential_exit_shift->x,
+                    referenceCoordinate->y + tangential_exit_shift->y);
+                sagittal = ExitPupilAiming::aim(opt_model, sagittalEntrancePupil,
+                                                sagittalExitPupilTarget, fld, wvl,
+                                                trace_options)
+                               .ray;
+                tangential = ExitPupilAiming::aim(opt_model, tangentialEntrancePupil,
+                                                  tangentialExitPupilTarget, fld, wvl,
+                                                  trace_options)
+                                 .ray;
+            }
+        } else {
+            sagittal =
+                Trace::trace_safe(opt_model, sagittalEntrancePupil, fld, wvl, trace_options);
+            tangential =
+                Trace::trace_safe(opt_model, tangentialEntrancePupil, fld, wvl, trace_options);
+        }
+        samples.push_back(ContrastRayTriplet(pupil, reference.pkg, sagittal.pkg,
+                                             tangential.pkg, reference.err,
+                                             sagittal.err, tangential.err,
+                                             point.weight));
+    }
+    return samples;
 }
 
 } // namespace redukti::rayoptics::analysis

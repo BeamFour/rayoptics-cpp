@@ -79,7 +79,7 @@ add_library(rayoptics
     src/rayoptics/raytr/RayTypes.cpp
     src/rayoptics/raytr/RayTrace.cpp
     src/rayoptics/raytr/WaveAbr.cpp
-    src/rayoptics/raytr/ExitPupilAiming.cpp
+    src/rayoptics/analysis/ExitPupilAiming.cpp
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp

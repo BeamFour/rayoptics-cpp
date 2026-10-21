@@ -3,9 +3,9 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.raytr.ExitPupilAiming
-#ifndef REDUKTI_RAYOPTICS_RAYTR_EXITPUPILAIMING_H
-#define REDUKTI_RAYOPTICS_RAYTR_EXITPUPILAIMING_H
+// C++ port of org.redukti.rayoptics.analysis.ExitPupilAiming
+#ifndef REDUKTI_RAYOPTICS_ANALYSIS_EXITPUPILAIMING_H
+#define REDUKTI_RAYOPTICS_ANALYSIS_EXITPUPILAIMING_H
 
 #include "redukti/rayoptics/exceptions/TraceException.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
@@ -18,7 +18,7 @@ namespace redukti::rayoptics::optical {
 class OpticalModel;
 }
 
-namespace redukti::rayoptics::raytr {
+namespace redukti::rayoptics::analysis {
 
 /** Inverse entrance-to-exit-pupil mapping used by contrast tracing. */
 class ExitPupilAiming {
@@ -41,13 +41,13 @@ public:
     class Result {
     public:
         mathlib::Vector2 pupil;
-        RayResult ray;
+        raytr::RayResult ray;
         /** Null when the exit-pupil coordinate could not be computed. */
         std::optional<mathlib::Vector3> exitCoordinate;
         int iterations;
         double error;
 
-        Result(const mathlib::Vector2 &pupil_, RayResult ray_,
+        Result(const mathlib::Vector2 &pupil_, raytr::RayResult ray_,
                std::optional<mathlib::Vector3> exitCoordinate_, int iterations_,
                double error_)
             : pupil(pupil_), ray(std::move(ray_)),
@@ -67,13 +67,13 @@ public:
     static Result aim(optical::OpticalModel *opticalModel,
                       const mathlib::Vector2 &initialEntrancePupilCoord,
                       const mathlib::Vector2 &targetExitPupilCoord, specs::Field &field,
-                      double wavelength, const TraceOptions &traceOptions);
+                      double wavelength, const raytr::TraceOptions &traceOptions);
 
     /** Exit-pupil coordinate of a traced ray, or null if not computable. */
     static std::optional<mathlib::Vector3> sphere_coord(
-        const std::shared_ptr<const RayPkg> &rayPkg,
-        const std::shared_ptr<const ChiefRayPkg> &chiefRayPkg,
-        const std::shared_ptr<const ReferenceSphere> &referenceSphere);
+        const std::shared_ptr<const raytr::RayPkg> &rayPkg,
+        const std::shared_ptr<const raytr::ChiefRayPkg> &chiefRayPkg,
+        const std::shared_ptr<const raytr::ReferenceSphere> &referenceSphere);
 
 private:
     static const int MAX_ITERATIONS = 10;
@@ -81,7 +81,7 @@ private:
 
     class Evaluation {
     public:
-        RayResult ray;
+        raytr::RayResult ray;
         std::optional<mathlib::Vector3> coordinate;
         std::optional<mathlib::Vector2> residual;
     };
@@ -97,9 +97,9 @@ private:
     static Evaluation evaluate(optical::OpticalModel *opticalModel,
                                const mathlib::Vector2 &pupil,
                                const mathlib::Vector2 &target, specs::Field &field,
-                               double wavelength, const TraceOptions &traceOptions);
+                               double wavelength, const raytr::TraceOptions &traceOptions);
 };
 
-} // namespace redukti::rayoptics::raytr
+} // namespace redukti::rayoptics::analysis
 
-#endif // REDUKTI_RAYOPTICS_RAYTR_EXITPUPILAIMING_H
+#endif // REDUKTI_RAYOPTICS_ANALYSIS_EXITPUPILAIMING_H

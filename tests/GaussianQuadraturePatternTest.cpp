@@ -2,6 +2,7 @@
 #include "TestHarness.h"
 
 #include "redukti/mathlib/Vector2.h"
+#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/specs/Field.h"
@@ -13,6 +14,7 @@
 namespace {
 
 using redukti::mathlib::Vector2;
+using redukti::rayoptics::analysis::ContrastAnalysis;
 using redukti::rayoptics::raytr::GaussianQuadraturePoint;
 using redukti::rayoptics::raytr::Trace;
 using redukti::rayoptics::raytr::TraceRingsDef;
@@ -140,16 +142,16 @@ TEST(gq_contrast_pattern_and_both_partners_stay_inside_the_vignetted_pupil) {
     Vector2 sagittalShift(0.06743, 0.0);
     Vector2 tangentialShift(0.0, 0.06743);
 
-    auto points = Trace::generate_contrast_quadrature(definition, 6, sagittalShift,
+    auto points = ContrastAnalysis::generate_quadrature(definition, 6, sagittalShift,
                                                       tangentialShift, field);
 
     CHECK_EQ(static_cast<int>(points.size()), 18);
     CHECK_CLOSE(totalWeight(points), 1.0, 1.0e-14);
     for (const auto &point : points) {
         const Vector2 &pupil = point.pupil;
-        CHECK(Trace::inside_vignetted_pupil(pupil, field));
-        CHECK(Trace::inside_vignetted_pupil(pupil.plus(sagittalShift), field));
-        CHECK(Trace::inside_vignetted_pupil(pupil.plus(tangentialShift), field));
+        CHECK(ContrastAnalysis::inside_vignetted_pupil(pupil, field));
+        CHECK(ContrastAnalysis::inside_vignetted_pupil(pupil.plus(sagittalShift), field));
+        CHECK(ContrastAnalysis::inside_vignetted_pupil(pupil.plus(tangentialShift), field));
     }
 }
 
@@ -165,7 +167,7 @@ TEST(gq_reapplying_field_vignetting_would_corrupt_the_requested_shear) {
     Field field = asymmetricVignettedField();
     Vector2 tangentialShift(0.0, 0.06743);
 
-    auto points = Trace::generate_contrast_quadrature(definition, 6, Vector2(0.0, 0.0),
+    auto points = ContrastAnalysis::generate_quadrature(definition, 6, Vector2(0.0, 0.0),
                                                       tangentialShift, field);
 
     for (const auto &point : points) {
@@ -189,7 +191,7 @@ TEST(gq_shear_straddling_the_vignetting_axis_is_not_a_rigid_translation) {
     Field field = asymmetricVignettedField();
     Vector2 tangentialShift(0.0, 0.06743);
 
-    auto points = Trace::generate_contrast_quadrature(definition, 6, Vector2(0.0, 0.0),
+    auto points = ContrastAnalysis::generate_quadrature(definition, 6, Vector2(0.0, 0.0),
                                                       tangentialShift, field);
 
     const GaussianQuadraturePoint *crossing = nullptr;
@@ -222,17 +224,17 @@ TEST(gq_rejects_shear_that_leaves_too_little_pupil_to_sample) {
     Field field(nullptr);
 
     // Well inside the pupil: sampled normally.
-    Trace::generate_contrast_quadrature(definition, 6, Vector2(0.5, 0.0),
+    ContrastAnalysis::generate_quadrature(definition, 6, Vector2(0.5, 0.0),
                                         Vector2(0.0, 0.5), field);
 
     // The overlap centre is still inside the pupil here, but the pattern would
     // have to collapse onto it, reporting zero wavefront difference.
-    CHECK_THROWS(Trace::generate_contrast_quadrature(definition, 6, Vector2(1.41, 0.0),
+    CHECK_THROWS(ContrastAnalysis::generate_quadrature(definition, 6, Vector2(1.41, 0.0),
                                                      Vector2(0.0, 1.41), field),
                  IllegalArgumentException);
 
     // Beyond the point where even the overlap centre is valid.
-    CHECK_THROWS(Trace::generate_contrast_quadrature(definition, 6, Vector2(1.9, 0.0),
+    CHECK_THROWS(ContrastAnalysis::generate_quadrature(definition, 6, Vector2(1.9, 0.0),
                                                      Vector2(0.0, 1.9), field),
                  IllegalArgumentException);
 }
@@ -243,7 +245,7 @@ TEST(gq_contrast_pattern_samples_are_distinct) {
     Field field = asymmetricVignettedField();
     Vector2 shift(0.06743, 0.0);
 
-    auto points = Trace::generate_contrast_quadrature(definition, 6, shift,
+    auto points = ContrastAnalysis::generate_quadrature(definition, 6, shift,
                                                       Vector2(0.0, 0.06743), field);
 
     double closest = std::numeric_limits<double>::max();

@@ -353,46 +353,6 @@ public:
         const TraceOptions &trace_options);
 
     /**
-     * Trace the reference and the two displaced rays required by contrast
-     * optimization. Pupil displacements are expressed in relative pupil
-     * coordinates of the physically vignetted pupil. Every quadrature sample
-     * is returned so clients can keep a stable residual layout; a ray is null
-     * when the trace fails.
-     */
-    static std::vector<ContrastRayTriplet> trace_contrast(
-        optical::OpticalModel *opt_model, const TraceRingsDef &grid_rng,
-        std::optional<int> num_spokes, const mathlib::Vector2 &sagittal_shift,
-        const mathlib::Vector2 &tangential_shift, specs::Field &fld, double wvl,
-        const TraceOptions &trace_options);
-
-    /**
-     * Trace contrast triplets, optionally inverse-aiming each displaced partner at its
-     * requested coordinate separation on the exit-pupil reference sphere.
-     */
-    static std::vector<ContrastRayTriplet> trace_contrast(
-        optical::OpticalModel *opt_model, const TraceRingsDef &grid_rng,
-        std::optional<int> num_spokes, const mathlib::Vector2 &sagittal_shift,
-        const mathlib::Vector2 &tangential_shift,
-        std::optional<mathlib::Vector2> sagittal_exit_shift,
-        std::optional<mathlib::Vector2> tangential_exit_shift, specs::Field &fld,
-        double wvl, const TraceOptions &trace_options, bool aim_exit_pupil);
-
-    /**
-     * Generate fixed-count quadrature samples in the physical vignetted pupil.
-     * The complete pattern is contracted about the overlap centre until every
-     * sample and both of its displaced partners are valid. A common contraction
-     * preserves relative quadrature weights and avoids frequency-dependent ray
-     * loss at the pupil boundary.
-     */
-    static std::vector<GaussianQuadraturePoint> generate_contrast_quadrature(
-        const TraceRingsDef &grid_rng, std::optional<int> num_spokes,
-        const mathlib::Vector2 &sagittal_shift,
-        const mathlib::Vector2 &tangential_shift, specs::Field &fld);
-
-    static bool inside_vignetted_pupil(const mathlib::Vector2 &pupil,
-                                       const specs::Field &fld);
-
-    /**
      * Generates a Gaussian quadrature pattern over a circular or concentric
      * annular pupil.
      *

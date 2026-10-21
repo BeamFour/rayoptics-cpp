@@ -3,7 +3,7 @@
 // Java version by Dibyendu Majumdar
 // See LICENSE-ray-optics.txt
 //
-// ContrastRayTriplet, RayFanType and TraceRingsDef are part of Beam42 project
+// RayFanType and TraceRingsDef are part of Beam42 project
 // (https://github.com/BeamFour/Beam42), Copyright 2025-2026 by Dibyendu Majumdar,
 // License GPL v3; see LICENSE-GPL-3.0.txt
 //
@@ -389,43 +389,6 @@ public:
         : wvl(wvl_), grid(std::move(grid_)) {}
 };
 
-/** Three rays used by a contrast-optimization pupil sample. */
-/** Java's `record ContrastRayTriplet(...)`. */
-class ContrastRayTriplet {
-public:
-    mathlib::Vector2 pupil;
-    std::shared_ptr<const RayPkg> reference;
-    std::shared_ptr<const RayPkg> sagittal;
-    std::shared_ptr<const RayPkg> tangential;
-    std::shared_ptr<exceptions::TraceException> referenceError;
-    std::shared_ptr<exceptions::TraceException> sagittalError;
-    std::shared_ptr<exceptions::TraceException> tangentialError;
-    double weight;
-
-    ContrastRayTriplet(const mathlib::Vector2 &pupil_,
-                       std::shared_ptr<const RayPkg> reference_,
-                       std::shared_ptr<const RayPkg> sagittal_,
-                       std::shared_ptr<const RayPkg> tangential_,
-                       std::shared_ptr<exceptions::TraceException> referenceError_,
-                       std::shared_ptr<exceptions::TraceException> sagittalError_,
-                       std::shared_ptr<exceptions::TraceException> tangentialError_,
-                       double weight_)
-        : pupil(pupil_), reference(std::move(reference_)), sagittal(std::move(sagittal_)),
-          tangential(std::move(tangential_)), referenceError(std::move(referenceError_)),
-          sagittalError(std::move(sagittalError_)),
-          tangentialError(std::move(tangentialError_)), weight(weight_) {}
-};
-
-/** Java's `record ContrastTraceByWvl<T>(double wavelength, List<T> samples)`. */
-template <typename T> class ContrastTraceByWvl {
-public:
-    double wavelength;
-    std::vector<T> samples;
-
-    ContrastTraceByWvl(double wavelength_, std::vector<T> samples_)
-        : wavelength(wavelength_), samples(std::move(samples_)) {}
-};
-
 /**
  * Java's `interface ImageFilter`.
  *
@@ -455,11 +418,6 @@ using RayFanCallback = std::function<std::optional<double>(
     optical::OpticalModel *opt_model, const mathlib::Vector2 &p, int wi,
     const std::shared_ptr<const RayPkg> &ray_pkg, specs::Field &fld, double wvl,
     double foc)>;
-
-/** Java's `interface ContrastTraceCallback<T>`. */
-template <typename T>
-using ContrastTraceCallback = std::function<T(
-    const ContrastRayTriplet &rays, specs::Field &field, double wavelength, double focus)>;
 
 /** Java's `class TraceFanPoints`. */
 class TraceFanPoints {

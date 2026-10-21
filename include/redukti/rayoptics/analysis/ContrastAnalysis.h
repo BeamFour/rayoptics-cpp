@@ -4,19 +4,67 @@
 // See LICENSE-GPL-3.0.txt
 //
 // C++ port of org.redukti.rayoptics.analysis.ContrastOptions,
-// ContrastAnalysisResult and ContrastAnalysis.
+// ContrastAnalysisResult, ContrastAnalysis, ContrastRayTriplet, ContrastTraceByWvl
+// and ContrastTraceCallback.
 #ifndef REDUKTI_RAYOPTICS_ANALYSIS_CONTRASTANALYSIS_H
 #define REDUKTI_RAYOPTICS_ANALYSIS_CONTRASTANALYSIS_H
 
+#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
+#include "redukti/rayoptics/raytr/Trace.h"
+#include "redukti/rayoptics/seq/SequentialModel.h"
+#include "redukti/rayoptics/specs/OpticalSpecs.h"
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace redukti::rayoptics::analysis {
+
+/** Three rays used by a contrast-optimization pupil sample. */
+/** Java's `record ContrastRayTriplet(...)`. */
+class ContrastRayTriplet {
+public:
+    mathlib::Vector2 pupil;
+    std::shared_ptr<const raytr::RayPkg> reference;
+    std::shared_ptr<const raytr::RayPkg> sagittal;
+    std::shared_ptr<const raytr::RayPkg> tangential;
+    std::shared_ptr<exceptions::TraceException> referenceError;
+    std::shared_ptr<exceptions::TraceException> sagittalError;
+    std::shared_ptr<exceptions::TraceException> tangentialError;
+    double weight;
+
+    ContrastRayTriplet(const mathlib::Vector2 &pupil_,
+                       std::shared_ptr<const raytr::RayPkg> reference_,
+                       std::shared_ptr<const raytr::RayPkg> sagittal_,
+                       std::shared_ptr<const raytr::RayPkg> tangential_,
+                       std::shared_ptr<exceptions::TraceException> referenceError_,
+                       std::shared_ptr<exceptions::TraceException> sagittalError_,
+                       std::shared_ptr<exceptions::TraceException> tangentialError_,
+                       double weight_)
+        : pupil(pupil_), reference(std::move(reference_)), sagittal(std::move(sagittal_)),
+          tangential(std::move(tangential_)), referenceError(std::move(referenceError_)),
+          sagittalError(std::move(sagittalError_)),
+          tangentialError(std::move(tangentialError_)), weight(weight_) {}
+};
+
+/** Java's `record ContrastTraceByWvl<T>(double wavelength, List<T> samples)`. */
+template <typename T> class ContrastTraceByWvl {
+public:
+    double wavelength;
+    std::vector<T> samples;
+
+    ContrastTraceByWvl(double wavelength_, std::vector<T> samples_)
+        : wavelength(wavelength_), samples(std::move(samples_)) {}
+};
+
+/** Java's `interface ContrastTraceCallback<T>`. */
+template <typename T>
+using ContrastTraceCallback = std::function<T(
+    const ContrastRayTriplet &rays, specs::Field &field, double wavelength, double focus)>;
 
 /** Options for pupil-autocorrelation contrast analysis. */
 /** Fluent configuration for a contrast (through-frequency) analysis. */
@@ -138,6 +186,119 @@ public:
 /** Wavefront-difference analysis used by contrast optimization. */
 class ContrastAnalysis {
 public:
+    /**
+     * Trace contrast-optimization ray triplets and apply the analysis callback
+     * while the wavelength-specific chief ray and reference sphere are active.
+     */
+    template <typename T>
+    static std::vector<ContrastTraceByWvl<T>> trace_by_wavelength(
+        optical::OpticalModel *opt_model, const ContrastTraceCallback<T> &callback, int fi, std::optional<int> wl,
+        int num_rings, std::optional<int> num_spokes,
+        const mathlib::Vector2 &sagittal_shift, const mathlib::Vector2 &tangential_shift,
+        const raytr::TraceOptions &trace_options) {
+        return trace_by_wavelength<T>(opt_model, callback, fi, wl, num_rings, num_spokes,
+                                      sagittal_shift, tangential_shift, 0.0, trace_options,
+                                      false);
+    }
+
+    template <typename T>
+    static std::vector<ContrastTraceByWvl<T>> trace_by_wavelength(
+        optical::OpticalModel *opt_model, const ContrastTraceCallback<T> &callback, int fi, std::optional<int> wl,
+        int num_rings, std::optional<int> num_spokes,
+        const mathlib::Vector2 &sagittal_shift, const mathlib::Vector2 &tangential_shift,
+        double spatial_frequency, const raytr::TraceOptions &trace_options,
+        bool aim_exit_pupil) {
+        auto osp = opt_model->optical_spec.get();
+        const auto &wavelengths = osp->wvls->wavelengths;
+        std::vector<double> wavelengthList;
+        if (!wl.has_value())
+            wavelengthList = wavelengths;
+        else
+            wavelengthList = {wavelengths[static_cast<std::size_t>(*wl)]};
+        specs::Field &field = *osp->fov->fields[static_cast<std::size_t>(fi)];
+        auto focus = osp->defocus()->get_focus();
+        auto referenceWavelength = opt_model->seq_model->central_wavelength();
+        auto referenceCoordinates = raytr::Trace::setup_pupil_coords(
+            opt_model, field, referenceWavelength, focus, std::nullopt, std::nullopt);
+        auto referenceImagePoint = referenceCoordinates.ref_sphere->image_pt.project_xy();
+
+        std::vector<ContrastTraceByWvl<T>> result;
+        raytr::TraceRingsDef definition;
+        definition.num_rings = num_rings;
+        for (double wavelength : wavelengthList) {
+            auto coordinates = raytr::Trace::setup_pupil_coords(
+                opt_model, field, wavelength, focus, referenceImagePoint, std::nullopt);
+            field.chief_ray =
+                std::const_pointer_cast<raytr::ChiefRayPkg>(coordinates.chief_ray_pkg);
+            field.ref_sphere =
+                std::const_pointer_cast<raytr::ReferenceSphere>(coordinates.ref_sphere);
+            std::optional<mathlib::Vector2> sagittalExitShift;
+            std::optional<mathlib::Vector2> tangentialExitShift;
+            if (aim_exit_pupil) {
+                // Convert image-space frequency to a physical separation on this field's
+                // wavelength-specific reference sphere: Delta = |R| lambda |nu| / |n_img|,
+                // with lambda in system length units and nu in reciprocal length units.
+                // The vectors below are target offsets from each reference ray's sphere
+                // coordinate. trace_triplets() inverse-aims the partners to those targets;
+                // the supplied normalized entrance-pupil shifts provide the initial guesses.
+                double physicalShift = ExitPupilAiming::referenceSphereShift(
+                    opt_model, field, wavelength, spatial_frequency);
+                sagittalExitShift = mathlib::Vector2(physicalShift, 0.0);
+                tangentialExitShift = mathlib::Vector2(0.0, physicalShift);
+            }
+            auto rays = trace_triplets(
+                opt_model, definition, num_spokes, sagittal_shift, tangential_shift,
+                sagittalExitShift, tangentialExitShift, field, wavelength, trace_options,
+                aim_exit_pupil);
+            std::vector<T> samples;
+            samples.reserve(rays.size());
+            for (const auto &ray : rays)
+                samples.push_back(callback(ray, field, wavelength, focus));
+            result.push_back(ContrastTraceByWvl<T>(wavelength, std::move(samples)));
+        }
+        return result;
+    }
+
+    /**
+     * Trace the reference and the two displaced rays required by contrast
+     * optimization. Pupil displacements are expressed in relative pupil
+     * coordinates of the physically vignetted pupil. Every quadrature sample
+     * is returned so clients can keep a stable residual layout; a ray is null
+     * when the trace fails.
+     */
+    static std::vector<ContrastRayTriplet> trace_triplets(
+        optical::OpticalModel *opt_model, const raytr::TraceRingsDef &grid_rng,
+        std::optional<int> num_spokes, const mathlib::Vector2 &sagittal_shift,
+        const mathlib::Vector2 &tangential_shift, specs::Field &fld, double wvl,
+        const raytr::TraceOptions &trace_options);
+
+    /**
+     * Trace contrast triplets, optionally inverse-aiming each displaced partner at its
+     * requested coordinate separation on the exit-pupil reference sphere.
+     */
+    static std::vector<ContrastRayTriplet> trace_triplets(
+        optical::OpticalModel *opt_model, const raytr::TraceRingsDef &grid_rng,
+        std::optional<int> num_spokes, const mathlib::Vector2 &sagittal_shift,
+        const mathlib::Vector2 &tangential_shift,
+        std::optional<mathlib::Vector2> sagittal_exit_shift,
+        std::optional<mathlib::Vector2> tangential_exit_shift, specs::Field &fld,
+        double wvl, const raytr::TraceOptions &trace_options, bool aim_exit_pupil);
+
+    /**
+     * Generate fixed-count quadrature samples in the physical vignetted pupil.
+     * The complete pattern is contracted about the overlap centre until every
+     * sample and both of its displaced partners are valid. A common contraction
+     * preserves relative quadrature weights and avoids frequency-dependent ray
+     * loss at the pupil boundary.
+     */
+    static std::vector<raytr::GaussianQuadraturePoint> generate_quadrature(
+        const raytr::TraceRingsDef &grid_rng, std::optional<int> num_spokes,
+        const mathlib::Vector2 &sagittal_shift,
+        const mathlib::Vector2 &tangential_shift, specs::Field &fld);
+
+    static bool inside_vignetted_pupil(const mathlib::Vector2 &pupil,
+                                       const specs::Field &fld);
+
     static ContrastAnalysisResult eval(optical::OpticalModel *opticalModel,
                                        const ContrastOptions &options);
 
@@ -187,12 +348,12 @@ private:
                                                  int axis, const mathlib::Vector2 &pupil);
 
     static ContrastAnalysisResult::Sample sample(optical::OpticalModel *opticalModel,
-                                                 const raytr::ContrastRayTriplet &rays,
+                                                 const ContrastRayTriplet &rays,
                                                  specs::Field &field, double wavelength,
                                                  double focus,
                                                  const ContrastOptions &options);
 
-    static ContrastAnalysisResult::Failure failure(const raytr::ContrastRayTriplet &rays);
+    static ContrastAnalysisResult::Failure failure(const ContrastRayTriplet &rays);
 
     static ContrastAnalysisResult::Failure failure(
         const std::string &ray, const exceptions::TraceException &error);
