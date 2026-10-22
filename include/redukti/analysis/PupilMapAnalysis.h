@@ -3,9 +3,9 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.PupilMapAnalysis
-#ifndef REDUKTI_RAYOPTICS_ANALYSIS_PUPILMAPANALYSIS_H
-#define REDUKTI_RAYOPTICS_ANALYSIS_PUPILMAPANALYSIS_H
+// C++ port of org.redukti.analysis.PupilMapAnalysis
+#ifndef REDUKTI_ANALYSIS_PUPILMAPANALYSIS_H
+#define REDUKTI_ANALYSIS_PUPILMAPANALYSIS_H
 
 #include <optional>
 #include <string>
@@ -23,7 +23,7 @@ class Field;
 }
 } // namespace redukti::rayoptics
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 /**
  * Which part of the pupil a field can actually use, measured rather than modelled.
@@ -69,7 +69,7 @@ public:
     public:
         int fi;
         /** Borrowed from the model the map was measured on. */
-        specs::Field *fld;
+        rayoptics::specs::Field *fld;
         /** Half width of the sampled square, in nominal pupil radii. */
         double reach;
         /** Samples per axis; samples is column major, index = i * num_samples + j. */
@@ -83,7 +83,7 @@ public:
         MappingQuality piecewise_quality;
         MappingQuality ellipse_quality;
 
-        PupilMapForField(int fi, specs::Field *fld, double reach, int num_samples,
+        PupilMapForField(int fi, rayoptics::specs::Field *fld, double reach, int num_samples,
                          std::vector<Sample> samples);
 
         const Sample &sample(int i, int j) const {
@@ -106,7 +106,7 @@ public:
     /** Default samples per axis: enough to place a boundary to about 1% of the pupil radius. */
     static constexpr int DEFAULT_NUM_SAMPLES = 121;
 
-    static PupilMapResult eval(optical::OpticalModel *opm);
+    static PupilMapResult eval(rayoptics::optical::OpticalModel *opm);
 
     /**
      * Maps the pupil of each requested field.
@@ -119,17 +119,17 @@ public:
      * @param num_samples samples per axis across the sampled square
      * @param fields      indices into the field spec, or empty for every field
      */
-    static PupilMapResult eval(optical::OpticalModel *opm, int num_samples,
+    static PupilMapResult eval(rayoptics::optical::OpticalModel *opm, int num_samples,
                                const std::optional<std::vector<int>> &fields);
 
     /** Initial reach enclosing the candidate mappings; tracing may require a larger square. */
-    static double reach_for(const specs::Field &fld);
+    static double reach_for(const rayoptics::specs::Field &fld);
 
     /** The factor as Field::apply_vignetting uses it; a negative factor expands. */
     static double scale(double factor) { return factor == 0.0 ? 1.0 : 1.0 - factor; }
 
     /** Whether a pupil coordinate lies in the region the factors sample as ray-optics maps them. */
-    static bool inside_piecewise(double x, double y, const specs::Field &fld);
+    static bool inside_piecewise(double x, double y, const rayoptics::specs::Field &fld);
 
     /**
      * Whether a pupil coordinate lies in the single translated ellipse whose four extremes
@@ -141,7 +141,7 @@ public:
      * here so a map can be compared against both candidates whether or not the tracer
      * offers it.
      */
-    static bool inside_ellipse(double x, double y, const specs::Field &fld);
+    static bool inside_ellipse(double x, double y, const rayoptics::specs::Field &fld);
 
     static double ellipse_scale(double lower, double upper) {
         return 1.0 - 0.5 * (lower + upper);
@@ -152,11 +152,11 @@ public:
 private:
     static constexpr int MAX_REACH_EXPANSIONS = 8;
 
-    static std::vector<Sample> sample_grid(optical::OpticalModel *opm, specs::Field &fld,
-                                           double wvl, const raytr::TraceOptions &options,
+    static std::vector<Sample> sample_grid(rayoptics::optical::OpticalModel *opm, rayoptics::specs::Field &fld,
+                                           double wvl, const rayoptics::raytr::TraceOptions &options,
                                            double reach, int num_samples);
 };
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
 
-#endif // REDUKTI_RAYOPTICS_ANALYSIS_PUPILMAPANALYSIS_H
+#endif // REDUKTI_ANALYSIS_PUPILMAPANALYSIS_H

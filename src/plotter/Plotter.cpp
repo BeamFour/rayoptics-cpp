@@ -23,7 +23,7 @@ using data::Range;
 using mathlib::Vector2;
 using mathlib::Vector2Pair;
 using mathlib::Vector3;
-using rayoptics::analysis::MTFResultByFreq;
+using redukti::analysis::MTFResultByFreq;
 using rayoptics::raytr::RayFanType;
 using render::Plot;
 using render::PlotAxes;
@@ -352,7 +352,7 @@ std::string RayAberrationPlot::plot(const rayoptics::raytr::TraceFanResult &fan_
 
 namespace {
 
-using PupilSample = rayoptics::analysis::PupilMapAnalysis::Sample;
+using PupilSample = redukti::analysis::PupilMapAnalysis::Sample;
 
 const Rgb PUPIL_PASSED(0.30f, 0.69f, 0.31f, 1.0f);
 const Rgb PUPIL_FAILED(0.93f, 0.93f, 0.93f, 1.0f);
@@ -395,7 +395,7 @@ bool sameRgb(const Rgb &a, const Rgb &b) {
 } // namespace
 
 std::string PupilMapPlot::plot(int size) const {
-    using rayoptics::analysis::PupilMapAnalysis;
+    using redukti::analysis::PupilMapAnalysis;
     RendererSvg r(size, size, Rgb::rgb_white);
     double reach = map->reach;
     r.set_window(Vector2Pair(Vector2(-reach, -reach), Vector2(reach, reach)), true);
@@ -462,7 +462,7 @@ std::string PupilMapPlot::plot(int size) const {
 }
 
 void PupilMapPlot::draw_region(Renderer &r, const Rgb &rgb, bool ellipse) const {
-    using rayoptics::analysis::PupilMapAnalysis;
+    using redukti::analysis::PupilMapAnalysis;
     const auto &fld = *map->fld;
     const int steps = 180;
     std::optional<Vector2> previous;

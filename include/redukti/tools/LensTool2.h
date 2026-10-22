@@ -15,7 +15,7 @@
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/OptimizationPipeline.h"
 #include "redukti/optim/OptimizationTrial.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
 #include "redukti/spec/Prescription.h"
@@ -59,13 +59,13 @@ public:
                                           const std::string &specFile);
 
     static void outputSpotAnalysis(
-        const rayoptics::analysis::SpotAnalysisResult::SpotResultsForField &result,
+        const redukti::analysis::SpotAnalysisResult::SpotResultsForField &result,
         const std::optional<std::string> &output_file, std::optional<double> radius);
 
     static std::string &fodToMarkdown(const rayoptics::parax::FirstOrderData &fod,
                                       std::string &sb);
     static std::string &spotResultsMarkdownTable(
-        const rayoptics::analysis::SpotAnalysisResult &spotAnalysisResult,
+        const redukti::analysis::SpotAnalysisResult &spotAnalysisResult,
         std::string &sb);
 
     static std::string startREADME(const LensSpecifications &specs);
@@ -87,7 +87,7 @@ public:
     static void addFodToREADME(std::string &sb,
                                const rayoptics::parax::FirstOrderData &fod);
     static void addSpotReportToREADME(
-        std::string &sb, const rayoptics::analysis::SpotAnalysisResult &spotAnalysisResult);
+        std::string &sb, const redukti::analysis::SpotAnalysisResult &spotAnalysisResult);
     static void addMTFsToREADME(std::string &sb, const std::string &scenario_filesuffix,
                                 const std::vector<int> &mtf_freqs);
 
@@ -154,7 +154,7 @@ private:
         const spec::Prescription &prescription, const optim::OptimizationPipeline &pipeline,
         const std::vector<std::pair<int, optim::OptimizationTrial::TrialDefinition>> &trials);
 
-    static rayoptics::analysis::SpotAnalysisResult generateSpotDiagrams(
+    static redukti::analysis::SpotAnalysisResult generateSpotDiagrams(
         rayoptics::optical::OpticalModel *opm, const util::Args &arguments,
         bool standardSize, const std::string &filename_suffix);
 
@@ -205,10 +205,10 @@ private:
     static constexpr int GAUSS_QUADRATURE_NUM_SPOKES = 20;
 
     /** Spot diagrams are always drawn from hexapolar sampling of 21 rings, regardless of --use-spot-pattern. */
-    static rayoptics::analysis::SpotOptions spotDiagramOptions();
+    static redukti::analysis::SpotOptions spotDiagramOptions();
 
     /** Sampling for the spot report and MTFs, as selected by --use-spot-pattern. */
-    static rayoptics::analysis::SpotOptions spotOptions(const util::Args &arguments);
+    static redukti::analysis::SpotOptions spotOptions(const util::Args &arguments);
 
     static std::unique_ptr<rayoptics::optical::OpticalModel> createLayoutSystem(
         const spec::Prescription &prescription, int config, spec::VigType vigType,

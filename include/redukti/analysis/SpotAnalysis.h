@@ -3,18 +3,20 @@
 // Java version by Dibyendu Majumdar
 // See LICENSE-ray-optics.txt
 //
-// SpotOptions and SpotAnalysisResult are part of Beam42 project
+// spot() and eval_grid() are ported - the grid is upstream's only spot option.
+// The hexapolar and Gaussian-quadrature evaluations, the SpotOptions-driven eval(),
+// and SpotOptions and SpotAnalysisResult themselves are part of Beam42 project
 // (https://github.com/BeamFour/Beam42), Copyright 2025-2026 by Dibyendu Majumdar,
 // License GPL v3; see LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.SpotOptions, SpotAnalysisResult
+// C++ port of org.redukti.analysis.SpotOptions, SpotAnalysisResult
 // and SpotAnalysis.
-#ifndef REDUKTI_RAYOPTICS_ANALYSIS_SPOTANALYSIS_H
-#define REDUKTI_RAYOPTICS_ANALYSIS_SPOTANALYSIS_H
+#ifndef REDUKTI_ANALYSIS_SPOTANALYSIS_H
+#define REDUKTI_ANALYSIS_SPOTANALYSIS_H
 
-#include "redukti/rayoptics/analysis/Histogram.h"
-#include "redukti/rayoptics/analysis/MTF.h"
-#include "redukti/rayoptics/analysis/SpotIntercepts.h"
+#include "redukti/analysis/Histogram.h"
+#include "redukti/analysis/MTF.h"
+#include "redukti/analysis/SpotIntercepts.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
@@ -23,7 +25,7 @@
 #include <string>
 #include <vector>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 /** Fluent configuration for a spot diagram, mirroring the Java builder. */
 class SpotOptions {
@@ -32,7 +34,7 @@ public:
     static constexpr int PATTERN_GAUSS_QUADRATURE = 2;
     static constexpr int PATTERN_GRID = 3;
 
-    raytr::TraceOptions _trace_options;
+    rayoptics::raytr::TraceOptions _trace_options;
     int _pattern = 0;
     bool _use_centroid = true;
     bool _append_failed_rays = false;
@@ -73,17 +75,17 @@ public:
 
     class SpotResultsForField {
     public:
-        std::shared_ptr<const specs::FieldSnapshot> fld;
+        std::shared_ptr<const rayoptics::specs::FieldSnapshot> fld;
         mathlib::Vector3 image_pt;
-        std::vector<raytr::TraceGridByWvl> trace_results;
+        std::vector<rayoptics::raytr::TraceGridByWvl> trace_results;
         std::vector<SpotIntercepts> intercepts;
         double max_radius = 0;
         double mean_radius = 0;
         /** Conversion captured with the intercepts, which remain in model units. */
         double system_units_to_micrometres = 1000.0;
 
-        SpotResultsForField(specs::Field *fld_,
-                            std::vector<raytr::TraceGridByWvl> trace_results_,
+        SpotResultsForField(rayoptics::specs::Field *fld_,
+                            std::vector<rayoptics::raytr::TraceGridByWvl> trace_results_,
                             double ref_wvl, bool use_centroid);
 
         std::string toString() const;
@@ -110,8 +112,8 @@ public:
 
     explicit SpotAnalysisResult(bool use_centroid_) : use_centroid(use_centroid_) {}
 
-    SpotAnalysisResult &add(specs::Field *fld,
-                            std::vector<raytr::TraceGridByWvl> trace_results,
+    SpotAnalysisResult &add(rayoptics::specs::Field *fld,
+                            std::vector<rayoptics::raytr::TraceGridByWvl> trace_results,
                             double ref_wvl);
 
     std::vector<double> fields() const;
@@ -128,29 +130,38 @@ class SpotAnalysis {
 public:
     /**
      * The grid callback. Returns null when the ray failed, which is what stops
-     * a failed trace from contributing a point -- see raytr::ImageFilter.
+     * a failed trace from contributing a point -- see rayoptics::raytr::ImageFilter.
      */
-    static std::optional<raytr::GridItem> spot(const mathlib::Vector2 &p, int wi,
-                                               const std::shared_ptr<const raytr::RayPkg> &ray_pkg,
-                                               specs::Field &fld, double wvl, double foc);
+    static std::optional<rayoptics::raytr::GridItem> spot(const mathlib::Vector2 &p, int wi,
+                                               const std::shared_ptr<const rayoptics::raytr::RayPkg> &ray_pkg,
+                                               rayoptics::specs::Field &fld, double wvl, double foc);
 
-    static std::vector<raytr::TraceGridByWvl> eval_grid(
-        optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
-        const raytr::TraceOptions &trace_options);
+    static std::vector<rayoptics::raytr::TraceGridByWvl> eval_grid(
+        rayoptics::optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
+        const rayoptics::raytr::TraceOptions &trace_options);
 
-    static std::vector<raytr::TraceGridByWvl> eval_rings(
-        optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
-        const raytr::TraceOptions &trace_options);
+    ///////////////////////////////////////////////////////////////////////////////////////
 
-    static std::vector<raytr::TraceGridByWvl> eval_gaussian_quadrature(
-        optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rings,
+    /// Everything below is a Beam42 enhancement: the hexapolar and Gaussian-quadrature
+
+    /// patterns, and the SpotOptions-driven eval() that chooses between them.
+
+    //////////////////////////////////////////////////////////////////////////////////////
+
+
+    static std::vector<rayoptics::raytr::TraceGridByWvl> eval_rings(
+        rayoptics::optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
+        const rayoptics::raytr::TraceOptions &trace_options);
+
+    static std::vector<rayoptics::raytr::TraceGridByWvl> eval_gaussian_quadrature(
+        rayoptics::optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rings,
         std::optional<int> num_spokes, double innerPupilRadius, bool append_if_none,
-        const raytr::TraceOptions &trace_options);
+        const rayoptics::raytr::TraceOptions &trace_options);
 
-    static SpotAnalysisResult eval(optical::OpticalModel *opt_model,
+    static SpotAnalysisResult eval(rayoptics::optical::OpticalModel *opt_model,
                                    const SpotOptions &options);
 };
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
 
-#endif // REDUKTI_RAYOPTICS_ANALYSIS_SPOTANALYSIS_H
+#endif // REDUKTI_ANALYSIS_SPOTANALYSIS_H

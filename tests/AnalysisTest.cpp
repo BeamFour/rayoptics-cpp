@@ -11,9 +11,9 @@
 #include "TestHarness.h"
 
 #include "redukti/Text.h"
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/VigCalc.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
@@ -114,10 +114,10 @@ std::unique_ptr<optical::OpticalModel> buildSummicron() {
     return opm;
 }
 
-analysis::SpotAnalysisResult spotResult(optical::OpticalModel *opm) {
-    auto options = analysis::SpotOptions();
+redukti::analysis::SpotAnalysisResult spotResult(optical::OpticalModel *opm) {
+    auto options = redukti::analysis::SpotOptions();
     options.use_hexapolar().num_rings(8);
-    return analysis::SpotAnalysis::eval(opm, options);
+    return redukti::analysis::SpotAnalysis::eval(opm, options);
 }
 
 /**
@@ -245,7 +245,7 @@ TEST(analysis_mtf_matches_jvm) {
 TEST(analysis_transverse_fans_match_jvm) {
     auto opm = buildSummicron();
     raytr::TraceOptions trace_options;
-    auto tra = analysis::TransverseRayAberrationAnalysis::eval(opm.get(), 11, false,
+    auto tra = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval(opm.get(), 11, false,
                                                                trace_options);
     CHECK_BLOCK(tra.list_ray_fans(), EXPECTED_TRA);
 }
@@ -253,16 +253,16 @@ TEST(analysis_transverse_fans_match_jvm) {
 TEST(analysis_opd_fans_match_jvm) {
     auto opm = buildSummicron();
     raytr::TraceOptions trace_options;
-    auto opd = analysis::WavefrontAberrationAnalysis::eval(opm.get(), 11, false,
+    auto opd = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval(opm.get(), 11, false,
                                                            trace_options);
     CHECK_BLOCK(opd.list_ray_fans(), EXPECTED_OPD);
 }
 
 TEST(analysis_contrast_matches_jvm) {
     auto opm = buildSummicron();
-    auto options = analysis::ContrastOptions(30.0);
+    auto options = redukti::analysis::ContrastOptions(30.0);
     options.num_rings(2).num_spokes(4).center_residuals(true);
-    auto ca = analysis::ContrastAnalysis::eval(opm.get(), options);
+    auto ca = redukti::analysis::ContrastAnalysis::eval(opm.get(), options);
 
     std::string sb = "spatialFrequency=" + d(ca.spatialFrequency) + "\n";
     for (std::size_t fi = 0; fi < ca.fields.size(); fi++) {

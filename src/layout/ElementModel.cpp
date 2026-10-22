@@ -3,8 +3,8 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.layout.ElementModel and CementedElement
-#include "redukti/rayoptics/layout/ElementModel.h"
+// C++ port of org.redukti.layout.ElementModel and CementedElement
+#include "redukti/layout/ElementModel.h"
 
 #include "redukti/Exceptions.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
@@ -15,13 +15,13 @@
 #include <cctype>
 #include <cmath>
 
-namespace redukti::rayoptics::layout {
+namespace redukti::layout {
 
-using elem::surface::Surface;
-using seq::Air;
-using seq::Gap;
-using seq::InteractMode;
-using seq::SequentialModel;
+using rayoptics::elem::surface::Surface;
+using rayoptics::seq::Air;
+using rayoptics::seq::Gap;
+using rayoptics::seq::InteractMode;
+using rayoptics::seq::SequentialModel;
 
 CementedElement::CementedElement(
     std::vector<int> surfaceIndices_,
@@ -35,7 +35,7 @@ CementedElement::CementedElement(
             "a cemented element requires n gaps and n + 1 surfaces");
 }
 
-ElementModel::ElementModel(optical::OpticalModel *opticalModel_)
+ElementModel::ElementModel(rayoptics::optical::OpticalModel *opticalModel_)
     : opticalModel(opticalModel_) {
     updateModel();
 }
@@ -116,7 +116,7 @@ bool ElementModel::isAperture(SequentialModel *sm, int surfaceIndex, double wave
            isAir(followingGap, wavelength);
 }
 
-bool ElementModel::isFieldStop(const std::shared_ptr<seq::Interface> &ifc) {
+bool ElementModel::isFieldStop(const std::shared_ptr<rayoptics::seq::Interface> &ifc) {
     auto surface = std::dynamic_pointer_cast<Surface>(ifc);
     return surface != nullptr && surface->label == FIELD_STOP_LABEL;
 }
@@ -137,4 +137,4 @@ bool ElementModel::isAir(const std::shared_ptr<Gap> &gap, double wavelength) {
     return std::abs(gap->medium->rindex(wavelength) - 1.0) < 1.0e-12;
 }
 
-} // namespace redukti::rayoptics::layout
+} // namespace redukti::layout

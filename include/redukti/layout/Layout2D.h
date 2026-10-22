@@ -3,13 +3,13 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.layout.Layout2D
-#ifndef REDUKTI_RAYOPTICS_LAYOUT_LAYOUT2D_H
-#define REDUKTI_RAYOPTICS_LAYOUT_LAYOUT2D_H
+// C++ port of org.redukti.layout.Layout2D
+#ifndef REDUKTI_LAYOUT_LAYOUT2D_H
+#define REDUKTI_LAYOUT_LAYOUT2D_H
 
 #include "redukti/mathlib/Vector2.h"
 #include "redukti/mathlib/Vector3.h"
-#include "redukti/rayoptics/layout/ElementModel.h"
+#include "redukti/layout/ElementModel.h"
 #include "redukti/rayoptics/math/Tfm3d.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
@@ -19,17 +19,17 @@
 #include <string>
 #include <vector>
 
-namespace redukti::rayoptics::layout {
+namespace redukti::layout {
 
 /** Draws a static y-z (meridional) view of a rayoptics model. */
 /** Draws a 2D cross-section of the optical system. */
 class Layout2D {
 public:
     /** Renders a complete layout into a standalone SVG document. */
-    std::string renderSvg(optical::OpticalModel *model, double width, double height,
+    std::string renderSvg(rayoptics::optical::OpticalModel *model, double width, double height,
                           const LayoutOptions *options);
 
-    void render(render::RendererViewport &renderer, optical::OpticalModel *model,
+    void render(render::RendererViewport &renderer, rayoptics::optical::OpticalModel *model,
                 const LayoutOptions *options);
 
 private:
@@ -54,7 +54,7 @@ private:
 
     class SurfaceDrawing {
     public:
-        std::shared_ptr<elem::surface::Surface> surface;
+        std::shared_ptr<rayoptics::elem::surface::Surface> surface;
         double profileRadius;
         bool flat;
         double mechanicalRadius;
@@ -74,66 +74,66 @@ private:
         void pad(double margin);
     };
 
-    void addElements(std::vector<Polyline> &out, optical::OpticalModel *model,
+    void addElements(std::vector<Polyline> &out, rayoptics::optical::OpticalModel *model,
                      ElementModel &elementModel, int samples);
     /** Implements Geopter's curvature-dependent DrawLens/DrawFlat construction. */
-    void addLens(std::vector<Polyline> &out, seq::SequentialModel *sm,
+    void addLens(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm,
                  const LensElement &lensElement, int samples);
     /**
      * Draws a cemented assembly while emitting every shared optical profile
      * once. Each material gap still receives its own upper and lower rim.
      */
-    void addCementedElement(std::vector<Polyline> &out, seq::SequentialModel *sm,
+    void addCementedElement(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm,
                             const CementedElement &element, int samples);
-    void addSurface(std::vector<Polyline> &out, seq::SequentialModel *sm, int index,
-                    const elem::surface::Surface &surface, double radius, int samples);
-    void addFlats(std::vector<Polyline> &out, seq::SequentialModel *sm, int surfaceIndex,
-                  const elem::surface::Surface &surface, double profileRadius,
+    void addSurface(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm, int index,
+                    const rayoptics::elem::surface::Surface &surface, double radius, int samples);
+    void addFlats(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm, int surfaceIndex,
+                  const rayoptics::elem::surface::Surface &surface, double profileRadius,
                   double mechanicalRadius);
-    void addFlat(std::vector<Polyline> &out, seq::SequentialModel *sm, int surfaceIndex,
-                 const elem::surface::Surface &surface, double fromY, double toY);
-    void addCommonEdges(std::vector<Polyline> &out, seq::SequentialModel *sm,
+    void addFlat(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm, int surfaceIndex,
+                 const rayoptics::elem::surface::Surface &surface, double fromY, double toY);
+    void addCommonEdges(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm,
                         const LensElement &lensElement, double profileRadius1,
                         double profileRadius2, double mechanicalRadius);
-    void addCommonEdge(std::vector<Polyline> &out, seq::SequentialModel *sm,
+    void addCommonEdge(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm,
                        const LensElement &lensElement, double profileY1, double profileY2,
                        double edgeY);
-    void addStop(std::vector<Polyline> &out, seq::SequentialModel *sm, const Stop &stop);
-    void addAperture(std::vector<Polyline> &out, seq::SequentialModel *sm,
+    void addStop(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm, const Stop &stop);
+    void addAperture(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm,
                      const Aperture &aperture);
-    void addApertureMarker(std::vector<Polyline> &out, const math::Tfm3d &tfm,
+    void addApertureMarker(std::vector<Polyline> &out, const rayoptics::math::Tfm3d &tfm,
                            double radius, double strokeWidth);
-    void addImagePlane(std::vector<Polyline> &out, optical::OpticalModel *model,
+    void addImagePlane(std::vector<Polyline> &out, rayoptics::optical::OpticalModel *model,
                        const DummyInterface &image);
-    void addRays(std::vector<Polyline> &out, optical::OpticalModel *model,
+    void addRays(std::vector<Polyline> &out, rayoptics::optical::OpticalModel *model,
                  const LayoutOptions &options);
-    void addDirectFan(std::vector<Polyline> &out, optical::OpticalModel *model,
-                      specs::Field &field, double wavelength, const render::Rgb &color,
+    void addDirectFan(std::vector<Polyline> &out, rayoptics::optical::OpticalModel *model,
+                      rayoptics::specs::Field &field, double wavelength, const render::Rgb &color,
                       const LayoutOptions &options);
-    void addTraceFan(std::vector<Polyline> &out, optical::OpticalModel *model,
-                     specs::Field &field, double wavelength, const render::Rgb &color,
+    void addTraceFan(std::vector<Polyline> &out, rayoptics::optical::OpticalModel *model,
+                     rayoptics::specs::Field &field, double wavelength, const render::Rgb &color,
                      const LayoutOptions &options);
-    static raytr::TraceOptions traceOptions(const LayoutOptions &options);
-    void addRay(std::vector<Polyline> &out, seq::SequentialModel *sm,
-                const std::shared_ptr<const raytr::RayPkg> &ray, const render::Rgb &color);
+    static rayoptics::raytr::TraceOptions traceOptions(const LayoutOptions &options);
+    void addRay(std::vector<Polyline> &out, rayoptics::seq::SequentialModel *sm,
+                const std::shared_ptr<const rayoptics::raytr::RayPkg> &ray, const render::Rgb &color);
 
     static LensDrawing lensDrawing(const LensElement &lens);
     /** Combines the drawing requests made for a surface shared by two glass gaps. */
     static void mergeSurfaceDrawing(std::map<int, SurfaceDrawing> &drawings, int index,
-                                    const std::shared_ptr<elem::surface::Surface> &surface,
+                                    const std::shared_ptr<rayoptics::elem::surface::Surface> &surface,
                                     double profileRadius, bool flat,
                                     double mechanicalRadius);
 
-    static double semiDiameter(const seq::Interface &surface);
-    static double maxAperture(const seq::Interface &surface);
-    static double surfaceRadius(const seq::Interface &surface);
-    static mathlib::Vector2 toLayout(const math::Tfm3d &tfm, const mathlib::Vector3 &local);
+    static double semiDiameter(const rayoptics::seq::Interface &surface);
+    static double maxAperture(const rayoptics::seq::Interface &surface);
+    static double surfaceRadius(const rayoptics::seq::Interface &surface);
+    static mathlib::Vector2 toLayout(const rayoptics::math::Tfm3d &tfm, const mathlib::Vector3 &local);
     static void flush(std::vector<Polyline> &out, const std::vector<mathlib::Vector2> &points,
                       const render::Rgb &color);
     static Bounds bounds(const std::vector<Polyline> &lines);
-    static Bounds modelBounds(optical::OpticalModel *model);
+    static Bounds modelBounds(rayoptics::optical::OpticalModel *model);
 };
 
-} // namespace redukti::rayoptics::layout
+} // namespace redukti::layout
 
-#endif // REDUKTI_RAYOPTICS_LAYOUT_LAYOUT2D_H
+#endif // REDUKTI_LAYOUT_LAYOUT2D_H

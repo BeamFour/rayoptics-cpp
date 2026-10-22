@@ -3,8 +3,8 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.PupilMapAnalysis
-#include "redukti/rayoptics/analysis/PupilMapAnalysis.h"
+// C++ port of org.redukti.analysis.PupilMapAnalysis
+#include "redukti/analysis/PupilMapAnalysis.h"
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
@@ -21,7 +21,7 @@
 #include <cmath>
 #include <memory>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 namespace {
 
@@ -40,7 +40,7 @@ std::string PupilMapAnalysis::MappingQuality::toString() const {
            ", covered=" + doubleToString(covered) + "]";
 }
 
-PupilMapAnalysis::PupilMapForField::PupilMapForField(int fi_, specs::Field *fld_,
+PupilMapAnalysis::PupilMapForField::PupilMapForField(int fi_, rayoptics::specs::Field *fld_,
                                                      double reach_, int num_samples_,
                                                      std::vector<Sample> samples_)
     : fi(fi_), fld(fld_), reach(reach_), num_samples(num_samples_),
@@ -101,17 +101,17 @@ std::string PupilMapAnalysis::PupilMapResult::toString() const {
     return sb;
 }
 
-PupilMapAnalysis::PupilMapResult PupilMapAnalysis::eval(optical::OpticalModel *opm) {
+PupilMapAnalysis::PupilMapResult PupilMapAnalysis::eval(rayoptics::optical::OpticalModel *opm) {
     return eval(opm, DEFAULT_NUM_SAMPLES, std::nullopt);
 }
 
 PupilMapAnalysis::PupilMapResult PupilMapAnalysis::eval(
-    optical::OpticalModel *opm, int num_samples, const std::optional<std::vector<int>> &fields) {
+    rayoptics::optical::OpticalModel *opm, int num_samples, const std::optional<std::vector<int>> &fields) {
     if (num_samples < 3)
         throw IllegalArgumentException("a pupil map needs at least 3 samples per axis");
     auto *osp = opm->optical_spec.get();
     double wvl = opm->seq_model->central_wavelength();
-    raytr::TraceOptions options;
+    rayoptics::raytr::TraceOptions options;
     options.check_apertures = true;
     // Raw pupil coordinates: the map measures the bundle, so it must not be told
     // where the bundle is supposed to be.
@@ -125,7 +125,7 @@ PupilMapAnalysis::PupilMapResult PupilMapAnalysis::eval(
         if (fields.has_value() &&
             std::find(fields->begin(), fields->end(), fi) == fields->end())
             continue;
-        specs::Field &fld = *fieldList[static_cast<std::size_t>(fi)];
+        rayoptics::specs::Field &fld = *fieldList[static_cast<std::size_t>(fi)];
         double reach = reach_for(fld);
         // The factors are the hypothesis being checked, so cleared or underestimated
         // factors can make this initial square smaller than the transmitted bundle.
@@ -157,18 +157,18 @@ PupilMapAnalysis::PupilMapResult PupilMapAnalysis::eval(
 }
 
 std::vector<PupilMapAnalysis::Sample> PupilMapAnalysis::sample_grid(
-    optical::OpticalModel *opm, specs::Field &fld, double wvl,
-    const raytr::TraceOptions &options, double reach, int num_samples) {
+    rayoptics::optical::OpticalModel *opm, rayoptics::specs::Field &fld, double wvl,
+    const rayoptics::raytr::TraceOptions &options, double reach, int num_samples) {
     std::vector<Sample> samples;
     samples.reserve(static_cast<std::size_t>(num_samples) * static_cast<std::size_t>(num_samples));
     for (int i = 0; i < num_samples; i++) {
         for (int j = 0; j < num_samples; j++) {
             double x = -reach + 2 * reach * i / (num_samples - 1.0);
             double y = -reach + 2 * reach * j / (num_samples - 1.0);
-            auto ray = raytr::Trace::trace_safe(opm, mathlib::Vector2(x, y), fld, wvl, options);
+            auto ray = rayoptics::raytr::Trace::trace_safe(opm, mathlib::Vector2(x, y), fld, wvl, options);
             bool passed = ray.pkg != nullptr && ray.err == nullptr;
             int blocked_by =
-                std::dynamic_pointer_cast<exceptions::TraceRayBlockedException>(ray.err)
+                std::dynamic_pointer_cast<rayoptics::exceptions::TraceRayBlockedException>(ray.err)
                     ? ray.err->surf
                     : -1;
             samples.push_back(Sample{x, y, passed, blocked_by});
@@ -177,13 +177,13 @@ std::vector<PupilMapAnalysis::Sample> PupilMapAnalysis::sample_grid(
     return samples;
 }
 
-double PupilMapAnalysis::reach_for(const specs::Field &fld) {
+double PupilMapAnalysis::reach_for(const rayoptics::specs::Field &fld) {
     double widest = std::max(std::max(scale(fld.vlx), scale(fld.vux)),
                              std::max(scale(fld.vly), scale(fld.vuy)));
     return 1.15 * std::max(1.0, widest);
 }
 
-bool PupilMapAnalysis::inside_piecewise(double x, double y, const specs::Field &fld) {
+bool PupilMapAnalysis::inside_piecewise(double x, double y, const rayoptics::specs::Field &fld) {
     double xScale = fld.vignetting_scale_x(x);
     double yScale = fld.vignetting_scale_y(y);
     if (!(xScale > 0.0) || !(yScale > 0.0))
@@ -192,7 +192,7 @@ bool PupilMapAnalysis::inside_piecewise(double x, double y, const specs::Field &
     return u * u + v * v <= 1.0;
 }
 
-bool PupilMapAnalysis::inside_ellipse(double x, double y, const specs::Field &fld) {
+bool PupilMapAnalysis::inside_ellipse(double x, double y, const rayoptics::specs::Field &fld) {
     double xScale = ellipse_scale(fld.vlx, fld.vux);
     double yScale = ellipse_scale(fld.vly, fld.vuy);
     if (!(xScale > 0.0) || !(yScale > 0.0))
@@ -202,4 +202,4 @@ bool PupilMapAnalysis::inside_ellipse(double x, double y, const specs::Field &fl
     return u * u + v * v <= 1.0;
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis

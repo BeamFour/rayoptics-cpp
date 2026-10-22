@@ -10,7 +10,6 @@
 #include "redukti/rayoptics/math/Tfm3d.h"
 // The trace_* drivers below are the glue between the analysis package and
 #include "redukti/rayoptics/optical/OpticalModel.h"
-#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/seq/Gap.h"

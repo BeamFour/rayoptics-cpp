@@ -8,11 +8,11 @@
 // are written out by hand because the Java writes them by hand too.
 #include "../TestHarness.h"
 
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/elem/profiles/EvenPolynomial.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
-#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
+#include "redukti/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/raytr/VigCalc.h"
@@ -36,18 +36,18 @@ namespace profiles = elem::profiles;
 
 using Separations = std::array<double, 4>;
 
-Separations exitPupilSeparations(const analysis::ContrastRayTriplet &rays,
+Separations exitPupilSeparations(const redukti::analysis::ContrastRayTriplet &rays,
                                  specs::Field &field, double wavelength, double focus) {
     (void)wavelength;
     (void)focus;
     CHECK(rays.referenceError == nullptr);
     CHECK(rays.sagittalError == nullptr);
     CHECK(rays.tangentialError == nullptr);
-    auto reference = analysis::ExitPupilAiming::sphere_coord(rays.reference, field.chief_ray,
+    auto reference = redukti::analysis::ExitPupilAiming::sphere_coord(rays.reference, field.chief_ray,
                                                           field.ref_sphere);
-    auto sagittal = analysis::ExitPupilAiming::sphere_coord(rays.sagittal, field.chief_ray,
+    auto sagittal = redukti::analysis::ExitPupilAiming::sphere_coord(rays.sagittal, field.chief_ray,
                                                          field.ref_sphere);
-    auto tangential = analysis::ExitPupilAiming::sphere_coord(
+    auto tangential = redukti::analysis::ExitPupilAiming::sphere_coord(
         rays.tangential, field.chief_ray, field.ref_sphere);
     CHECK(reference.has_value());
     CHECK(sagittal.has_value());
@@ -312,20 +312,20 @@ TEST(integration_nikkor14mm_first_order_and_wide_angle_aiming) {
     int fieldIndex = 1;
     int wavelengthIndex = osp->wvls->reference_wvl;
     double wavelength = osp->wvls->wavelengths[static_cast<std::size_t>(wavelengthIndex)];
-    double normalizedShift = analysis::ContrastAnalysis::normalized_entry_pupil_shift(
+    double normalizedShift = redukti::analysis::ContrastAnalysis::normalized_entry_pupil_shift(
         opm.get(), wavelength, 40.0);
     Vector2 sagittalShift(normalizedShift, 0.0);
     Vector2 tangentialShift(0.0, normalizedShift);
 
-    analysis::ContrastTraceCallback<Separations> sep = exitPupilSeparations;
+    redukti::analysis::ContrastTraceCallback<Separations> sep = exitPupilSeparations;
     raytr::TraceOptions options;
-    auto unaimed = analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
+    auto unaimed = redukti::analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
         opm.get(), sep, fieldIndex, wavelengthIndex, 1, 6, sagittalShift,
         tangentialShift, 40.0, options, false);
-    auto aimed = analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
+    auto aimed = redukti::analysis::ContrastAnalysis::trace_by_wavelength<Separations>(
         opm.get(), sep, fieldIndex, wavelengthIndex, 1, 6, sagittalShift,
         tangentialShift, 40.0, options, true);
-    double requestedShift = analysis::ExitPupilAiming::referenceSphereShift(
+    double requestedShift = redukti::analysis::ExitPupilAiming::referenceSphereShift(
         opm.get(), *osp->fov->fields[static_cast<std::size_t>(fieldIndex)], wavelength,
         40.0);
     double unaimedError = maxSeparationError(unaimed[0].samples, requestedShift);

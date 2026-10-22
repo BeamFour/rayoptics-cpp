@@ -13,7 +13,7 @@
 #include "../TestHarness.h"
 
 #include "redukti/rayoptics/analysis/RayAberrations.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/elem/profiles/EvenPolynomial.h"
 #include "redukti/rayoptics/elem/profiles/RadialPolynomial.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
@@ -38,13 +38,13 @@ void exercise(optical::OpticalModel *opm) {
     raytr::Trace::apply_paraxial_vignetting(opm);
     raytr::TraceOptions options;
     auto transAber =
-        analysis::TransverseRayAberrationAnalysis::eval_abr_fan(opm, 0, 1, 21, false,
+        redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(opm, 0, 1, 21, false,
                                                                 options);
     CHECK(!transAber.fans.empty());
     CHECK_EQ(transAber.fans[0].fan_x.size(), std::size_t(21));
     CHECK_EQ(transAber.fans[0].fan_y.size(), std::size_t(21));
 
-    auto spot = analysis::SpotAnalysis::eval(opm, analysis::SpotOptions());
+    auto spot = redukti::analysis::SpotAnalysis::eval(opm, redukti::analysis::SpotOptions());
     CHECK_EQ(spot.spot_results.size(), opm->optical_spec->fov->fields.size());
     for (const auto &r : spot.spot_results) {
         CHECK(!r.intercepts.empty());

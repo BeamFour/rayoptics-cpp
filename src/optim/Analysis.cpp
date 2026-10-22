@@ -20,10 +20,10 @@
 
 namespace redukti::optim {
 
-using rayoptics::analysis::ContrastAnalysis;
-using rayoptics::analysis::ContrastOptions;
-using rayoptics::analysis::SpotAnalysis;
-using rayoptics::analysis::SpotOptions;
+using redukti::analysis::ContrastAnalysis;
+using redukti::analysis::ContrastOptions;
+using redukti::analysis::SpotAnalysis;
+using redukti::analysis::SpotOptions;
 using rayoptics::analysis::TransverseRayAberrationAnalysis;
 using rayoptics::optical::OpticalModel;
 using spec::VigType;
@@ -114,7 +114,7 @@ void Analysis::compute() {
         }
         auto spotAnalysis = SpotAnalysis::eval(_opt_model.get(), options);
         _mtfs = _compute_mtf
-                    ? std::optional<std::vector<rayoptics::analysis::MTFResultByFreq>>(
+                    ? std::optional<std::vector<redukti::analysis::MTFResultByFreq>>(
                           spotAnalysis.computeMTFs(_freqs))
                     : std::nullopt;
         // Moved, not copied, and moved after computeMTFs which reads it.

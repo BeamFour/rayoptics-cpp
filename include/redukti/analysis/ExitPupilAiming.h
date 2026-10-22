@@ -3,9 +3,9 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.ExitPupilAiming
-#ifndef REDUKTI_RAYOPTICS_ANALYSIS_EXITPUPILAIMING_H
-#define REDUKTI_RAYOPTICS_ANALYSIS_EXITPUPILAIMING_H
+// C++ port of org.redukti.analysis.ExitPupilAiming
+#ifndef REDUKTI_ANALYSIS_EXITPUPILAIMING_H
+#define REDUKTI_ANALYSIS_EXITPUPILAIMING_H
 
 #include "redukti/rayoptics/exceptions/TraceException.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
@@ -18,21 +18,21 @@ namespace redukti::rayoptics::optical {
 class OpticalModel;
 }
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 /** Inverse entrance-to-exit-pupil mapping used by contrast tracing. */
 class ExitPupilAiming {
 public:
     /** A ray traced successfully, but its requested exit-pupil coordinate was not found. */
     /** Java's nested `ExitPupilAimException extends TraceException`. */
-    class ExitPupilAimException : public exceptions::TraceException {
+    class ExitPupilAimException : public rayoptics::exceptions::TraceException {
     public:
         explicit ExitPupilAimException(std::string message)
-            : exceptions::TraceException(std::move(message)) {}
+            : rayoptics::exceptions::TraceException(std::move(message)) {}
 
         std::string simple_name() const override { return "ExitPupilAimException"; }
 
-        std::shared_ptr<exceptions::TraceException> clone() const override {
+        std::shared_ptr<rayoptics::exceptions::TraceException> clone() const override {
             return std::make_shared<ExitPupilAimException>(*this);
         }
     };
@@ -41,13 +41,13 @@ public:
     class Result {
     public:
         mathlib::Vector2 pupil;
-        raytr::RayResult ray;
+        rayoptics::raytr::RayResult ray;
         /** Null when the exit-pupil coordinate could not be computed. */
         std::optional<mathlib::Vector3> exitCoordinate;
         int iterations;
         double error;
 
-        Result(const mathlib::Vector2 &pupil_, raytr::RayResult ray_,
+        Result(const mathlib::Vector2 &pupil_, rayoptics::raytr::RayResult ray_,
                std::optional<mathlib::Vector3> exitCoordinate_, int iterations_,
                double error_)
             : pupil(pupil_), ray(std::move(ray_)),
@@ -56,24 +56,24 @@ public:
     };
 
     /** Defocus shift of the reference sphere for a given spatial frequency. */
-    static double referenceSphereShift(optical::OpticalModel *opticalModel,
-                                       specs::Field &field, double wavelength,
+    static double referenceSphereShift(rayoptics::optical::OpticalModel *opticalModel,
+                                       rayoptics::specs::Field &field, double wavelength,
                                        double spatialFrequency);
 
     /**
      * Iterate the entrance pupil coordinate until the ray lands on
      * `targetExitPupilCoord`.
      */
-    static Result aim(optical::OpticalModel *opticalModel,
+    static Result aim(rayoptics::optical::OpticalModel *opticalModel,
                       const mathlib::Vector2 &initialEntrancePupilCoord,
-                      const mathlib::Vector2 &targetExitPupilCoord, specs::Field &field,
-                      double wavelength, const raytr::TraceOptions &traceOptions);
+                      const mathlib::Vector2 &targetExitPupilCoord, rayoptics::specs::Field &field,
+                      double wavelength, const rayoptics::raytr::TraceOptions &traceOptions);
 
     /** Exit-pupil coordinate of a traced ray, or null if not computable. */
     static std::optional<mathlib::Vector3> sphere_coord(
-        const std::shared_ptr<const raytr::RayPkg> &rayPkg,
-        const std::shared_ptr<const raytr::ChiefRayPkg> &chiefRayPkg,
-        const std::shared_ptr<const raytr::ReferenceSphere> &referenceSphere);
+        const std::shared_ptr<const rayoptics::raytr::RayPkg> &rayPkg,
+        const std::shared_ptr<const rayoptics::raytr::ChiefRayPkg> &chiefRayPkg,
+        const std::shared_ptr<const rayoptics::raytr::ReferenceSphere> &referenceSphere);
 
 private:
     static const int MAX_ITERATIONS = 10;
@@ -81,25 +81,25 @@ private:
 
     class Evaluation {
     public:
-        raytr::RayResult ray;
+        rayoptics::raytr::RayResult ray;
         std::optional<mathlib::Vector3> coordinate;
         std::optional<mathlib::Vector2> residual;
     };
 
     static Result failed(const mathlib::Vector2 &pupil,
-                         std::shared_ptr<exceptions::TraceException> error);
+                         std::shared_ptr<rayoptics::exceptions::TraceException> error);
 
     /**
      * Aim a ray so its transverse coordinate on the exit-pupil reference sphere equals
      * target. The initial entrance-pupil coordinate is normally the traditional
      * entrance-pupil displacement and is therefore already a close guess.
      */
-    static Evaluation evaluate(optical::OpticalModel *opticalModel,
+    static Evaluation evaluate(rayoptics::optical::OpticalModel *opticalModel,
                                const mathlib::Vector2 &pupil,
-                               const mathlib::Vector2 &target, specs::Field &field,
-                               double wavelength, const raytr::TraceOptions &traceOptions);
+                               const mathlib::Vector2 &target, rayoptics::specs::Field &field,
+                               double wavelength, const rayoptics::raytr::TraceOptions &traceOptions);
 };
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
 
-#endif // REDUKTI_RAYOPTICS_ANALYSIS_EXITPUPILAIMING_H
+#endif // REDUKTI_ANALYSIS_EXITPUPILAIMING_H

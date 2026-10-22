@@ -9,7 +9,7 @@
 #include "redukti/rayoptics/elem/profiles/EvenPolynomial.h"
 #include "redukti/rayoptics/elem/profiles/RadialPolynomial.h"
 #include "redukti/rayoptics/elem/surface/Surface.h"
-#include "redukti/rayoptics/layout/ElementModel.h"
+#include "redukti/layout/ElementModel.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/raytr/VigCalc.h"
@@ -162,7 +162,7 @@ void RayOpticsModelBuilder::add_surface(seq::SequentialModel *sm, const SurfaceT
         auto surface = std::dynamic_pointer_cast<elem::surface::Surface>(
             sm->ifcs[static_cast<std::size_t>(*sm->cur_surface)]);
         if (surface != nullptr)
-            surface->label = layout::ElementModel::FIELD_STOP_LABEL;
+            surface->label = redukti::layout::ElementModel::FIELD_STOP_LABEL;
     }
     if (s.is_aperture_stop())
         sm->set_stop();

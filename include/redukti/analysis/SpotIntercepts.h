@@ -3,16 +3,16 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.SpotIntercepts
-#ifndef REDUKTI_RAYOPTICS_ANALYSIS_SPOTINTERCEPTS_H
-#define REDUKTI_RAYOPTICS_ANALYSIS_SPOTINTERCEPTS_H
+// C++ port of org.redukti.analysis.SpotIntercepts
+#ifndef REDUKTI_ANALYSIS_SPOTINTERCEPTS_H
+#define REDUKTI_ANALYSIS_SPOTINTERCEPTS_H
 
 #include "redukti/mathlib/Vector2.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 
 #include <vector>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 /**
  * The image-plane intercepts of one traced grid, unpacked into parallel arrays.
@@ -41,13 +41,13 @@ public:
      */
     std::vector<char> valid;
 
-    explicit SpotIntercepts(const raytr::TraceGridByWvl &trace_data_);
+    explicit SpotIntercepts(const rayoptics::raytr::TraceGridByWvl &trace_data_);
 
     mathlib::Vector2 compute_centroid() const;
 
     void adjust_to_centroid(const mathlib::Vector2 &centroid);
 };
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
 
-#endif // REDUKTI_RAYOPTICS_ANALYSIS_SPOTINTERCEPTS_H
+#endif // REDUKTI_ANALYSIS_SPOTINTERCEPTS_H

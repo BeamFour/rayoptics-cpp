@@ -3,15 +3,15 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.Histogram
-#ifndef REDUKTI_RAYOPTICS_ANALYSIS_HISTOGRAM_H
-#define REDUKTI_RAYOPTICS_ANALYSIS_HISTOGRAM_H
+// C++ port of org.redukti.analysis.Histogram
+#ifndef REDUKTI_ANALYSIS_HISTOGRAM_H
+#define REDUKTI_ANALYSIS_HISTOGRAM_H
 
-#include "redukti/rayoptics/analysis/SpotIntercepts.h"
+#include "redukti/analysis/SpotIntercepts.h"
 
 #include <vector>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 /**
  * A square 2D histogram of spot intercepts, plus the two line spread functions
@@ -101,6 +101,6 @@ private:
     void build_lsfs();
 };
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
 
-#endif // REDUKTI_RAYOPTICS_ANALYSIS_HISTOGRAM_H
+#endif // REDUKTI_ANALYSIS_HISTOGRAM_H

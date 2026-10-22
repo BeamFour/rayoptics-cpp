@@ -3,8 +3,8 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.ExitPupilAiming
-#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
+// C++ port of org.redukti.analysis.ExitPupilAiming
+#include "redukti/analysis/ExitPupilAiming.h"
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
@@ -19,7 +19,7 @@
 #include <cmath>
 #include <limits>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 namespace M = mathlib::M;
 using mathlib::Vector2;
@@ -36,8 +36,8 @@ const double ExitPupilAiming::ENTRANCE_STEP = 1.0e-4;
  * the corresponding pupil-coordinate separation is R*lambda*nu/n.
  * This avoids converting through the paraxial exit-pupil radius and f-number.
  */
-double ExitPupilAiming::referenceSphereShift(optical::OpticalModel *opticalModel,
-                                             specs::Field &field, double wavelength,
+double ExitPupilAiming::referenceSphereShift(rayoptics::optical::OpticalModel *opticalModel,
+                                             rayoptics::specs::Field &field, double wavelength,
                                              double spatialFrequency) {
     if (field.ref_sphere == nullptr ||
         M::is_kinda_big(field.ref_sphere->ref_sphere_radius)) {
@@ -53,17 +53,17 @@ double ExitPupilAiming::referenceSphereShift(optical::OpticalModel *opticalModel
 }
 
 ExitPupilAiming::Result ExitPupilAiming::failed(
-    const Vector2 &pupil, std::shared_ptr<exceptions::TraceException> error) {
+    const Vector2 &pupil, std::shared_ptr<rayoptics::exceptions::TraceException> error) {
     error->surf = -1;
-    return Result(pupil, raytr::RayResult(nullptr, error), std::nullopt, MAX_ITERATIONS,
+    return Result(pupil, rayoptics::raytr::RayResult(nullptr, error), std::nullopt, MAX_ITERATIONS,
                   std::numeric_limits<double>::quiet_NaN());
 }
 
 ExitPupilAiming::Evaluation ExitPupilAiming::evaluate(
-    optical::OpticalModel *opticalModel, const Vector2 &pupil, const Vector2 &target,
-    specs::Field &field, double wavelength, const raytr::TraceOptions &traceOptions) {
+    rayoptics::optical::OpticalModel *opticalModel, const Vector2 &pupil, const Vector2 &target,
+    rayoptics::specs::Field &field, double wavelength, const rayoptics::raytr::TraceOptions &traceOptions) {
     Evaluation e;
-    e.ray = raytr::Trace::trace_safe(opticalModel, pupil, field, wavelength, traceOptions);
+    e.ray = rayoptics::raytr::Trace::trace_safe(opticalModel, pupil, field, wavelength, traceOptions);
     if (e.ray.pkg == nullptr)
         return e;
     auto coordinate = sphere_coord(e.ray.pkg, field.chief_ray, field.ref_sphere);
@@ -74,11 +74,11 @@ ExitPupilAiming::Evaluation ExitPupilAiming::evaluate(
     return e;
 }
 
-ExitPupilAiming::Result ExitPupilAiming::aim(optical::OpticalModel *opticalModel,
+ExitPupilAiming::Result ExitPupilAiming::aim(rayoptics::optical::OpticalModel *opticalModel,
                                              const Vector2 &initialEntrancePupilCoord,
                                              const Vector2 &targetExitPupilCoord,
-                                             specs::Field &field, double wavelength,
-                                             const raytr::TraceOptions &traceOptions) {
+                                             rayoptics::specs::Field &field, double wavelength,
+                                             const rayoptics::raytr::TraceOptions &traceOptions) {
     if (field.chief_ray == nullptr || field.ref_sphere == nullptr ||
         M::is_kinda_big(field.ref_sphere->ref_sphere_radius)) {
         return failed(initialEntrancePupilCoord,
@@ -162,9 +162,9 @@ ExitPupilAiming::Result ExitPupilAiming::aim(optical::OpticalModel *opticalModel
 }
 
 std::optional<Vector3> ExitPupilAiming::sphere_coord(
-    const std::shared_ptr<const raytr::RayPkg> &rayPkg,
-    const std::shared_ptr<const raytr::ChiefRayPkg> &chiefRayPkg,
-    const std::shared_ptr<const raytr::ReferenceSphere> &referenceSphere) {
+    const std::shared_ptr<const rayoptics::raytr::RayPkg> &rayPkg,
+    const std::shared_ptr<const rayoptics::raytr::ChiefRayPkg> &chiefRayPkg,
+    const std::shared_ptr<const rayoptics::raytr::ReferenceSphere> &referenceSphere) {
     if (rayPkg == nullptr)
         return std::nullopt;
     if (chiefRayPkg == nullptr || referenceSphere == nullptr)
@@ -180,8 +180,8 @@ std::optional<Vector3> ExitPupilAiming::sphere_coord(
     auto &testRay = rayPkg->ray;
     if (testRay.size() != chiefRay.size())
         return std::nullopt;
-    return raytr::WaveAbr::wave_abr_calc_finite_pupil(rayPkg, chiefRayPkg, referenceSphere)
+    return rayoptics::raytr::WaveAbr::wave_abr_calc_finite_pupil(rayPkg, chiefRayPkg, referenceSphere)
         .ray_exit_pupil_coord;
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis

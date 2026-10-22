@@ -3,17 +3,17 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.SpotIntercepts
-#include "redukti/rayoptics/analysis/SpotIntercepts.h"
+// C++ port of org.redukti.analysis.SpotIntercepts
+#include "redukti/analysis/SpotIntercepts.h"
 
 #include <cmath>
 #include <limits>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 using mathlib::Vector2;
 
-SpotIntercepts::SpotIntercepts(const raytr::TraceGridByWvl &trace_data_) {
+SpotIntercepts::SpotIntercepts(const rayoptics::raytr::TraceGridByWvl &trace_data_) {
     const auto n = trace_data_.grid.size();
     wvl = trace_data_.wvl;
     x.resize(n);
@@ -57,4 +57,4 @@ void SpotIntercepts::adjust_to_centroid(const Vector2 &centroid) {
     }
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis

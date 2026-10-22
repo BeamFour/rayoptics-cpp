@@ -9,10 +9,10 @@
 #define REDUKTI_PLOTTER_PLOTTER_H
 
 #include "redukti/Text.h"
-#include "redukti/rayoptics/analysis/MTF.h"
+#include "redukti/analysis/MTF.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
-#include "redukti/rayoptics/analysis/PupilMapAnalysis.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/PupilMapAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/render/Renderer.h"
 
 #include <optional>
@@ -31,10 +31,10 @@ public:
 class SpotDiagram {
 public:
     /** Borrowed; the caller owns the analysis result. */
-    const rayoptics::analysis::SpotAnalysisResult::SpotResultsForField *result;
+    const redukti::analysis::SpotAnalysisResult::SpotResultsForField *result;
 
     explicit SpotDiagram(
-        const rayoptics::analysis::SpotAnalysisResult::SpotResultsForField &result_)
+        const redukti::analysis::SpotAnalysisResult::SpotResultsForField &result_)
         : result(&result_) {}
 
     /**
@@ -50,14 +50,14 @@ public:
 class GeoMTFPlot {
 public:
     std::shared_ptr<const rayoptics::specs::FieldSnapshot> fld;
-    const rayoptics::analysis::MonochromaticGeometricMTF *geo_mtf;
+    const redukti::analysis::MonochromaticGeometricMTF *geo_mtf;
 
     GeoMTFPlot(const rayoptics::specs::FieldSnapshot &fld_,
-               const rayoptics::analysis::MonochromaticGeometricMTF &geo_mtf_)
+               const redukti::analysis::MonochromaticGeometricMTF &geo_mtf_)
         : fld(std::make_shared<const rayoptics::specs::FieldSnapshot>(fld_)), geo_mtf(&geo_mtf_) {}
 
     GeoMTFPlot(const rayoptics::specs::Field &fld_,
-               const rayoptics::analysis::MonochromaticGeometricMTF &geo_mtf_)
+               const redukti::analysis::MonochromaticGeometricMTF &geo_mtf_)
         : GeoMTFPlot(rayoptics::specs::FieldSnapshot(fld_), geo_mtf_) {}
 
     std::string plot() const;
@@ -65,10 +65,10 @@ public:
 
 class GeoMTFByFieldPlot {
 public:
-    std::vector<rayoptics::analysis::MTFResultByFreq> mtfs_by_freq;
+    std::vector<redukti::analysis::MTFResultByFreq> mtfs_by_freq;
     std::vector<double> fields;
 
-    GeoMTFByFieldPlot(std::vector<rayoptics::analysis::MTFResultByFreq> mtfs_by_freq_,
+    GeoMTFByFieldPlot(std::vector<redukti::analysis::MTFResultByFreq> mtfs_by_freq_,
                       const std::vector<double> &fields_)
         // Names of the above, in the same order, for describing the plot in text
         : mtfs_by_freq(std::move(mtfs_by_freq_)), fields(fields_) {}
@@ -113,9 +113,9 @@ private:
 class PupilMapPlot {
 public:
     /** Borrowed; the caller owns the analysis result. */
-    const rayoptics::analysis::PupilMapAnalysis::PupilMapForField *map;
+    const redukti::analysis::PupilMapAnalysis::PupilMapForField *map;
 
-    explicit PupilMapPlot(const rayoptics::analysis::PupilMapAnalysis::PupilMapForField &map_)
+    explicit PupilMapPlot(const redukti::analysis::PupilMapAnalysis::PupilMapForField &map_)
         : map(&map_) {}
 
     std::string plot() const { return plot(640); }

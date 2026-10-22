@@ -12,9 +12,9 @@
 #include "redukti/optim/Analysis.h"
 #include "redukti/optim/Goals.h"
 #include "redukti/plotter/Plotter.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
-#include "redukti/rayoptics/analysis/SpotIntercepts.h"
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotIntercepts.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/math/Tfm3d.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
@@ -34,9 +34,9 @@ namespace {
 using redukti::mathlib::Matrix3;
 using redukti::mathlib::Vector2;
 using redukti::mathlib::Vector3;
-using redukti::rayoptics::analysis::SpotAnalysisResult;
-using redukti::rayoptics::analysis::SpotIntercepts;
-using redukti::rayoptics::analysis::SpotOptions;
+using redukti::analysis::SpotAnalysisResult;
+using redukti::analysis::SpotIntercepts;
+using redukti::analysis::SpotOptions;
 using redukti::rayoptics::math::Tfm3d;
 using redukti::rayoptics::raytr::GridItem;
 using redukti::rayoptics::raytr::ReferenceSphere;
@@ -146,7 +146,7 @@ TEST(analysis_results_own_field_metadata_and_intercepts) {
     auto contrast = [] {
         Field field(nullptr);
         field.y = 0.5;
-        return redukti::rayoptics::analysis::ContrastAnalysisResult::FieldResult(&field, {});
+        return redukti::analysis::ContrastAnalysisResult::FieldResult(&field, {});
     }();
     CHECK_EQ(contrast.field->y, 0.5);
     auto fan = [] {
@@ -159,7 +159,7 @@ TEST(analysis_results_own_field_metadata_and_intercepts) {
 }
 
 TEST(analysis_mtf_survives_histogram_and_owner_destruction) {
-    using namespace redukti::rayoptics::analysis;
+    using namespace redukti::analysis;
     SpotIntercepts intercepts(TraceGridByWvl(550.0,
         {GridItem(Vector2(0.0, 0.0), nullptr)}));
     auto mono = [&] {

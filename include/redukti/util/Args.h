@@ -7,7 +7,7 @@
 #ifndef REDUKTI_UTIL_ARGS_H
 #define REDUKTI_UTIL_ARGS_H
 
-#include "redukti/rayoptics/analysis/PupilMapAnalysis.h"
+#include "redukti/analysis/PupilMapAnalysis.h"
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/spec/Prescription.h"
 
@@ -103,7 +103,7 @@ public:
     /**
      * Write the measured pupil maps beside the other reports: which part of each field's
      * pupil the lens passes, and which surface blocks the rest. See
-     * rayoptics::analysis::PupilMapAnalysis.
+     * redukti::analysis::PupilMapAnalysis.
      */
     bool output_pupil_maps = false;
     /** Log the optimizer's progress to the console, one line per iteration. */
@@ -111,7 +111,7 @@ public:
     /** Log everything, including the ray-optics info messages and debug traces. */
     bool debug = false;
     /** Samples per axis in a pupil map; the cost is the square of this. */
-    int pupil_map_samples = rayoptics::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES;
+    int pupil_map_samples = redukti::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES;
     /**
      * Selects the chief ray aiming algorithm. TRUE aims with a real ray trace
      * at the entrance pupil (what the model calls a wide angle system), FALSE

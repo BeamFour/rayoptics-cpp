@@ -14,8 +14,8 @@
 
 #include "redukti/Text.h"
 #include "redukti/mathlib/M.h"
-#include "redukti/rayoptics/analysis/MTF.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/MTF.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 
@@ -34,20 +34,20 @@ redukti::DecimalFormat df() { return redukti::mathlib::M::decimal_format(); }
 
 
 /** Java: MtfTest.generateMTFs. */
-std::vector<analysis::MTFResultByFreq> generateMTFs(
+std::vector<redukti::analysis::MTFResultByFreq> generateMTFs(
     optical::OpticalModel *opm, const std::vector<int> &freqs,
-    const std::map<double, double> &wv_wts, const analysis::SpotOptions &spotOptions) {
-    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, spotOptions);
-    std::vector<analysis::PolyMTF> mtfs;
+    const std::map<double, double> &wv_wts, const redukti::analysis::SpotOptions &spotOptions) {
+    auto spotAnalysis = redukti::analysis::SpotAnalysis::eval(opm, spotOptions);
+    std::vector<redukti::analysis::PolyMTF> mtfs;
     for (std::size_t i = 0; i < spotAnalysis.spot_results.size(); i++) {
         const auto &spotFld = spotAnalysis.spot_results[i];
         auto cfg = spotFld.mtfHistogramConfig();
         // The Java starts from a null PolyMTF and builds it from the first
         // monochromatic MTF, so that it inherits that MTF's fft size and pixel
         // size. An optional stands in for the null.
-        std::optional<analysis::PolyMTF> polyMtfForField;
+        std::optional<redukti::analysis::PolyMTF> polyMtfForField;
         for (const auto &intercepts : spotFld.intercepts) {
-            analysis::MonochromaticGeometricMTF mtf(intercepts, cfg);
+            redukti::analysis::MonochromaticGeometricMTF mtf(intercepts, cfg);
             if (!polyMtfForField.has_value())
                 polyMtfForField.emplace(mtf.mtf.fft_size, mtf.h2d.pixel_size);
             auto it = wv_wts.find(intercepts.wvl);
@@ -60,9 +60,9 @@ std::vector<analysis::MTFResultByFreq> generateMTFs(
             mtfs.push_back(std::move(*polyMtfForField));
         }
     }
-    std::vector<analysis::MTFResultByFreq> mtfResults;
+    std::vector<redukti::analysis::MTFResultByFreq> mtfResults;
     for (auto freq : freqs)
-        mtfResults.push_back(analysis::MTFResultByFreq(mtfs, freq));
+        mtfResults.push_back(redukti::analysis::MTFResultByFreq(mtfs, freq));
     return mtfResults;
 }
 
@@ -74,7 +74,7 @@ std::map<double, double> get_wvl_wts(const std::vector<double> &wvls,
     return map;
 }
 
-std::string toString(const std::vector<analysis::MTFResultByFreq> &mtfs_by_freq,
+std::string toString(const std::vector<redukti::analysis::MTFResultByFreq> &mtfs_by_freq,
                      const std::vector<double> &fields) {
     auto fmt = df();
     std::string sb;
@@ -105,8 +105,8 @@ std::string toString(const std::vector<analysis::MTFResultByFreq> &mtfs_by_freq,
     return sb;
 }
 
-void assertMtfClose(const std::vector<analysis::MTFResultByFreq> &expected,
-                    const std::vector<analysis::MTFResultByFreq> &actual,
+void assertMtfClose(const std::vector<redukti::analysis::MTFResultByFreq> &expected,
+                    const std::vector<redukti::analysis::MTFResultByFreq> &actual,
                     double tolerance) {
     CHECK_EQ(static_cast<int>(expected.size()), static_cast<int>(actual.size()));
     for (std::size_t f = 0; f < expected.size() && f < actual.size(); f++) {
@@ -127,12 +127,12 @@ TEST(mtf_sampling_patterns_match_jvm) {
     auto wavelengthWeights =
         get_wvl_wts({587.5618, 486.1327, 656.2725}, {1.0, 1.0, 1.0});
 
-    analysis::SpotOptions hexOptions;
+    redukti::analysis::SpotOptions hexOptions;
     hexOptions.use_hexapolar().num_rays(64);
     auto hexapolarMtf =
         generateMTFs(opm.get(), {10, 30, 50}, wavelengthWeights, hexOptions);
 
-    analysis::SpotOptions gqOptions;
+    redukti::analysis::SpotOptions gqOptions;
     gqOptions.use_gaussian_quadrature().num_rings(14).num_spokes(20);
     auto quadratureMtf =
         generateMTFs(opm.get(), {10, 30, 50}, wavelengthWeights, gqOptions);

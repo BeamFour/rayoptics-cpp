@@ -4,12 +4,12 @@
 // See LICENSE-GPL-3.0.txt
 //
 // C++ port of ContrastOptions, ContrastAnalysisResult and ContrastAnalysis,
-// including the contrast trace that was in raytr::Trace before the Java
+// including the contrast trace that was in rayoptics::raytr::Trace before the Java
 // refactor moved it here.
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 
 #include "redukti/Exceptions.h"
-#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
+#include "redukti/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
@@ -20,14 +20,14 @@
 
 #include <cmath>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
-namespace Orientation = util::Orientation;
+namespace Orientation = rayoptics::util::Orientation;
 
 using mathlib::Vector2;
-using raytr::PupilType;
-using raytr::RayPkg;
-using raytr::Trace;
+using rayoptics::raytr::PupilType;
+using rayoptics::raytr::RayPkg;
+using rayoptics::raytr::Trace;
 
 // ---------------------------------------------------------------------------
 // ContrastOptions
@@ -58,7 +58,7 @@ ContrastOptions &ContrastOptions::num_spokes(std::optional<int> value) {
     return *this;
 }
 
-ContrastOptions &ContrastOptions::trace_options(const raytr::TraceOptions &value) {
+ContrastOptions &ContrastOptions::trace_options(const rayoptics::raytr::TraceOptions &value) {
     // The Java rejects a null here; a reference cannot be null, so the check
     // has nothing left to test.
     traceOptions = value;
@@ -155,7 +155,7 @@ double ContrastAnalysisResult::WavelengthResult::tangentialResidual(int index) c
 // ContrastAnalysis
 // ---------------------------------------------------------------------------
 
-ContrastAnalysisResult ContrastAnalysis::eval(optical::OpticalModel *opticalModel,
+ContrastAnalysisResult ContrastAnalysis::eval(rayoptics::optical::OpticalModel *opticalModel,
                                               const ContrastOptions &options) {
     if (options.aimExitPupil && options.calibrateFrequency) {
         throw IllegalArgumentException(
@@ -200,7 +200,7 @@ ContrastAnalysisResult ContrastAnalysis::eval(optical::OpticalModel *opticalMode
             // It is enabled by options.aimExitPupil. By default, aimExitPupil is off.
             ContrastTraceCallback<ContrastAnalysisResult::Sample> callback =
                 [opticalModel, &options](const ContrastRayTriplet &rays,
-                                         specs::Field &field, double tracedWavelength,
+                                         rayoptics::specs::Field &field, double tracedWavelength,
                                          double focus) {
                     return sample(opticalModel, rays, field, tracedWavelength, focus,
                                   options);
@@ -273,7 +273,7 @@ double ContrastAnalysis::weighted_mean(
  * #exit_pupil_frequency_calibration, which measures and corrects the
  * difference when ContrastOptions#calibrate_frequency(boolean) is enabled.
  */
-double ContrastAnalysis::normalized_entry_pupil_shift(optical::OpticalModel *opticalModel,
+double ContrastAnalysis::normalized_entry_pupil_shift(rayoptics::optical::OpticalModel *opticalModel,
                                                       double wavelength,
                                                       double spatialFrequency) {
     double wavelengthInSystemUnits = opticalModel->nm_to_sys_units(wavelength);
@@ -304,7 +304,7 @@ double ContrastAnalysis::normalized_entry_pupil_shift(optical::OpticalModel *opt
  * wavelength against the couple of hundred used for the samples.
  */
 double ContrastAnalysis::exit_pupil_frequency_calibration(
-    optical::OpticalModel *opticalModel, specs::Field &field, double wavelength,
+    rayoptics::optical::OpticalModel *opticalModel, rayoptics::specs::Field &field, double wavelength,
     double shift, int axis, const ContrastOptions &options) {
     if (!options.calibrateFrequency || !(shift > 0.0))
         return 1.0;
@@ -328,9 +328,9 @@ double ContrastAnalysis::exit_pupil_frequency_calibration(
                                   reference.ref_sphere->image_pt.project_xy(),
                                   std::nullopt);
     field.chief_ray =
-        std::const_pointer_cast<raytr::ChiefRayPkg>(coordinates.chief_ray_pkg);
+        std::const_pointer_cast<rayoptics::raytr::ChiefRayPkg>(coordinates.chief_ray_pkg);
     field.ref_sphere =
-        std::const_pointer_cast<raytr::ReferenceSphere>(coordinates.ref_sphere);
+        std::const_pointer_cast<rayoptics::raytr::ReferenceSphere>(coordinates.ref_sphere);
     double half = 0.5 * shift;
     std::optional<double> low = image_direction(
         opticalModel, field, wavelength, traceOptions, axis,
@@ -350,18 +350,18 @@ double ContrastAnalysis::exit_pupil_frequency_calibration(
 }
 
 std::optional<double> ContrastAnalysis::image_direction(
-    optical::OpticalModel *opticalModel, specs::Field &field, double wavelength,
-    const raytr::TraceOptions &traceOptions, int axis, const Vector2 &pupil) {
+    rayoptics::optical::OpticalModel *opticalModel, rayoptics::specs::Field &field, double wavelength,
+    const rayoptics::raytr::TraceOptions &traceOptions, int axis, const Vector2 &pupil) {
     auto pkg = Trace::trace_safe(opticalModel, pupil, field, wavelength, traceOptions).pkg;
     if (pkg == nullptr || pkg->ray.size() < 2)
         return std::nullopt;
-    const auto &segment = util::Lists::get(pkg->ray, -2);
+    const auto &segment = rayoptics::util::Lists::get(pkg->ray, -2);
     return axis == Orientation::X ? segment.d.x : segment.d.y;
 }
 
 ContrastAnalysisResult::Sample ContrastAnalysis::sample(
-    optical::OpticalModel *opticalModel, const ContrastRayTriplet &rays,
-    specs::Field &field, double wavelength, double focus,
+    rayoptics::optical::OpticalModel *opticalModel, const ContrastRayTriplet &rays,
+    rayoptics::specs::Field &field, double wavelength, double focus,
     const ContrastOptions &options) {
     (void)options;
     if (rays.reference == nullptr || rays.sagittal == nullptr ||
@@ -371,7 +371,7 @@ ContrastAnalysisResult::Sample ContrastAnalysis::sample(
     }
     // Java unboxes the Double straight away, so a null would NPE; opd only
     // answers null when the ray is missing, which the guard above rules out.
-    double reference = WavefrontAberrationAnalysis::opd(opticalModel, rays.pupil, 0,
+    double reference = rayoptics::analysis::WavefrontAberrationAnalysis::opd(opticalModel, rays.pupil, 0,
                                                         rays.reference, field, wavelength,
                                                         focus)
                            .value();
@@ -403,18 +403,18 @@ ContrastAnalysisResult::Failure ContrastAnalysis::failure(
 }
 
 ContrastAnalysisResult::Failure ContrastAnalysis::failure(
-    const std::string &ray, const exceptions::TraceException &error) {
+    const std::string &ray, const rayoptics::exceptions::TraceException &error) {
     return ContrastAnalysisResult::Failure(ray, error.simple_name(), error.surf);
 }
 
-double ContrastAnalysis::opd(optical::OpticalModel *opticalModel,
+double ContrastAnalysis::opd(rayoptics::optical::OpticalModel *opticalModel,
                              const std::shared_ptr<const RayPkg> &ray,
-                             specs::Field &field, double wavelength, double focus,
+                             rayoptics::specs::Field &field, double wavelength, double focus,
                              const std::optional<Vector2> &pupil) {
     // below xy is set to 0 as it is not used by the opd calculation
     // opd ignores its pupil argument, so an absent input_pupil (Java: null)
     // changes nothing; the zero stands in for the null reference.
-    return WavefrontAberrationAnalysis::opd(opticalModel,
+    return rayoptics::analysis::WavefrontAberrationAnalysis::opd(opticalModel,
                                             pupil.has_value() ? *pupil
                                                               : Vector2::vector2_0,
                                             0, ray, field, wavelength, focus)
@@ -423,14 +423,14 @@ double ContrastAnalysis::opd(optical::OpticalModel *opticalModel,
 
 namespace {
 
-Vector2 apply_vignetting_pt(const Vector2 &pupil, const specs::Field &fld) {
+Vector2 apply_vignetting_pt(const Vector2 &pupil, const rayoptics::specs::Field &fld) {
     auto arr = pupil.as_array();
     auto vignetted = fld.apply_vignetting(std::vector<double>{arr[0], arr[1]});
     return Vector2(vignetted[0], vignetted[1]);
 }
 
 /** Area element of Field#apply_vignetting at a nominal pupil point. */
-double vignetting_jacobian(const Vector2 &pupil, const specs::Field &fld) {
+double vignetting_jacobian(const Vector2 &pupil, const rayoptics::specs::Field &fld) {
     return fld.vignetting_scale_x(pupil.x) * fld.vignetting_scale_y(pupil.y);
 }
 
@@ -446,7 +446,7 @@ double vignetting_jacobian(const Vector2 &pupil, const specs::Field &fld) {
 const double MIN_CONTRACTION = 0.1;
 
 bool valid_point(const Vector2 &pupil, const Vector2 &sagittalShift,
-                          const Vector2 &tangentialShift, const specs::Field &fld) {
+                          const Vector2 &tangentialShift, const rayoptics::specs::Field &fld) {
     return ContrastAnalysis::inside_vignetted_pupil(pupil, fld) &&
            ContrastAnalysis::inside_vignetted_pupil(pupil.plus(sagittalShift), fld) &&
            ContrastAnalysis::inside_vignetted_pupil(pupil.plus(tangentialShift), fld);
@@ -455,7 +455,7 @@ bool valid_point(const Vector2 &pupil, const Vector2 &sagittalShift,
 bool valid_pattern(const std::vector<Vector2> &offsets,
                             const Vector2 &overlapCenter, double contraction,
                             const Vector2 &sagittalShift, const Vector2 &tangentialShift,
-                            const specs::Field &fld) {
+                            const rayoptics::specs::Field &fld) {
     for (const auto &offset : offsets) {
         auto pupil = overlapCenter.plus(offset.times(contraction));
         if (!valid_point(pupil, sagittalShift, tangentialShift, fld)) {
@@ -467,7 +467,7 @@ bool valid_pattern(const std::vector<Vector2> &offsets,
 
 } // namespace
 
-bool ContrastAnalysis::inside_vignetted_pupil(const Vector2 &pupil, const specs::Field &fld) {
+bool ContrastAnalysis::inside_vignetted_pupil(const Vector2 &pupil, const rayoptics::specs::Field &fld) {
     double xScale = fld.vignetting_scale_x(pupil.x);
     double yScale = fld.vignetting_scale_y(pupil.y);
     if (!(xScale > 0.0) || !(yScale > 0.0)) {
@@ -478,9 +478,9 @@ bool ContrastAnalysis::inside_vignetted_pupil(const Vector2 &pupil, const specs:
     return x * x + y * y <= 1.0 + 1.0e-14;
 }
 
-std::vector<raytr::GaussianQuadraturePoint> ContrastAnalysis::generate_quadrature(
-    const raytr::TraceRingsDef &grid_rng, std::optional<int> num_spokes,
-    const Vector2 &sagittal_shift, const Vector2 &tangential_shift, specs::Field &fld) {
+std::vector<rayoptics::raytr::GaussianQuadraturePoint> ContrastAnalysis::generate_quadrature(
+    const rayoptics::raytr::TraceRingsDef &grid_rng, std::optional<int> num_spokes,
+    const Vector2 &sagittal_shift, const Vector2 &tangential_shift, rayoptics::specs::Field &fld) {
     auto nominal = Trace::generate_gaussian_quadrature(grid_rng, grid_rng.num_rings, num_spokes);
     Vector2 nominalCenter(grid_rng.cx, grid_rng.cy);
     auto physicalCenter = apply_vignetting_pt(nominalCenter, fld);
@@ -522,25 +522,25 @@ std::vector<raytr::GaussianQuadraturePoint> ContrastAnalysis::generate_quadratur
             "sample: the pattern would contract to " +
             doubleToString(contraction) + " of its nominal extent");
     }
-    std::vector<raytr::GaussianQuadraturePoint> points;
+    std::vector<rayoptics::raytr::GaussianQuadraturePoint> points;
     points.reserve(nominal.size());
     double weightSum = 0.0;
     for (std::size_t i = 0; i < nominal.size(); i++) {
         const auto &point = nominal[i];
         auto pupil = overlapCenter.plus(offsets[i].times(contraction));
         double weight = point.weight * vignetting_jacobian(point.pupil, fld);
-        points.push_back(raytr::GaussianQuadraturePoint(pupil, weight));
+        points.push_back(rayoptics::raytr::GaussianQuadraturePoint(pupil, weight));
         weightSum += weight;
     }
     if (!(weightSum > 0.0)) {
         throw IllegalArgumentException("The vignetted pupil has zero area");
     }
     const double normalization = weightSum;
-    std::vector<raytr::GaussianQuadraturePoint> normalized;
+    std::vector<rayoptics::raytr::GaussianQuadraturePoint> normalized;
     normalized.reserve(points.size());
     for (const auto &point : points)
         normalized.push_back(
-            raytr::GaussianQuadraturePoint(point.pupil, point.weight / normalization));
+            rayoptics::raytr::GaussianQuadraturePoint(point.pupil, point.weight / normalization));
     return normalized;
 }
 
@@ -551,27 +551,27 @@ std::vector<raytr::GaussianQuadraturePoint> ContrastAnalysis::generate_quadratur
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
-    optical::OpticalModel *opt_model, const raytr::TraceRingsDef &grid_rng,
+    rayoptics::optical::OpticalModel *opt_model, const rayoptics::raytr::TraceRingsDef &grid_rng,
     std::optional<int> num_spokes, const Vector2 &sagittal_shift,
-    const Vector2 &tangential_shift, specs::Field &fld, double wvl,
-    const raytr::TraceOptions &trace_options) {
+    const Vector2 &tangential_shift, rayoptics::specs::Field &fld, double wvl,
+    const rayoptics::raytr::TraceOptions &trace_options) {
     return trace_triplets(opt_model, grid_rng, num_spokes, sagittal_shift,
                           tangential_shift, std::nullopt, std::nullopt, fld, wvl,
                           trace_options, false);
 }
 
 std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
-    optical::OpticalModel *opt_model, const raytr::TraceRingsDef &grid_rng,
+    rayoptics::optical::OpticalModel *opt_model, const rayoptics::raytr::TraceRingsDef &grid_rng,
     std::optional<int> num_spokes, const Vector2 &sagittal_shift,
     const Vector2 &tangential_shift, std::optional<Vector2> sagittal_exit_shift,
-    std::optional<Vector2> tangential_exit_shift, specs::Field &fld, double wvl,
-    const raytr::TraceOptions &trace_options_in, bool aim_exit_pupil) {
+    std::optional<Vector2> tangential_exit_shift, rayoptics::specs::Field &fld, double wvl,
+    const rayoptics::raytr::TraceOptions &trace_options_in, bool aim_exit_pupil) {
     if (aim_exit_pupil &&
         (!sagittal_exit_shift.has_value() || !tangential_exit_shift.has_value())) {
         throw IllegalArgumentException(
             "Physical exit-pupil shifts are required when aiming is enabled");
     }
-    raytr::TraceOptions trace_options = trace_options_in.copy();
+    rayoptics::raytr::TraceOptions trace_options = trace_options_in.copy();
     // The quadrature generator explicitly maps samples into the physical
     // vignetted pupil. Applying Field vignetting in trace_base as well
     // would independently scale the displaced rays and change their MTF
@@ -596,8 +596,8 @@ std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
         auto sagittalEntrancePupil = pupil.plus(sagittal_shift);
         auto tangentialEntrancePupil = pupil.plus(tangential_shift);
         auto reference = Trace::trace_safe(opt_model, pupil, fld, wvl, trace_options);
-        raytr::RayResult sagittal;
-        raytr::RayResult tangential;
+        rayoptics::raytr::RayResult sagittal;
+        rayoptics::raytr::RayResult tangential;
         if (aim_exit_pupil && reference.pkg != nullptr) {
             auto referenceCoordinate = ExitPupilAiming::sphere_coord(
                 reference.pkg, fld.chief_ray, fld.ref_sphere);
@@ -605,8 +605,8 @@ std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
                 auto error = std::make_shared<ExitPupilAiming::ExitPupilAimException>(
                     "Reference ray has no finite exit-pupil coordinate");
                 error->surf = -1;
-                sagittal = raytr::RayResult(nullptr, error);
-                tangential = raytr::RayResult(nullptr, error);
+                sagittal = rayoptics::raytr::RayResult(nullptr, error);
+                tangential = rayoptics::raytr::RayResult(nullptr, error);
             } else {
                 Vector2 sagittalExitPupilTarget(
                     referenceCoordinate->x + sagittal_exit_shift->x,
@@ -637,4 +637,4 @@ std::vector<ContrastRayTriplet> ContrastAnalysis::trace_triplets(
     return samples;
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis

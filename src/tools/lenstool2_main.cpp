@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
                      "pupil-report.txt: the part of each field's pupil the lens passes,\n";
         std::cerr << "         the surface that blocks the rest, and how well the vignetting "
                      "factors describe it; --pupil-map-samples sets the grid, default "
-                  << redukti::rayoptics::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES << "\n";
+                  << redukti::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES << "\n";
         std::cerr << "       --mtf takes spatial frequencies in cycles/mm and defaults to "
                      "10,30,50, which is what the reports under Examples/ use\n";
         std::cerr << "       --real-ray-aiming aims the chief ray by tracing a real ray at "

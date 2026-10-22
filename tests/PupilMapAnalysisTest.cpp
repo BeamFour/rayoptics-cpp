@@ -7,7 +7,7 @@
 
 #include "redukti/importers/OpticalBenchDataImporter.h"
 #include "redukti/plotter/Plotter.h"
-#include "redukti/rayoptics/analysis/PupilMapAnalysis.h"
+#include "redukti/analysis/PupilMapAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/specs/FieldSpec.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
@@ -21,7 +21,7 @@ namespace {
 
 using redukti::importers::OpticalBenchDataImporter;
 using redukti::plotter::PupilMapPlot;
-using redukti::rayoptics::analysis::PupilMapAnalysis;
+using redukti::analysis::PupilMapAnalysis;
 using redukti::rayoptics::optical::OpticalModel;
 using redukti::spec::Prescription;
 using redukti::spec::RayOpticsModelBuilder;

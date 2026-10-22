@@ -3361,10 +3361,10 @@ void ray_trace_f2_p2() {
 void aberration_fans() {
     auto opm = build();
     raytr::TraceOptions options;
-    auto abrf0w0xy0 = analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
+    auto abrf0w0xy0 = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
                        opm.get(), 0, 0, 21, false, options)
                        .fans[0];
-    auto opdf0w0xy0 = analysis::WavefrontAberrationAnalysis::eval_opd_fan(
+    auto opdf0w0xy0 = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval_opd_fan(
                        opm.get(), 0, 0, 21, false, options)
                        .fans[0];
     assertCount("fan 0.0.0 ray count", 21, abrf0w0xy0.fan_y.size());
@@ -3431,10 +3431,10 @@ void aberration_fans() {
     assertClose("fan.0.0.0.20.pupil", 0.9999999999999998, abrf0w0xy0.fan_x[20], 1.0e-6);
     assertClose("fan.0.0.0.20.t_abr", -0.017549632029067577, *abrf0w0xy0.fan_y[20], 1.0e-6);
     assertClose("fan.0.0.0.20.opd", 0.24818952060037294, *opdf0w0xy0.fan_y[20], 1.0e-6);
-    auto abrf0w0xy1 = analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
+    auto abrf0w0xy1 = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
                        opm.get(), 0, 1, 21, false, options)
                        .fans[0];
-    auto opdf0w0xy1 = analysis::WavefrontAberrationAnalysis::eval_opd_fan(
+    auto opdf0w0xy1 = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval_opd_fan(
                        opm.get(), 0, 1, 21, false, options)
                        .fans[0];
     assertCount("fan 0.0.1 ray count", 21, abrf0w0xy1.fan_y.size());
@@ -3501,10 +3501,10 @@ void aberration_fans() {
     assertClose("fan.0.0.1.20.pupil", 0.9999999999999998, abrf0w0xy1.fan_x[20], 1.0e-6);
     assertClose("fan.0.0.1.20.t_abr", -0.017549632029067577, *abrf0w0xy1.fan_y[20], 1.0e-6);
     assertClose("fan.0.0.1.20.opd", 0.24818952060037294, *opdf0w0xy1.fan_y[20], 1.0e-6);
-    auto abrf1w0xy0 = analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
+    auto abrf1w0xy0 = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
                        opm.get(), 1, 0, 21, false, options)
                        .fans[0];
-    auto opdf1w0xy0 = analysis::WavefrontAberrationAnalysis::eval_opd_fan(
+    auto opdf1w0xy0 = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval_opd_fan(
                        opm.get(), 1, 0, 21, false, options)
                        .fans[0];
     assertCount("fan 1.0.0 ray count", 21, abrf1w0xy0.fan_y.size());
@@ -3571,10 +3571,10 @@ void aberration_fans() {
     assertClose("fan.1.0.0.20.pupil", 0.9999999999999998, abrf1w0xy0.fan_x[20], 1.0e-6);
     assertClose("fan.1.0.0.20.t_abr", -0.043558141238212, *abrf1w0xy0.fan_y[20], 1.0e-6);
     assertClose("fan.1.0.0.20.opd", 6.719903740293055, *opdf1w0xy0.fan_y[20], 1.0e-6);
-    auto abrf1w0xy1 = analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
+    auto abrf1w0xy1 = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
                        opm.get(), 1, 1, 21, false, options)
                        .fans[0];
-    auto opdf1w0xy1 = analysis::WavefrontAberrationAnalysis::eval_opd_fan(
+    auto opdf1w0xy1 = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval_opd_fan(
                        opm.get(), 1, 1, 21, false, options)
                        .fans[0];
     assertCount("fan 1.0.1 ray count", 21, abrf1w0xy1.fan_y.size());
@@ -3641,10 +3641,10 @@ void aberration_fans() {
     assertClose("fan.1.0.1.20.pupil", 0.9999999999999998, abrf1w0xy1.fan_x[20], 1.0e-6);
     assertClose("fan.1.0.1.20.t_abr", -0.12964386567964326, *abrf1w0xy1.fan_y[20], 1.0e-6);
     assertClose("fan.1.0.1.20.opd", 12.154144581325806, *opdf1w0xy1.fan_y[20], 1.0e-6);
-    auto abrf2w0xy0 = analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
+    auto abrf2w0xy0 = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
                        opm.get(), 2, 0, 21, false, options)
                        .fans[0];
-    auto opdf2w0xy0 = analysis::WavefrontAberrationAnalysis::eval_opd_fan(
+    auto opdf2w0xy0 = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval_opd_fan(
                        opm.get(), 2, 0, 21, false, options)
                        .fans[0];
     assertCount("fan 2.0.0 ray count", 21, abrf2w0xy0.fan_y.size());
@@ -3711,10 +3711,10 @@ void aberration_fans() {
     assertClose("fan.2.0.0.20.pupil", 0.9999999999999998, abrf2w0xy0.fan_x[20], 1.0e-6);
     assertClose("fan.2.0.0.20.t_abr", -0.05541494602367081, *abrf2w0xy0.fan_y[20], 1.0e-6);
     assertClose("fan.2.0.0.20.opd", 8.940816067484574, *opdf2w0xy0.fan_y[20], 1.0e-6);
-    auto abrf2w0xy1 = analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
+    auto abrf2w0xy1 = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval_abr_fan(
                        opm.get(), 2, 1, 21, false, options)
                        .fans[0];
-    auto opdf2w0xy1 = analysis::WavefrontAberrationAnalysis::eval_opd_fan(
+    auto opdf2w0xy1 = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval_opd_fan(
                        opm.get(), 2, 1, 21, false, options)
                        .fans[0];
     assertCount("fan 2.0.1 ray count", 21, abrf2w0xy1.fan_y.size());

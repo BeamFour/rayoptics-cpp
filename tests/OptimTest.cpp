@@ -13,7 +13,7 @@
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/ParaxHelper.h"
 #include "redukti/rayoptics/util/Orientation.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/seq/Glass.h"
 #include "redukti/rayoptics/specs/FieldSpec.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
@@ -50,7 +50,7 @@ using redukti::optim::VarAsphCoeff;
 using redukti::optim::VarAsphK;
 using redukti::optim::VarRadius;
 using redukti::optim::VarThickness;
-using redukti::rayoptics::analysis::SpotOptions;
+using redukti::analysis::SpotOptions;
 using redukti::rayoptics::seq::Glass;
 using redukti::spec::Prescription;
 using redukti::spec::SurfaceType;

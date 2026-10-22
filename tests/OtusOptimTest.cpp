@@ -18,7 +18,7 @@
 #include "redukti/optim/Goals.h"
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/ParaxHelper.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/spec/Prescription.h"
 
 #include <chrono>
@@ -32,8 +32,8 @@ using redukti::importers::OpticalBenchDataImporter;
 using redukti::optim::GoalContrast;
 using redukti::optim::OptimizationBuilder;
 using redukti::optim::ParaxHelper;
-using redukti::rayoptics::analysis::SpotAnalysis;
-using redukti::rayoptics::analysis::SpotOptions;
+using redukti::analysis::SpotAnalysis;
+using redukti::analysis::SpotOptions;
 using redukti::spec::Prescription;
 using OptimizationSetup = OptimizationBuilder::OptimizationSetup;
 
@@ -159,7 +159,7 @@ OptimizationSetup frozenContrastSetup(Prescription *prescription) {
 }
 
 std::vector<double> spotRadii(const std::vector<
-                              redukti::rayoptics::analysis::SpotAnalysisResult::
+                              redukti::analysis::SpotAnalysisResult::
                                   SpotResultsForField> &spots) {
     std::vector<double> out;
     out.reserve(spots.size());

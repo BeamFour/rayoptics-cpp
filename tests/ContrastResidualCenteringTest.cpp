@@ -8,7 +8,7 @@
 #include "TestHarness.h"
 
 #include "redukti/mathlib/Vector2.h"
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 
 #include <cmath>
 #include <vector>
@@ -16,8 +16,8 @@
 namespace {
 
 using redukti::mathlib::Vector2;
-using redukti::rayoptics::analysis::ContrastAnalysis;
-using redukti::rayoptics::analysis::ContrastAnalysisResult;
+using redukti::analysis::ContrastAnalysis;
+using redukti::analysis::ContrastAnalysisResult;
 
 // Weights sum to 1, as the quadrature normalizes them, and the shape is chosen
 // with weighted mean exactly zero so the block's mean is the injected tilt and

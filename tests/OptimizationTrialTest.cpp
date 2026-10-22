@@ -12,8 +12,8 @@
 #include "redukti/optim/OptimizationTrial.h"
 #include "redukti/optim/Analysis.h"
 #include "redukti/optim/ParaxHelper.h"
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/spec/Prescription.h"
 #include "redukti/spec/SurfaceType.h"
 
@@ -42,8 +42,8 @@ using redukti::spec::SurfaceType;
 using redukti::spec::WavelengthSet;
 using redukti::test::assertSameSetup;
 using redukti::IllegalArgumentException;
-using redukti::rayoptics::analysis::ContrastOptions;
-using redukti::rayoptics::analysis::SpotOptions;
+using redukti::analysis::ContrastOptions;
+using redukti::analysis::SpotOptions;
 using TrialException = OptimizationTrial::TrialException;
 
 /** Eleven surfaces, 0 to 10: the stop is 5, surfaces 3, 7 and 9 are flat, and 10 the last. */

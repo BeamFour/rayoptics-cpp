@@ -10,9 +10,9 @@
 #include "redukti/exporters/ZemaxExporter.h"
 #include "redukti/mathlib/M.h"
 #include "redukti/plotter/Plotter.h"
-#include "redukti/rayoptics/analysis/MTF.h"
+#include "redukti/analysis/MTF.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
-#include "redukti/rayoptics/layout/Layout2D.h"
+#include "redukti/layout/Layout2D.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
@@ -193,7 +193,7 @@ std::string LensTool2::prescriptionOutput(const spec::Prescription &prescription
 }
 
 void LensTool2::outputSpotAnalysis(
-    const analysis::SpotAnalysisResult::SpotResultsForField &result,
+    const redukti::analysis::SpotAnalysisResult::SpotResultsForField &result,
     const std::optional<std::string> &output_file, std::optional<double> radius) {
     if (output_file.has_value())
         Helper::createOutputFile(*output_file, SpotDiagram(result).plot(radius));
@@ -232,7 +232,7 @@ std::string &LensTool2::fodToMarkdown(const parax::FirstOrderData &fod, std::str
 }
 
 std::string &LensTool2::spotResultsMarkdownTable(
-    const analysis::SpotAnalysisResult &spotAnalysisResult, std::string &sb) {
+    const redukti::analysis::SpotAnalysisResult &spotAnalysisResult, std::string &sb) {
     const DecimalFormat &f = decimalFormat();
     // The Java writes micro sign U+00B5; these are its UTF-8 bytes, spelled out so the
     // output does not depend on the compiler's source encoding.
@@ -297,7 +297,7 @@ void LensTool2::addFodToREADME(std::string &sb, const parax::FirstOrderData &fod
 }
 
 void LensTool2::addSpotReportToREADME(
-    std::string &sb, const analysis::SpotAnalysisResult &spotAnalysisResult) {
+    std::string &sb, const redukti::analysis::SpotAnalysisResult &spotAnalysisResult) {
     sb += "## Spot Analysis\n";
     spotResultsMarkdownTable(spotAnalysisResult, sb);
 }
@@ -346,13 +346,13 @@ std::string LensTool2::suffixed_name(const std::string &baseName,
     return baseName + suffix + ext;
 }
 
-analysis::SpotAnalysisResult LensTool2::generateSpotDiagrams(
+redukti::analysis::SpotAnalysisResult LensTool2::generateSpotDiagrams(
     optical::OpticalModel *opm, const Args &arguments, bool standardSize,
     const std::string &filename_suffix) {
     // The diagrams always use the same sampling; the user's choice of
     // pattern only affects the reported numbers.
-    auto diagramAnalysis = analysis::SpotAnalysis::eval(opm, spotDiagramOptions());
-    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
+    auto diagramAnalysis = redukti::analysis::SpotAnalysis::eval(opm, spotDiagramOptions());
+    auto spotAnalysis = redukti::analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
     Helper::createOutputFile(
         Helper::getOutputFileWithPath(*arguments.specfile,
                                       suffixed_name("spot-report", filename_suffix,
@@ -384,12 +384,12 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
                              const std::vector<std::pair<double, double>> &wv_wts,
                              const std::string &outname,
                              const std::string &filename_suffix) {
-    auto spotAnalysis = analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
-    std::vector<analysis::PolyMTF> mtfs;
+    auto spotAnalysis = redukti::analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
+    std::vector<redukti::analysis::PolyMTF> mtfs;
     for (std::size_t i = 0; i < spotAnalysis.spot_results.size(); i++) {
         const auto &spotFld = spotAnalysis.spot_results[i];
         auto cfg = spotFld.mtfHistogramConfig();
-        std::optional<analysis::PolyMTF> polyMtfForField;
+        std::optional<redukti::analysis::PolyMTF> polyMtfForField;
         for (const auto &intercepts : spotFld.intercepts) {
             std::string filename =
                 suffixed_name("mtf-fld" + std::to_string(i) + "-" +
@@ -397,7 +397,7 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
                               filename_suffix, ".svg");
             auto output_file = Helper::getOutputFileWithPath(*arguments.specfile, filename,
                                                              arguments.outdir);
-            analysis::MonochromaticGeometricMTF mtf(intercepts, cfg);
+            redukti::analysis::MonochromaticGeometricMTF mtf(intercepts, cfg);
             if (!polyMtfForField.has_value())
                 polyMtfForField.emplace(mtf.mtf.fft_size, mtf.h2d.pixel_size);
             // Java: wv_wts.getOrDefault(intercepts.wvl, 0.0) -- exact key match.
@@ -420,9 +420,9 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
         }
     }
     const std::vector<int> &freqs = arguments.mtf_freqs;
-    std::vector<analysis::MTFResultByFreq> mtfResults;
+    std::vector<redukti::analysis::MTFResultByFreq> mtfResults;
     for (int freq : freqs)
-        mtfResults.push_back(analysis::MTFResultByFreq(mtfs, freq));
+        mtfResults.push_back(redukti::analysis::MTFResultByFreq(mtfs, freq));
     auto mtffile = Helper::getOutputFileWithPath(
         *arguments.specfile, suffixed_name(outname, filename_suffix, ".svg"),
         arguments.outdir);
@@ -438,7 +438,7 @@ void LensTool2::generateRayAberrationPlots(optical::OpticalModel *opm,
                                            const Args &arguments,
                                            const std::string &filname_suffix) {
     raytr::TraceOptions traceOptions;
-    auto rayAber = analysis::TransverseRayAberrationAnalysis::eval(opm, 21, false,
+    auto rayAber = rayoptics::analysis::TransverseRayAberrationAnalysis::eval(opm, 21, false,
                                                                    traceOptions);
     for (const auto &fan_results : rayAber.results) {
         std::string filename =
@@ -451,7 +451,7 @@ void LensTool2::generateRayAberrationPlots(optical::OpticalModel *opm,
                                  RayAberrationPlot(rayAber).plot(fan_results, 0));
     }
     raytr::TraceOptions traceOptions2;
-    auto opdAber = analysis::WavefrontAberrationAnalysis::eval(opm, 21, false,
+    auto opdAber = rayoptics::analysis::WavefrontAberrationAnalysis::eval(opm, 21, false,
                                                                 traceOptions2);
     for (const auto &fan_results : opdAber.results) {
         std::string filename =
@@ -469,12 +469,12 @@ void LensTool2::generatePupilMaps(optical::OpticalModel *opm, const Args &argume
                                   const std::string &filename_suffix) {
     // A field at a time, so one field whose bundle cannot be bounded costs only its own
     // map: the pupil maps are a diagnostic, and must not take the rest of the report down.
-    analysis::PupilMapAnalysis::PupilMapResult maps;
+    redukti::analysis::PupilMapAnalysis::PupilMapResult maps;
     std::string unmapped;
     const int fieldCount = static_cast<int>(opm->optical_spec->fov->fields.size());
     for (int fi = 0; fi < fieldCount; fi++) {
         try {
-            auto one = analysis::PupilMapAnalysis::eval(opm, arguments.pupil_map_samples,
+            auto one = redukti::analysis::PupilMapAnalysis::eval(opm, arguments.pupil_map_samples,
                                                         std::vector<int>{fi});
             for (auto &map : one.maps)
                 maps.maps.push_back(std::move(map));
@@ -504,21 +504,21 @@ void LensTool2::generatePupilMaps(optical::OpticalModel *opm, const Args &argume
     }
 }
 
-analysis::SpotOptions LensTool2::spotDiagramOptions() {
+redukti::analysis::SpotOptions LensTool2::spotDiagramOptions() {
     // We limit this to 21 to avoid creating huge svg files
-    analysis::SpotOptions options;
+    redukti::analysis::SpotOptions options;
     return options.use_hexapolar().num_rings(21);
 }
 
-analysis::SpotOptions LensTool2::spotOptions(const Args &arguments) {
+redukti::analysis::SpotOptions LensTool2::spotOptions(const Args &arguments) {
     // TODO allow user to set the values for GQ and Hexapolar
     // The defaults should really come from Args
-    analysis::SpotOptions options;
-    if (arguments.spot_pattern == analysis::SpotOptions::PATTERN_GAUSS_QUADRATURE)
+    redukti::analysis::SpotOptions options;
+    if (arguments.spot_pattern == redukti::analysis::SpotOptions::PATTERN_GAUSS_QUADRATURE)
         return options.use_gaussian_quadrature()
             .num_rings(GAUSS_QUADRATURE_NUM_RINGS)
             .num_spokes(GAUSS_QUADRATURE_NUM_SPOKES);
-    if (arguments.spot_pattern == analysis::SpotOptions::PATTERN_GRID)
+    if (arguments.spot_pattern == redukti::analysis::SpotOptions::PATTERN_GRID)
         return options.use_grid().num_rays(arguments.spot_grid_size);
     return options.use_hexapolar().num_rings(HEXAPOLAR_NUM_RINGS);
 }
@@ -572,22 +572,22 @@ void LensTool2::doLayoutDiagrams(const Prescription &prescription, const Args &a
     // For very wide angle lenses, blindly spraying rays doesn't work very well,
     // so the layout system is aimed through the pupil.
     auto opm = createLayoutSystem(prescription, config, LAYOUT_VIG_TYPE, true);
-    layout::Layout2D lay;
+    redukti::layout::Layout2D lay;
     auto output = Helper::getOutputFileWithPath(
         *arguments.specfile, suffixed_name("layout-fan", filename_suffix, ".svg"),
         arguments.outdir);
-    layout::LayoutOptions fanOpts;
+    redukti::layout::LayoutOptions fanOpts;
     fanOpts.drawReferenceRays_(false).fanRayCount_(9).clipRays_(true).useTraceFan_(true);
     Helper::createOutputFile(output, lay.renderSvg(opm.get(), 1000, 500, &fanOpts));
 
     output = Helper::getOutputFileWithPath(
         *arguments.specfile, suffixed_name("layoutonly", filename_suffix, ".svg"),
         arguments.outdir);
-    layout::LayoutOptions elementsOpts;
+    redukti::layout::LayoutOptions elementsOpts;
     elementsOpts.drawReferenceRays_(false);
     Helper::createOutputFile(output, lay.renderSvg(opm.get(), 1000, 500, &elementsOpts));
 
-    layout::LayoutOptions defaultOpts;
+    redukti::layout::LayoutOptions defaultOpts;
     std::string reference = lay.renderSvg(opm.get(), 1000, 500, &defaultOpts);
     output = Helper::getOutputFileWithPath(
         *arguments.specfile, suffixed_name("layout", filename_suffix, ".svg"),

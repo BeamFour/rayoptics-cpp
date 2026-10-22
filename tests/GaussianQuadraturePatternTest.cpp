@@ -2,7 +2,7 @@
 #include "TestHarness.h"
 
 #include "redukti/mathlib/Vector2.h"
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/specs/Field.h"
@@ -14,7 +14,7 @@
 namespace {
 
 using redukti::mathlib::Vector2;
-using redukti::rayoptics::analysis::ContrastAnalysis;
+using redukti::analysis::ContrastAnalysis;
 using redukti::rayoptics::raytr::GaussianQuadraturePoint;
 using redukti::rayoptics::raytr::Trace;
 using redukti::rayoptics::raytr::TraceRingsDef;

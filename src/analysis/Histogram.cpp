@@ -3,16 +3,16 @@
 // License GPL v3
 // See LICENSE-GPL-3.0.txt
 //
-// C++ port of org.redukti.rayoptics.analysis.Histogram
-#include "redukti/rayoptics/analysis/Histogram.h"
+// C++ port of org.redukti.analysis.Histogram
+#include "redukti/analysis/Histogram.h"
 
 #include "redukti/rayoptics/util/Orientation.h"
 
 #include <cmath>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
-namespace Orientation = util::Orientation;
+namespace Orientation = rayoptics::util::Orientation;
 
 Histogram::Histogram(int num_bins_, double pixel_size_)
     : num_bins(num_bins_), pixel_size(pixel_size_) {
@@ -116,4 +116,4 @@ void Histogram::compute() {
     build_lsfs();
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis

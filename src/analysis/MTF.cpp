@@ -4,7 +4,7 @@
 // See LICENSE-GPL-3.0.txt
 //
 // C++ port of the analysis MTF classes.
-#include "redukti/rayoptics/analysis/MTF.h"
+#include "redukti/analysis/MTF.h"
 
 #include "redukti/Exceptions.h"
 #include "redukti/mathlib/fftpack/ComplexDoubleFFT.h"
@@ -12,9 +12,9 @@
 
 #include <cmath>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
-namespace Orientation = util::Orientation;
+namespace Orientation = rayoptics::util::Orientation;
 
 // ---------------------------------------------------------------------------
 // BaseMTF
@@ -196,4 +196,4 @@ double MTFResultByFreq::interpolate(const std::vector<double> &freq,
            t * (mag[static_cast<std::size_t>(lo + 1)] - mag[static_cast<std::size_t>(lo)]);
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis

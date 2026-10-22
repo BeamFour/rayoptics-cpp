@@ -7,10 +7,10 @@
 #ifndef REDUKTI_OPTIM_ANALYSIS_H
 #define REDUKTI_OPTIM_ANALYSIS_H
 
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
-#include "redukti/rayoptics/analysis/MTF.h"
+#include "redukti/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/MTF.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/spec/Prescription.h"
 
@@ -35,18 +35,18 @@ public:
      * tests for exactly that, so the emptiness has to be distinguishable from
      * a computed-but-empty result.
      */
-    std::optional<std::vector<rayoptics::analysis::SpotAnalysisResult::SpotResultsForField>>
+    std::optional<std::vector<redukti::analysis::SpotAnalysisResult::SpotResultsForField>>
         _spots;
     /** Null in the Java when ray aberrations were not computed. */
     std::optional<rayoptics::analysis::RayAberrationResult> _ray_aberrations;
     /** Null in the Java when MTF was not computed. */
-    std::optional<std::vector<rayoptics::analysis::MTFResultByFreq>> _mtfs;
+    std::optional<std::vector<redukti::analysis::MTFResultByFreq>> _mtfs;
     /** Never null in the Java; empty when no contrast frequencies are configured. */
-    std::vector<rayoptics::analysis::ContrastAnalysisResult> _contrasts;
+    std::vector<redukti::analysis::ContrastAnalysisResult> _contrasts;
     std::vector<int> _freqs;
     std::vector<int> _contrast_freqs;
     const int _scenario;
-    int _spot_pattern = rayoptics::analysis::SpotOptions::PATTERN_HEXAPOLAR;
+    int _spot_pattern = redukti::analysis::SpotOptions::PATTERN_HEXAPOLAR;
     int _num_rays = 64;
     int _num_rings = 14;
     int _num_spokes = 20;
@@ -123,7 +123,7 @@ public:
         return *this;
     }
     Analysis &using_hexapolar_pattern(int num_rays) {
-        _spot_pattern = rayoptics::analysis::SpotOptions::PATTERN_HEXAPOLAR;
+        _spot_pattern = redukti::analysis::SpotOptions::PATTERN_HEXAPOLAR;
         _num_rays = num_rays;
         return *this;
     }

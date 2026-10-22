@@ -5,8 +5,8 @@
 //
 // C++ port of org.redukti.rayoptics.layout: ElementType, Element and its
 // implementations, plus ElementModel and LayoutOptions.
-#ifndef REDUKTI_RAYOPTICS_LAYOUT_ELEMENTMODEL_H
-#define REDUKTI_RAYOPTICS_LAYOUT_ELEMENTMODEL_H
+#ifndef REDUKTI_LAYOUT_ELEMENTMODEL_H
+#define REDUKTI_LAYOUT_ELEMENTMODEL_H
 
 #include "redukti/rayoptics/elem/surface/Surface.h"
 #include "redukti/rayoptics/seq/Gap.h"
@@ -24,7 +24,7 @@ namespace redukti::rayoptics::seq {
 class SequentialModel;
 }
 
-namespace redukti::rayoptics::layout {
+namespace redukti::layout {
 
 enum class ElementType {
     LENS,
@@ -53,10 +53,10 @@ public:
 class DummyInterface : public Element {
 public:
     int surfaceIndex;
-    std::shared_ptr<seq::Interface> surface;
+    std::shared_ptr<rayoptics::seq::Interface> surface;
     std::string _label;
 
-    DummyInterface(int surfaceIndex_, std::shared_ptr<seq::Interface> surface_,
+    DummyInterface(int surfaceIndex_, std::shared_ptr<rayoptics::seq::Interface> surface_,
                    std::string label_)
         : surfaceIndex(surfaceIndex_), surface(std::move(surface_)),
           _label(std::move(label_)) {}
@@ -68,9 +68,9 @@ public:
 class AirGap : public Element {
 public:
     int gapIndex;
-    std::shared_ptr<seq::Gap> gap;
+    std::shared_ptr<rayoptics::seq::Gap> gap;
 
-    AirGap(int gapIndex_, std::shared_ptr<seq::Gap> gap_)
+    AirGap(int gapIndex_, std::shared_ptr<rayoptics::seq::Gap> gap_)
         : gapIndex(gapIndex_), gap(std::move(gap_)) {}
 
     std::string label() const override { return "Air " + std::to_string(gapIndex); }
@@ -81,9 +81,9 @@ public:
 class Aperture : public Element {
 public:
     int surfaceIndex;
-    std::shared_ptr<seq::Interface> referenceSurface;
+    std::shared_ptr<rayoptics::seq::Interface> referenceSurface;
 
-    Aperture(int surfaceIndex_, std::shared_ptr<seq::Interface> referenceSurface_)
+    Aperture(int surfaceIndex_, std::shared_ptr<rayoptics::seq::Interface> referenceSurface_)
         : surfaceIndex(surfaceIndex_), referenceSurface(std::move(referenceSurface_)) {}
 
     std::string label() const override { return "Aperture " + std::to_string(surfaceIndex); }
@@ -93,9 +93,9 @@ public:
 class Mirror : public Element {
 public:
     int surfaceIndex;
-    std::shared_ptr<seq::Interface> surface;
+    std::shared_ptr<rayoptics::seq::Interface> surface;
 
-    Mirror(int surfaceIndex_, std::shared_ptr<seq::Interface> surface_)
+    Mirror(int surfaceIndex_, std::shared_ptr<rayoptics::seq::Interface> surface_)
         : surfaceIndex(surfaceIndex_), surface(std::move(surface_)) {}
 
     std::string label() const override { return "Mirror " + std::to_string(surfaceIndex); }
@@ -105,9 +105,9 @@ public:
 class Stop : public Element {
 public:
     int surfaceIndex;
-    std::shared_ptr<seq::Interface> referenceSurface;
+    std::shared_ptr<rayoptics::seq::Interface> referenceSurface;
 
-    Stop(int surfaceIndex_, std::shared_ptr<seq::Interface> referenceSurface_)
+    Stop(int surfaceIndex_, std::shared_ptr<rayoptics::seq::Interface> referenceSurface_)
         : surfaceIndex(surfaceIndex_), referenceSurface(std::move(referenceSurface_)) {}
 
     std::string label() const override { return "Stop"; }
@@ -119,14 +119,14 @@ class LensElement : public Element {
 public:
     int firstSurfaceIndex;
     int secondSurfaceIndex;
-    std::shared_ptr<elem::surface::Surface> surface1;
-    std::shared_ptr<elem::surface::Surface> surface2;
-    std::shared_ptr<seq::Gap> gap;
+    std::shared_ptr<rayoptics::elem::surface::Surface> surface1;
+    std::shared_ptr<rayoptics::elem::surface::Surface> surface2;
+    std::shared_ptr<rayoptics::seq::Gap> gap;
 
     LensElement(int firstSurfaceIndex_, int secondSurfaceIndex_,
-                std::shared_ptr<elem::surface::Surface> surface1_,
-                std::shared_ptr<elem::surface::Surface> surface2_,
-                std::shared_ptr<seq::Gap> gap_)
+                std::shared_ptr<rayoptics::elem::surface::Surface> surface1_,
+                std::shared_ptr<rayoptics::elem::surface::Surface> surface2_,
+                std::shared_ptr<rayoptics::seq::Gap> gap_)
         : firstSurfaceIndex(firstSurfaceIndex_), secondSurfaceIndex(secondSurfaceIndex_),
           surface1(std::move(surface1_)), surface2(std::move(surface2_)),
           gap(std::move(gap_)) {}
@@ -139,12 +139,12 @@ public:
 class CementedElement : public Element {
 public:
     std::vector<int> surfaceIndices;
-    std::vector<std::shared_ptr<elem::surface::Surface>> surfaces;
-    std::vector<std::shared_ptr<seq::Gap>> gaps;
+    std::vector<std::shared_ptr<rayoptics::elem::surface::Surface>> surfaces;
+    std::vector<std::shared_ptr<rayoptics::seq::Gap>> gaps;
 
     CementedElement(std::vector<int> surfaceIndices_,
-                    std::vector<std::shared_ptr<elem::surface::Surface>> surfaces_,
-                    std::vector<std::shared_ptr<seq::Gap>> gaps_);
+                    std::vector<std::shared_ptr<rayoptics::elem::surface::Surface>> surfaces_,
+                    std::vector<std::shared_ptr<rayoptics::seq::Gap>> gaps_);
 
     std::string label() const override { return "CE" + std::to_string(surfaceIndices[0]); }
     ElementType type() const override { return ElementType::CEMENTED_LENS; }
@@ -187,24 +187,24 @@ public:
     /** Surface label that marks a field stop. */
     static constexpr const char *FIELD_STOP_LABEL = "FS";
 
-    explicit ElementModel(optical::OpticalModel *opticalModel);
+    explicit ElementModel(rayoptics::optical::OpticalModel *opticalModel);
 
     void updateModel();
 
     const std::vector<std::shared_ptr<Element>> &elements() const { return _elements; }
 
-    static bool isAperture(seq::SequentialModel *sm, int surfaceIndex, double wavelength);
+    static bool isAperture(rayoptics::seq::SequentialModel *sm, int surfaceIndex, double wavelength);
 
     /** Returns true for a field stop explicitly identified by the prescription builder. */
-    static bool isFieldStop(const std::shared_ptr<seq::Interface> &ifc);
+    static bool isFieldStop(const std::shared_ptr<rayoptics::seq::Interface> &ifc);
 
-    static bool isAir(const std::shared_ptr<seq::Gap> &gap, double wavelength);
+    static bool isAir(const std::shared_ptr<rayoptics::seq::Gap> &gap, double wavelength);
 
 private:
-    optical::OpticalModel *opticalModel;
+    rayoptics::optical::OpticalModel *opticalModel;
     std::vector<std::shared_ptr<Element>> _elements;
 };
 
-} // namespace redukti::rayoptics::layout
+} // namespace redukti::layout
 
-#endif // REDUKTI_RAYOPTICS_LAYOUT_ELEMENTMODEL_H
+#endif // REDUKTI_LAYOUT_ELEMENTMODEL_H

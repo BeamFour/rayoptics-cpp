@@ -14,8 +14,8 @@
 #include "redukti/importers/OpticalBenchDataImporter.h"
 #include "redukti/plotter/Plotter.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
-#include "redukti/rayoptics/layout/Layout2D.h"
+#include "redukti/analysis/SpotAnalysis.h"
+#include "redukti/layout/Layout2D.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/spec/Prescription.h"
 
@@ -83,32 +83,32 @@ std::unique_ptr<optical::OpticalModel> analysisSystem(const Prescription &p) {
 TEST(layout_svgs_match_jvm) {
     Prescription p = buildPrescription();
     auto opm = layoutSystem(p, 0);
-    layout::Layout2D lay;
+    redukti::layout::Layout2D lay;
 
-    layout::LayoutOptions fanOpts;
+    redukti::layout::LayoutOptions fanOpts;
     fanOpts.drawReferenceRays_(false).fanRayCount_(9).clipRays_(true).useTraceFan_(true);
     CHECK_BLOCK(lay.renderSvg(opm.get(), 1000, 500, &fanOpts), EXPECTED_LAYOUT_FAN);
 
-    layout::LayoutOptions elementsOpts;
+    redukti::layout::LayoutOptions elementsOpts;
     elementsOpts.drawReferenceRays_(false);
     CHECK_BLOCK(lay.renderSvg(opm.get(), 1000, 500, &elementsOpts), EXPECTED_LAYOUTONLY);
 
-    layout::LayoutOptions defaultOpts;
+    redukti::layout::LayoutOptions defaultOpts;
     CHECK_BLOCK(lay.renderSvg(opm.get(), 1000, 500, &defaultOpts), EXPECTED_LAYOUT);
 }
 
 TEST(plotter_spot_and_mtf_match_jvm) {
     Prescription p = buildPrescription();
     auto model = analysisSystem(p);
-    auto options = analysis::SpotOptions();
+    auto options = redukti::analysis::SpotOptions();
     options.use_hexapolar().num_rings(6);
-    auto spot = analysis::SpotAnalysis::eval(model.get(), options);
+    auto spot = redukti::analysis::SpotAnalysis::eval(model.get(), options);
 
     CHECK_BLOCK(SpotDiagram(spot.spot_results[0]).plot(std::nullopt), EXPECTED_SPOT_DIAGRAM);
 
     const auto &spotFld = spot.spot_results[1];
     auto cfg = spotFld.mtfHistogramConfig();
-    analysis::MonochromaticGeometricMTF mono(spotFld.intercepts[0], cfg);
+    redukti::analysis::MonochromaticGeometricMTF mono(spotFld.intercepts[0], cfg);
     CHECK_BLOCK(GeoMTFPlot(*spotFld.fld, mono).plot(), EXPECTED_GEO_MTF);
 
     std::vector<int> freqs{10, 20, 40};
@@ -123,11 +123,11 @@ TEST(plotter_aberration_fans_match_jvm) {
     auto model = analysisSystem(p);
     raytr::TraceOptions traceOptions;
 
-    auto tra = analysis::TransverseRayAberrationAnalysis::eval(model.get(), 11, false,
+    auto tra = redukti::rayoptics::analysis::TransverseRayAberrationAnalysis::eval(model.get(), 11, false,
                                                                traceOptions);
     CHECK_BLOCK(RayAberrationPlot(tra).plot(tra.results[4], 0), EXPECTED_RAY_ABERRATION);
 
-    auto opd = analysis::WavefrontAberrationAnalysis::eval(model.get(), 11, false,
+    auto opd = redukti::rayoptics::analysis::WavefrontAberrationAnalysis::eval(model.get(), 11, false,
                                                            traceOptions);
     CHECK_BLOCK(RayAberrationPlot(opd).plot(opd.results[7], 0), EXPECTED_OPD_ABERRATION);
 }

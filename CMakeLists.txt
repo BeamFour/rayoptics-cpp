@@ -79,7 +79,7 @@ add_library(rayoptics
     src/rayoptics/raytr/RayTypes.cpp
     src/rayoptics/raytr/RayTrace.cpp
     src/rayoptics/raytr/WaveAbr.cpp
-    src/rayoptics/analysis/ExitPupilAiming.cpp
+    src/analysis/ExitPupilAiming.cpp
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
@@ -89,8 +89,8 @@ add_library(rayoptics
     src/tools/DefaultOptimizations.cpp
     src/exporters/ZemaxExporter.cpp
     src/plotter/Plotter.cpp
-    src/rayoptics/layout/ElementModel.cpp
-    src/rayoptics/layout/Layout2D.cpp
+    src/layout/ElementModel.cpp
+    src/layout/Layout2D.cpp
     src/importers/OpticalBenchDataImporter.cpp
     src/optim/ParaxHelper.cpp
     src/optim/Analysis.cpp
@@ -112,13 +112,13 @@ add_library(rayoptics
     src/render/Plot.cpp
     src/data/Interpolated1d.cpp
     src/data/DataSet.cpp
-    src/rayoptics/analysis/SpotIntercepts.cpp
-    src/rayoptics/analysis/Histogram.cpp
-    src/rayoptics/analysis/MTF.cpp
-    src/rayoptics/analysis/SpotAnalysis.cpp
-    src/rayoptics/analysis/PupilMapAnalysis.cpp
+    src/analysis/SpotIntercepts.cpp
+    src/analysis/Histogram.cpp
+    src/analysis/MTF.cpp
+    src/analysis/SpotAnalysis.cpp
+    src/analysis/PupilMapAnalysis.cpp
     src/rayoptics/analysis/RayAberrations.cpp
-    src/rayoptics/analysis/ContrastAnalysis.cpp
+    src/analysis/ContrastAnalysis.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)

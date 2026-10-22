@@ -5,8 +5,8 @@
 // so they live together rather than in a file each.
 #include "TestHarness.h"
 
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 #include "redukti/rayoptics/specs/WvlSpec.h"
@@ -17,8 +17,8 @@
 namespace {
 
 namespace Orientation = redukti::rayoptics::util::Orientation;
-using redukti::rayoptics::analysis::ContrastOptions;
-using redukti::rayoptics::analysis::SpotOptions;
+using redukti::analysis::ContrastOptions;
+using redukti::analysis::SpotOptions;
 
 } // namespace
 

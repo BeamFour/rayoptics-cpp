@@ -12,8 +12,8 @@
 #include "TestHarness.h"
 
 #include "redukti/rayoptics/elem/profiles/EvenPolynomial.h"
-#include "redukti/rayoptics/layout/ElementModel.h"
-#include "redukti/rayoptics/layout/Layout2D.h"
+#include "redukti/layout/ElementModel.h"
+#include "redukti/layout/Layout2D.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/raytr/VigCalc.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
@@ -34,12 +34,12 @@
 namespace {
 
 using namespace redukti::rayoptics;
-using redukti::rayoptics::layout::Aperture;
-using redukti::rayoptics::layout::CementedElement;
-using redukti::rayoptics::layout::ElementModel;
-using redukti::rayoptics::layout::ElementType;
-using redukti::rayoptics::layout::Layout2D;
-using redukti::rayoptics::layout::LayoutOptions;
+using redukti::layout::Aperture;
+using redukti::layout::CementedElement;
+using redukti::layout::ElementModel;
+using redukti::layout::ElementType;
+using redukti::layout::Layout2D;
+using redukti::layout::LayoutOptions;
 using redukti::rayoptics::util::Pair;
 namespace profiles = redukti::rayoptics::elem::profiles;
 

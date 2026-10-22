@@ -9,9 +9,9 @@
 
 #include "redukti/mathlib/Vector2.h"
 #include "redukti/mathlib/Vector3.h"
-#include "redukti/rayoptics/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/ContrastAnalysis.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
-#include "redukti/rayoptics/analysis/ExitPupilAiming.h"
+#include "redukti/analysis/ExitPupilAiming.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/raytr/Trace.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
@@ -29,10 +29,10 @@
 namespace {
 
 using redukti::mathlib::Vector2;
-using redukti::rayoptics::analysis::ContrastAnalysis;
-using redukti::rayoptics::analysis::ContrastOptions;
-using redukti::rayoptics::analysis::ContrastRayTriplet;
-using redukti::rayoptics::analysis::ExitPupilAiming;
+using redukti::analysis::ContrastAnalysis;
+using redukti::analysis::ContrastOptions;
+using redukti::analysis::ContrastRayTriplet;
+using redukti::analysis::ExitPupilAiming;
 using redukti::rayoptics::raytr::Trace;
 using redukti::rayoptics::raytr::TraceOptions;
 using redukti::rayoptics::specs::Field;

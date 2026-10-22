@@ -6,16 +6,16 @@
 // C++ port of the analysis MTF classes:
 //   BaseMTF, MTF, PolyMTF, MonochromaticGeometricMTF,
 //   PolyChromaticGeometricMTF and MTFResultByFreq.
-#ifndef REDUKTI_RAYOPTICS_ANALYSIS_MTF_H
-#define REDUKTI_RAYOPTICS_ANALYSIS_MTF_H
+#ifndef REDUKTI_ANALYSIS_MTF_H
+#define REDUKTI_ANALYSIS_MTF_H
 
-#include "redukti/rayoptics/analysis/Histogram.h"
-#include "redukti/rayoptics/analysis/SpotIntercepts.h"
+#include "redukti/analysis/Histogram.h"
+#include "redukti/analysis/SpotIntercepts.h"
 
 #include <memory>
 #include <vector>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 /** Frequency axis, complex spectra and normalized magnitudes for both meridians. */
 class BaseMTF {
@@ -158,6 +158,6 @@ public:
                               const std::vector<double> &mag, double f);
 };
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
 
-#endif // REDUKTI_RAYOPTICS_ANALYSIS_MTF_H
+#endif // REDUKTI_ANALYSIS_MTF_H

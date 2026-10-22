@@ -3,12 +3,14 @@
 // Java version by Dibyendu Majumdar
 // See LICENSE-ray-optics.txt
 //
-// SpotOptions and SpotAnalysisResult are part of Beam42 project
+// spot() and eval_grid() are ported - the grid is upstream's only spot option.
+// The hexapolar and Gaussian-quadrature evaluations, the SpotOptions-driven eval(),
+// and SpotOptions and SpotAnalysisResult themselves are part of Beam42 project
 // (https://github.com/BeamFour/Beam42), Copyright 2025-2026 by Dibyendu Majumdar,
 // License GPL v3; see LICENSE-GPL-3.0.txt
 //
 // C++ port of SpotOptions, SpotAnalysisResult and SpotAnalysis.
-#include "redukti/rayoptics/analysis/SpotAnalysis.h"
+#include "redukti/analysis/SpotAnalysis.h"
 
 #include "redukti/Exceptions.h"
 #include "redukti/Text.h"
@@ -19,13 +21,13 @@
 #include <cmath>
 #include <limits>
 
-namespace redukti::rayoptics::analysis {
+namespace redukti::analysis {
 
 using mathlib::Vector2;
 using mathlib::Vector3;
-using raytr::GridItem;
-using raytr::RayPkg;
-using raytr::TraceGridByWvl;
+using rayoptics::raytr::GridItem;
+using rayoptics::raytr::RayPkg;
+using rayoptics::raytr::TraceGridByWvl;
 
 // ---------------------------------------------------------------------------
 // SpotOptions
@@ -121,9 +123,9 @@ bool equals_ignore_case(const std::string &a, const char *b) {
 } // namespace
 
 SpotAnalysisResult::SpotResultsForField::SpotResultsForField(
-    specs::Field *fld_, std::vector<TraceGridByWvl> trace_results_, double ref_wvl,
+    rayoptics::specs::Field *fld_, std::vector<TraceGridByWvl> trace_results_, double ref_wvl,
     bool use_centroid)
-    : fld(std::make_shared<const specs::FieldSnapshot>(*fld_)),
+    : fld(std::make_shared<const rayoptics::specs::FieldSnapshot>(*fld_)),
       image_pt(mathlib::Vector3::ZERO), trace_results(std::move(trace_results_)) {
     // The units check comes before the reference sphere is read, as in the Java: a field
     // with unsupported units is rejected whether or not it has been traced.
@@ -189,7 +191,7 @@ std::string SpotAnalysisResult::SpotResultsForField::toString() const {
 // SpotAnalysisResult
 // ---------------------------------------------------------------------------
 
-SpotAnalysisResult &SpotAnalysisResult::add(specs::Field *fld,
+SpotAnalysisResult &SpotAnalysisResult::add(rayoptics::specs::Field *fld,
                                             std::vector<TraceGridByWvl> trace_results,
                                             double ref_wvl) {
     spot_results.push_back(
@@ -244,16 +246,16 @@ std::string SpotAnalysisResult::toString() const {
 
 std::optional<GridItem> SpotAnalysis::spot(const Vector2 &p, int wi,
                                            const std::shared_ptr<const RayPkg> &ray_pkg,
-                                           specs::Field &fld, double wvl, double foc) {
+                                           rayoptics::specs::Field &fld, double wvl, double foc) {
     (void)p;
     (void)wi;
     (void)wvl;
     if (ray_pkg != nullptr) {
         auto image_pt = fld.ref_sphere->image_pt;
         const auto &ray = ray_pkg->ray;
-        auto dist = foc / util::Lists::get(ray, -1).d.z;
+        auto dist = foc / rayoptics::util::Lists::get(ray, -1).d.z;
         auto defocussed_pt =
-            util::Lists::get(ray, -1).p.plus(util::Lists::get(ray, -1).d.times(dist));
+            rayoptics::util::Lists::get(ray, -1).p.plus(rayoptics::util::Lists::get(ray, -1).d.times(dist));
         auto t_abr = defocussed_pt.minus(image_pt);
         return GridItem(t_abr.project_xy(), ray_pkg);
     } else
@@ -261,31 +263,37 @@ std::optional<GridItem> SpotAnalysis::spot(const Vector2 &p, int wi,
 }
 
 std::vector<TraceGridByWvl> SpotAnalysis::eval_grid(
-    optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
-    const raytr::TraceOptions &trace_options) {
+    rayoptics::optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
+    const rayoptics::raytr::TraceOptions &trace_options) {
     auto seq_model = opt_model->seq_model.get();
     return seq_model->trace_grid(SpotAnalysis::spot, fi, wl, num_rays, false,
                                  trace_options);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////
+/// Everything below is a Beam42 enhancement: the hexapolar and Gaussian-quadrature
+/// pupil patterns, and the SpotOptions-driven entry point that chooses between them.
+/// See Documentation/GAUSSIAN_QUADRATURE.md in the Beam42 repository
+//////////////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TraceGridByWvl> SpotAnalysis::eval_rings(
-    optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
-    const raytr::TraceOptions &trace_options) {
+    rayoptics::optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rays,
+    const rayoptics::raytr::TraceOptions &trace_options) {
     auto seq_model = opt_model->seq_model.get();
     return seq_model->trace_rings(SpotAnalysis::spot, fi, wl, num_rays, false,
                                   trace_options);
 }
 
 std::vector<TraceGridByWvl> SpotAnalysis::eval_gaussian_quadrature(
-    optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rings,
+    rayoptics::optical::OpticalModel *opt_model, int fi, std::optional<int> wl, int num_rings,
     std::optional<int> num_spokes, double innerPupilRadius, bool append_if_none,
-    const raytr::TraceOptions &trace_options) {
+    const rayoptics::raytr::TraceOptions &trace_options) {
     return opt_model->seq_model->trace_gaussian_quadrature(
         SpotAnalysis::spot, fi, wl, num_rings, num_spokes, innerPupilRadius,
         append_if_none, trace_options);
 }
 
-SpotAnalysisResult SpotAnalysis::eval(optical::OpticalModel *opt_model,
+SpotAnalysisResult SpotAnalysis::eval(rayoptics::optical::OpticalModel *opt_model,
                                       const SpotOptions &options) {
     auto num_rays = options._num_rays_or_rings;
     auto &trace_options = options._trace_options;
@@ -293,7 +301,7 @@ SpotAnalysisResult SpotAnalysis::eval(optical::OpticalModel *opt_model,
     auto fov = opt_model->optical_spec->fov.get();
     auto ref_wvl = fov->optical_spec->wvls->central_wvl();
     for (std::size_t fi = 0; fi < fov->fields.size(); fi++) {
-        specs::Field *f = fov->fields[fi].get();
+        rayoptics::specs::Field *f = fov->fields[fi].get();
         if (options.is_grid())
             result.add(f,
                        eval_grid(opt_model, static_cast<int>(fi), std::nullopt, num_rays,
@@ -318,4 +326,4 @@ SpotAnalysisResult SpotAnalysis::eval(optical::OpticalModel *opt_model,
     return result;
 }
 
-} // namespace redukti::rayoptics::analysis
+} // namespace redukti::analysis
