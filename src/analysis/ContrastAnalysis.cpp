@@ -44,6 +44,17 @@ ContrastOptions::ContrastOptions(double spatialFrequency_) {
     this->traceOptions.check_apertures = false;
 }
 
+ContrastOptions ContrastOptions::with_frequency(double spatialFrequency_) const {
+    ContrastOptions result(spatialFrequency_);
+    result.numRings = numRings;
+    result.numSpokes = numSpokes;
+    result.traceOptions = traceOptions.copy();
+    result.calibrateFrequency = calibrateFrequency;
+    result.aimExitPupil = aimExitPupil;
+    result.centerResiduals = centerResiduals;
+    return result;
+}
+
 ContrastOptions &ContrastOptions::num_rings(int value) {
     if (value < 1)
         throw IllegalArgumentException("Number of rings must be at least 1");
@@ -120,11 +131,11 @@ ContrastOptions &ContrastOptions::aim_exit_pupil(bool value) {
 // ---------------------------------------------------------------------------
 
 double ContrastAnalysisResult::Sample::sagittalResidual() const {
-    return std::sqrt(weight) * sagittalDifference;
+    return std::sqrt(weight) * sagittalOpdDifference;
 }
 
 double ContrastAnalysisResult::Sample::tangentialResidual() const {
-    return std::sqrt(weight) * tangentialDifference;
+    return std::sqrt(weight) * tangentialOpdDifference;
 }
 
 ContrastAnalysisResult::WavelengthResult
@@ -143,12 +154,12 @@ ContrastAnalysisResult::WavelengthResult::withOffsets(double sagittal,
  */
 double ContrastAnalysisResult::WavelengthResult::sagittalResidual(int index) const {
     const auto &sample = samples[static_cast<std::size_t>(index)];
-    return std::sqrt(sample.weight) * (sample.sagittalDifference - sagittalOffset);
+    return std::sqrt(sample.weight) * (sample.sagittalOpdDifference - sagittalOffset);
 }
 
 double ContrastAnalysisResult::WavelengthResult::tangentialResidual(int index) const {
     const auto &sample = samples[static_cast<std::size_t>(index)];
-    return std::sqrt(sample.weight) * (sample.tangentialDifference - tangentialOffset);
+    return std::sqrt(sample.weight) * (sample.tangentialOpdDifference - tangentialOffset);
 }
 
 // ---------------------------------------------------------------------------
@@ -252,8 +263,8 @@ double ContrastAnalysis::weighted_mean(
         if (!sample.valid)
             continue;
         double difference = orientation == Orientation::SAGITTAL
-                                ? sample.sagittalDifference
-                                : sample.tangentialDifference;
+                                ? sample.sagittalOpdDifference
+                                : sample.tangentialOpdDifference;
         if (!std::isfinite(difference))
             continue;
         weightedSum += sample.weight * difference;
@@ -388,7 +399,8 @@ ContrastAnalysisResult::Sample ContrastAnalysis::sample(
         valid ? std::nullopt
               : std::optional<ContrastAnalysisResult::Failure>(
                     ContrastAnalysisResult::Failure("OPD",
-                                                    "NonFiniteWavefrontDifference", -1)));
+                                                    "NonFiniteWavefrontDifference", -1)),
+        reference);
 }
 
 ContrastAnalysisResult::Failure ContrastAnalysis::failure(

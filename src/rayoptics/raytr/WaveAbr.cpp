@@ -223,6 +223,215 @@ double WaveAbr::wave_abr_full_calc(
 }
 
 /**
+ * Pre-calculate the part of the OPD calc independent of focus.
+ */
+std::shared_ptr<const PreOpdPkg> WaveAbr::wave_abr_pre_calc(
+    const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+    const std::shared_ptr<const RayPkg> &ray_pkg,
+    const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+    const std::shared_ptr<const ReferenceSphere> &ref_sphere) {
+    if (M::is_kinda_big(ref_sphere->ref_sphere_radius))
+        return wave_abr_pre_calc_inf_ref(fod, fld, wvl, foc, ray_pkg,
+                                         chief_ray_pkg, ref_sphere);
+    else
+        return wave_abr_pre_calc_finite_pup(fod, fld, wvl, foc, ray_pkg,
+                                            chief_ray_pkg, ref_sphere);
+}
+
+/**
+ * Given pre-calculated info and a ref. sphere, return the ray's OPD.
+ */
+double WaveAbr::wave_abr_calc(const parax::FirstOrderData &fod, specs::Field &fld, double wvl,
+                              double foc, const std::shared_ptr<const RayPkg> &ray_pkg,
+                              const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+                              const std::shared_ptr<const PreOpdPkg> &pre_opd_pkg,
+                              const std::shared_ptr<const ReferenceSphere> &ref_sphere) {
+    // The Java casts, which throws on the wrong kind; so does a reference dynamic_cast.
+    if (M::is_kinda_big(ref_sphere->ref_sphere_radius))
+        return wave_abr_calc_inf_ref(fod, fld, wvl, foc, ray_pkg, chief_ray_pkg,
+                                     dynamic_cast<const PreOpdPkg::InfRef &>(*pre_opd_pkg),
+                                     ref_sphere);
+    else
+        return wave_abr_calc_finite_pup(fod, fld, wvl, foc, ray_pkg, chief_ray_pkg,
+                                        dynamic_cast<const PreOpdPkg::FinitePup &>(*pre_opd_pkg),
+                                        ref_sphere);
+}
+
+/**
+ * Pre-calculate the part of the OPD calc independent of focus.
+ */
+std::shared_ptr<const PreOpdPkg::FinitePup> WaveAbr::wave_abr_pre_calc_finite_pup(
+    const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+    const std::shared_ptr<const RayPkg> &ray_pkg,
+    const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+    const std::shared_ptr<const ReferenceSphere> &ref_sphere) {
+    (void)fld;
+    (void)wvl;
+    (void)foc;
+    (void)ref_sphere;
+    auto cr = chief_ray_pkg->chief_ray;
+    auto cr_exp_seg = chief_ray_pkg->cr_exp_seg;
+    const std::vector<RaySeg> &cr_ray = cr->ray;
+    double cr_op = cr->op_delta;
+    Vector3 cr_exp_pt = cr_exp_seg->exp_pt;
+    double cr_exp_dist = cr_exp_seg->exp_dst;
+    auto ifc = cr_exp_seg->ifc;
+
+    const std::vector<RaySeg> &ray = ray_pkg->ray;
+    double ray_op = ray_pkg->op_delta;
+
+    const int k = -2;  // last interface in sequence
+
+    // eq 3.12
+    double e1 = eic_distance(RayData(ray[1].p, ray[0].d),
+                             RayData(cr_ray[1].p, cr_ray[0].d));
+    // eq 3.13
+    double ekp = eic_distance(RayData(get(ray, k).p, get(ray, k).d),
+                              RayData(get(cr_ray, k).p, get(cr_ray, k).d));
+
+    double pre_opd = -std::abs(fod.n_obj) * e1 - ray_op + std::abs(fod.n_img) * ekp + cr_op;
+
+    RayData tafter = Transform::transform_after_surface(
+        *ifc, RayData(get(ray, k).p, get(ray, k).d));
+    Vector3 b4_pt = tafter.pt;
+    Vector3 b4_dir = tafter.dir;
+    double dst = ekp - cr_exp_dist;
+    Vector3 eic_exp_pt = b4_pt.minus(b4_dir.times(dst));
+    Vector3 p_coord = eic_exp_pt.minus(cr_exp_pt);
+
+    return std::make_shared<const PreOpdPkg::FinitePup>(pre_opd, p_coord, b4_pt, b4_dir);
+}
+
+/**
+ * Given pre-calculated info and a ref. sphere, return the ray's OPD.
+ */
+double WaveAbr::wave_abr_calc_finite_pup(
+    const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+    const std::shared_ptr<const RayPkg> &ray_pkg,
+    const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+    const PreOpdPkg::FinitePup &pre_opd_pkg,
+    const std::shared_ptr<const ReferenceSphere> &ref_sphere) {
+    (void)fld;
+    (void)wvl;
+    (void)foc;
+    (void)ray_pkg;
+    auto cr = chief_ray_pkg->chief_ray;
+    Vector3 ref_dir = ref_sphere->ref_dir;
+    double ref_sphere_radius = ref_sphere->ref_sphere_radius;
+    double pre_opd = pre_opd_pkg.pre_opd;
+    Vector3 p_coord = pre_opd_pkg.p_coord;
+    Vector3 b4_dir = pre_opd_pkg.b4_dir;
+
+    double F = ref_dir.dot(b4_dir) - b4_dir.dot(p_coord) / ref_sphere_radius;
+    double J = p_coord.dot(p_coord) / ref_sphere_radius - 2.0 * ref_dir.dot(p_coord);
+
+    double sign_soln = ref_dir.z * get(cr->ray, -1).d.z < 0 ? -1 : 1;
+    // Upstream uses math.sqrt, which raises on a negative argument; std::sqrt returns NaN.
+    double denom = F + sign_soln * std::sqrt(F * F - J / ref_sphere_radius);
+    double ep = denom == 0 ? 0 : J / denom;
+
+    double opd = pre_opd - std::abs(fod.n_img) * ep;
+    return opd;
+}
+
+/**
+ * Pre-calculate the part of the OPD calc independent of focus.
+ */
+std::shared_ptr<const PreOpdPkg::InfRef> WaveAbr::wave_abr_pre_calc_inf_ref(
+    const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+    const std::shared_ptr<const RayPkg> &ray_pkg,
+    const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+    const std::shared_ptr<const ReferenceSphere> &ref_sphere) {
+    (void)fld;
+    (void)wvl;
+    (void)foc;
+    auto cr = chief_ray_pkg->chief_ray;
+    auto &cr_ray = cr->ray;
+    auto cr_op = cr->op_delta;
+    auto lcl_tfrm_last = ref_sphere->lcl_tfrm_last;
+
+    auto &ray = ray_pkg->ray;
+    auto ray_op = ray_pkg->op_delta;
+
+    int k = -2;  // last interface in sequence
+    auto n_obj = std::abs(fod.n_obj);
+    auto n_img = std::abs(fod.n_img);
+
+    // eq 3.12
+    auto e1 = eic_distance(RayData(ray[1].p, ray[0].d),
+                           RayData(cr_ray[1].p, cr_ray[0].d));
+
+    Vector3 p_b4 = Vector3::ZERO;
+    Vector3 d_b4 = Vector3::ZERO;
+    Vector3 p_cr_b4 = Vector3::ZERO;
+    Vector3 d_cr_b4 = Vector3::ZERO;
+
+    // lcl_tfrm_last is a value here, not a reference, so the Java's null check
+    // becomes a check on its rotation being present.
+    if (lcl_tfrm_last.rt.has_value()) {
+        auto rt = *lcl_tfrm_last.rt;
+        auto t = lcl_tfrm_last.t;
+
+        p_b4 = rt.multiply(get(ray, k).p.minus(t));
+        d_b4 = rt.multiply(get(ray, k).d);
+        p_cr_b4 = rt.multiply(get(cr_ray, k).p.minus(t));
+        d_cr_b4 = rt.multiply(get(cr_ray, k).d);
+    } else {
+        p_b4 = get(ray, k).p;
+        d_b4 = get(ray, k).d;
+        p_cr_b4 = get(cr_ray, k).p;
+        d_cr_b4 = get(cr_ray, k).d;
+    }
+    auto op_b4 = ray_dist_to_perp_from_origin(RayData(p_b4, d_b4));
+    auto op_cr_b4 = ray_dist_to_perp_from_origin(RayData(p_cr_b4, d_cr_b4));
+
+    auto P1_P2 = dist_to_shortest_join(RayData(get(cr_ray, -1).p, get(cr_ray, -1).d),
+                                       RayData(get(ray, -1).p, get(ray, -1).d));
+    auto P1 = P1_P2.first;
+    auto P2 = P1_P2.second;
+    auto rF0 = (P1.first.plus(P2.first)).divide(2.0);
+
+    auto V_B = ray_op + op_b4;
+    auto V_BE = cr_op + op_cr_b4;
+
+    auto W0 = V_B - V_BE + n_img * d_b4.minus(d_cr_b4).dot(rF0);
+
+    auto pre_opd = -n_obj * e1 - W0;
+
+    return std::make_shared<const PreOpdPkg::InfRef>(pre_opd, W0, p_b4, d_b4, p_cr_b4, d_cr_b4);
+}
+
+/**
+ * Given pre-calculated info and a ref. sphere, return the ray's OPD.
+ */
+double WaveAbr::wave_abr_calc_inf_ref(
+    const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+    const std::shared_ptr<const RayPkg> &ray_pkg,
+    const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+    const PreOpdPkg::InfRef &pre_opd_pkg,
+    const std::shared_ptr<const ReferenceSphere> &ref_sphere) {
+    (void)fld;
+    (void)wvl;
+    (void)foc;
+    (void)chief_ray_pkg;
+    auto image_pt = ref_sphere->image_pt;
+    auto pre_opd = pre_opd_pkg.pre_opd;
+    auto d_b4 = pre_opd_pkg.d_b4;
+    auto d_cr_b4 = pre_opd_pkg.d_cr_b4;
+    auto &ray = ray_pkg->ray;
+
+    auto n_img = std::abs(fod.n_img);
+
+    auto ta = get(ray, -1).p.minus(image_pt);
+    auto numer = d_cr_b4.minus(d_b4.times(d_b4.dot(d_cr_b4))).dot(ta);
+    auto denom = 1.0 + d_b4.dot(d_cr_b4);
+    auto W_inf = n_img * numer / denom;
+
+    auto opd = pre_opd - W_inf;
+    return opd;
+}
+
+/**
  * Given a ray, a chief ray and an image pt, compute the data required to calculate the
  * optical path difference. A by-product of the calculation is the coordinate of the test ray’s
  * reference-sphere intersection relative to the chief-ray exit-pupil point.

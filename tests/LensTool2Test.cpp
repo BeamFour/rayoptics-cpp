@@ -16,9 +16,14 @@
 #include "TestHarness.h"
 
 #include "redukti/Exceptions.h"
+#include "redukti/JavaSemantics.h"
+#include "redukti/analysis/PolyDiffractionMTF.h"
+#include "redukti/mathlib/M.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/seq/SequentialModel.h"
+#include "redukti/rayoptics/specs/FieldSpec.h"
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
+#include "redukti/rayoptics/specs/WvlSpec.h"
 #include "redukti/spec/Prescription.h"
 #include "redukti/tools/LensTool2.h"
 #include "redukti/util/Args.h"
@@ -413,6 +418,55 @@ TEST(lenstool2_saved_analysis_apertures_keep_configuration_stops_and_largest_sha
     CHECK_EQ(unchanged.get_surfaces()[2]._diameter, 10.0);
 }
 
+TEST(lenstool2_vignetting_is_written_only_when_requested_and_not_read_back) {
+    auto prescription = stoppedPrescription();
+    std::vector<std::unique_ptr<redukti::rayoptics::optical::OpticalModel>> owned;
+    std::vector<redukti::rayoptics::optical::OpticalModel *> models;
+    for (int config = 0; config < 2; config++) {
+        owned.push_back(LensTool2::createSystem(prescription, true, VigType::SetVig, false,
+                                                std::vector<double>{0.0, 1.0}, config));
+        models.push_back(owned.back().get());
+    }
+    auto saved = LensTool2::prescriptionWithAnalysisApertures(prescription, models, VigType::SetVig);
+    std::string withoutVignetting;
+    saved.to_opt_bench_str(withoutVignetting);
+    CHECK(!mentions(withoutVignetting, "[vignetting]"));
+
+    saved.set_vignetting_from(models);
+    std::string text;
+    saved.to_opt_bench_str(text);
+    CHECK(mentions(text, "[vignetting]\nconfig\tfield\tvux\tvlx\tvuy\tvly\n"));
+    CHECK(saved._vignetting.has_value());
+    if (!saved._vignetting.has_value())
+        return;
+    CHECK_EQ(saved._vignetting->size(), static_cast<std::size_t>(4));
+    auto df = redukti::mathlib::M::decimal_format(Prescription::APERTURE_DECIMALS);
+    for (std::size_t config = 0; config < 2; config++) {
+        const auto &fields = models[config]->optical_spec->fov->fields;
+        for (std::size_t fi = 0; fi < 2; fi++) {
+            const auto &v = (*saved._vignetting)[2 * config + fi];
+            CHECK_EQ(v.config, static_cast<int>(config));
+            CHECK_EQ(v.field, fields[fi]->y);
+            CHECK_CLOSE(v.vuy, fields[fi]->vuy, 0.00005);
+            CHECK_CLOSE(v.vly, fields[fi]->vly, 0.00005);
+            CHECK_CLOSE(v.vux, fields[fi]->vux, 0.00005);
+            CHECK_CLOSE(v.vlx, fields[fi]->vlx, 0.00005);
+            CHECK(mentions(text, std::to_string(config) + "\t" + df.format(v.field) + "\t" +
+                                     df.format(v.vux) + "\t" + df.format(v.vlx) + "\t" +
+                                     df.format(v.vuy) + "\t" + df.format(v.vly) + "\n"));
+        }
+    }
+
+    // a prescription read back does not carry the section on
+    LensTool2::LensSpecifications specs;
+    specs.parse_buffer(text);
+    auto restored = LensTool2::createPrescription(specs, true, false);
+    CHECK(!restored._vignetting.has_value());
+    std::string restoredText;
+    restored.to_opt_bench_str(restoredText);
+    CHECK_STR_EQ(restoredText, withoutVignetting);
+}
+
 TEST(lenstool2_actual_aperture_sizing_is_saved) {
     for (auto mode : {VigType::SetStopAperture, VigType::SetApertures, VigType::SetFnum}) {
         auto prescription = stoppedPrescription();
@@ -434,6 +488,79 @@ TEST(lenstool2_actual_aperture_sizing_is_saved) {
             CHECK(prescription.get_surfaces()[2]._diameter !=
                   saved.get_surfaces()[2]._diameter);
     }
+}
+
+TEST(lenstool2_diffraction_pupil_sampling_defaults_and_validates_explicit_values) {
+    CHECK_EQ(Args::parseArguments({"--output-diffraction-mtf"}).diffraction_pupil_rays, 64);
+    for (int n : {4, 64, 128, 256}) {
+        auto arguments = Args::parseArguments({"--diffraction-pupil-rays", std::to_string(n),
+                                               "--output-diffraction-mtf", "--mtf", "10,40"});
+        CHECK_EQ(arguments.diffraction_pupil_rays, n);
+        CHECK(arguments.output_diffraction_mtf);
+        CHECK(arguments.mtf_freqs == std::vector<int>({10, 40}));
+    }
+    for (const char *value : {"0", "-4", "2", "3", "65", "abc", "2147483646"})
+        CHECK_THROWS(Args::parseArguments({"--diffraction-pupil-rays", value}),
+                     redukti::IllegalArgumentException);
+    CHECK_THROWS(Args::parseArguments({"--diffraction-pupil-rays"}),
+                 redukti::IllegalArgumentException);
+}
+
+TEST(lenstool2_diffraction_window_warning_names_the_worst_wavelength_and_the_rays_needed) {
+    using redukti::analysis::DiffractionMTF;
+    using redukti::analysis::PolyDiffractionMTF;
+    auto opm = LensTool2::createSystem(stoppedPrescription(), true, VigType::None, false,
+                                       std::vector<double>{0.0, 1.0}, 0);
+    auto &fld = *opm->optical_spec->fov->fields[0];
+    const auto &wvls = *opm->optical_spec->wvls;
+    for (double focus : {0.0, 0.5}) {
+        PolyDiffractionMTF mtf(opm.get(), fld, wvls.wavelengths, wvls.spectral_wts, focus, 16, 32);
+        const DiffractionMTF *worst = &mtf.mono[0];
+        for (const auto &mono : mtf.mono)
+            if (mono.spot_to_window_ > worst->spot_to_window_) worst = &mono;
+        auto warning = LensTool2::diffractionWindowWarning(mtf, 0.0);
+        if (focus > 0)
+            CHECK(worst->spot_to_window_ > 1.0);
+        if (worst->spot_to_window_ <= 1.0) {
+            CHECK(!warning.has_value());
+            continue;
+        }
+        CHECK(warning.has_value());
+        if (!warning.has_value())
+            continue;
+        CHECK(warning->find("field 0.00") != std::string::npos);
+        CHECK(warning->find(redukti::formatF(worst->wvl, 1) + " nm") != std::string::npos);
+        std::string tail = "--diffraction-pupil-rays " + std::to_string(worst->suggested_n_pupil());
+        CHECK(warning->size() >= tail.size() &&
+              warning->compare(warning->size() - tail.size(), tail.size(), tail) == 0);
+    }
+}
+
+// The spot sizes come from the ray trace alone, so they and the warnings match the Java
+// exactly (DumpDiffractionWarning.java, a throwaway dumper).
+TEST(lenstool2_diffraction_window_warning_matches_jvm) {
+    using redukti::analysis::PolyDiffractionMTF;
+    auto opm = LensTool2::createSystem(stoppedPrescription(), true, VigType::None, false,
+                                       std::vector<double>{0.0, 1.0}, 0);
+    const auto &wvls = *opm->optical_spec->wvls;
+    std::string got;
+    for (std::size_t f = 0; f < 2; f++)
+        for (double focus : {0.0, 0.5}) {
+            PolyDiffractionMTF mtf(opm.get(), *opm->optical_spec->fov->fields[f], wvls.wavelengths,
+                                   wvls.spectral_wts, focus, 16, 32);
+            got += "f" + std::to_string(f) + " focus " + redukti::doubleToString(focus) + ":";
+            for (const auto &m : mtf.mono) got += " " + redukti::doubleToString(m.spot_to_window_);
+            got += "\n  " + LensTool2::diffractionWindowWarning(mtf, f == 0 ? 0.0 : 1.0).value_or("null") + "\n";
+        }
+    CHECK_STR_EQ(got,
+        "f0 focus 0.0: 8.709423229864184 6.989437938229635 8.922511275425135\n"
+        "  diffraction MTF at field 0.00 may be wrong: the spot at 656.3 nm is 8.92 times the PSF window; try --diffraction-pupil-rays 136\n"
+        "f0 focus 0.5: 6.03380844383539 4.240575048037273 6.551290999565698\n"
+        "  diffraction MTF at field 0.00 may be wrong: the spot at 656.3 nm is 6.55 times the PSF window; try --diffraction-pupil-rays 100\n"
+        "f1 focus 0.0: 133.371537361932 170.55003436393974 116.42835969321663\n"
+        "  diffraction MTF at field 1.00 may be wrong: the spot at 486.1 nm is 170.55 times the PSF window; try --diffraction-pupil-rays 2560\n"
+        "f1 focus 0.5: 138.1105259844285 176.4215630888134 120.62514715608727\n"
+        "  diffraction MTF at field 1.00 may be wrong: the spot at 486.1 nm is 176.42 times the PSF window; try --diffraction-pupil-rays 2648\n");
 }
 
 TEST(lenstool2_notes_keep_only_source_filename_and_do_not_change_geometry) {

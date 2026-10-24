@@ -117,6 +117,24 @@ Args Args::parseArguments(const std::vector<std::string> &args) {
             i++;
         } else if (arg1 == "--output-pupil-maps") {
             arguments.output_pupil_maps = true;
+        } else if (arg1 == "--output-contrast-report") {
+            arguments.output_contrast_report = true;
+        } else if (arg1 == "--output-contrast-pupil-maps") {
+            arguments.output_contrast_pupil_maps = true;
+        } else if (arg1 == "--output-wavelength-mtf-report") {
+            arguments.output_wavelength_mtf_report = true;
+        } else if (arg1 == "--output-diffraction-mtf") {
+            arguments.output_diffraction_mtf = true;
+        } else if (arg1 == "--diffraction-pupil-rays") {
+            int sampling = parse_positive_int(arg1, arg2);
+            if (sampling < 4 || sampling % 2 != 0 || sampling > INT_MAX / 2)
+                throw IllegalArgumentException(
+                    arg1 + " requires an even integer of at least 4 whose doubled FFT size "
+                           "fits in an integer");
+            arguments.diffraction_pupil_rays = sampling;
+            i++;
+        } else if (arg1 == "--export-vignetting") {
+            arguments.export_vignetting = true;
         } else if (arg1 == "--verbose") {
             arguments.verbose = true;
         } else if (arg1 == "--debug") {

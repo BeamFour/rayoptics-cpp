@@ -148,6 +148,33 @@ public:
 
     static constexpr int APERTURE_DECIMALS = 4;
 
+    /**
+     * Vignetting factors of one field in one configuration. field is the y field
+     * as a fraction of the half angle of view; config indexes the configurations
+     * as written in [report data].
+     */
+    struct FieldVignetting {
+        int config;
+        double field;
+        double vux;
+        double vlx;
+        double vuy;
+        double vly;
+    };
+
+    /**
+     * The vignetting factors the analysis models were computed with, written as the
+     * [vignetting] section; empty when not requested. Informational: nothing reads
+     * them back when building a model, and a parsed prescription never carries them.
+     */
+    std::optional<std::vector<FieldVignetting>> _vignetting;
+
+    /**
+     * Record the vignetting factors of every field of each model, one model per
+     * configuration, rounded to #APERTURE_DECIMALS.
+     */
+    void set_vignetting_from(const std::vector<rayoptics::optical::OpticalModel *> &models);
+
     Prescription(double focal_length, double fno, double angle_of_view_degrees,
                  double diameter_image_circle, bool d_line_only);
 
@@ -306,6 +333,7 @@ private:
 
     //sb.append("angle of view = ").append(fullAngleOfViewDegrees(1.0)).append("\n");
     void add_patent_section(std::string &sb) const;
+    void add_vignetting_section(std::string &sb) const;
     void add_report_section(std::string &sb) const;
 };
 

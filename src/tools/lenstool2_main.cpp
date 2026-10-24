@@ -80,6 +80,29 @@ int main(int argc, char **argv) {
         std::cerr << "         the surface that blocks the rest, and how well the vignetting "
                      "factors describe it; --pupil-map-samples sets the grid, default "
                   << redukti::analysis::PupilMapAnalysis::DEFAULT_NUM_SAMPLES << "\n";
+        std::cerr << "       --output-wavelength-mtf-report writes mtf-w-wavelength-report.txt: "
+                     "the monochromatic geometric MTF\n";
+        std::cerr << "         per --mtf frequency, wavelength, orientation and field, in the "
+                     "layout of the contrast report\n";
+        std::cerr << "       --output-diffraction-mtf writes mtf-diffraction.svg/.csv and "
+                     "mtf-diffraction-w.svg/.csv: the polychromatic\n";
+        std::cerr << "         diffraction MTF by field, for the same wavelengths and weights "
+                     "as mtf and mtf-w; not linked to the README\n";
+        std::cerr << "       --diffraction-pupil-rays N sets rays across the diffraction pupil "
+                     "(default 64; even, at least 4)\n";
+        std::cerr << "         the FFT size is 2N x 2N; applies to both diffraction wavelength "
+                     "sets, without automatic refinement\n";
+        std::cerr << "       --export-vignetting adds a [vignetting] section to prescription.txt: "
+                     "the vignetting factors\n";
+        std::cerr << "         of each field and configuration, as set by --vig-type\n";
+        std::cerr << "       --output-contrast-pupil-maps writes "
+                     "contrast-pupil[-semi-skew|-skew].svg: where in the pupil each --mtf\n";
+        std::cerr << "         frequency loses contrast, sagittal and tangential, at the "
+                     "reference wavelength\n";
+        std::cerr << "       --output-contrast-report writes contrast-report-w.txt: the RMS "
+                     "contrast OPD difference\n";
+        std::cerr << "         per --mtf frequency, wavelength, orientation and field, for the "
+                     "weighted MTF wavelengths\n";
         std::cerr << "       --mtf takes spatial frequencies in cycles/mm and defaults to "
                      "10,30,50, which is what the reports under Examples/ use\n";
         std::cerr << "       --real-ray-aiming aims the chief ray by tracing a real ray at "

@@ -12,6 +12,7 @@
 #define REDUKTI_RAYOPTICS_RAYTR_WAVEABR_H
 
 #include "redukti/rayoptics/parax/ParaxTypes.h"
+#include "redukti/rayoptics/raytr/PreOpdPkg.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/util/Tuples.h"
 
@@ -90,12 +91,68 @@ public:
                                      const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
                                      const std::shared_ptr<const ReferenceSphere> &ref_sphere);
 
+    /**
+     * Pre-calculate the part of the OPD calc independent of focus.
+     */
+    static std::shared_ptr<const PreOpdPkg> wave_abr_pre_calc(
+        const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+        const std::shared_ptr<const RayPkg> &ray_pkg,
+        const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+        const std::shared_ptr<const ReferenceSphere> &ref_sphere);
+
+    /**
+     * Given pre-calculated info and a ref. sphere, return the ray's OPD.
+     */
+    static double wave_abr_calc(const parax::FirstOrderData &fod, specs::Field &fld, double wvl,
+                                double foc, const std::shared_ptr<const RayPkg> &ray_pkg,
+                                const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+                                const std::shared_ptr<const PreOpdPkg> &pre_opd_pkg,
+                                const std::shared_ptr<const ReferenceSphere> &ref_sphere);
+
     static FinitePupilWaveAberrationResult wave_abr_calc_finite_pupil(
         const std::shared_ptr<const RayPkg> &ray_pkg,
         const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
         const std::shared_ptr<const ReferenceSphere> &ref_sphere);
 
 private:
+    /**
+     * Pre-calculate the part of the OPD calc independent of focus.
+     */
+    static std::shared_ptr<const PreOpdPkg::FinitePup> wave_abr_pre_calc_finite_pup(
+        const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+        const std::shared_ptr<const RayPkg> &ray_pkg,
+        const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+        const std::shared_ptr<const ReferenceSphere> &ref_sphere);
+
+    /**
+     * Given pre-calculated info and a ref. sphere, return the ray's OPD.
+     */
+    static double wave_abr_calc_finite_pup(
+        const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+        const std::shared_ptr<const RayPkg> &ray_pkg,
+        const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+        const PreOpdPkg::FinitePup &pre_opd_pkg,
+        const std::shared_ptr<const ReferenceSphere> &ref_sphere);
+
+    /**
+     * Pre-calculate the part of the OPD calc independent of focus.
+     */
+    static std::shared_ptr<const PreOpdPkg::InfRef> wave_abr_pre_calc_inf_ref(
+        const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+        const std::shared_ptr<const RayPkg> &ray_pkg,
+        const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+        const std::shared_ptr<const ReferenceSphere> &ref_sphere);
+
+    /**
+     * Given pre-calculated info and a ref. sphere, return the ray's OPD.
+     */
+    static double wave_abr_calc_inf_ref(
+        const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
+        const std::shared_ptr<const RayPkg> &ray_pkg,
+        const std::shared_ptr<const ChiefRayPkg> &chief_ray_pkg,
+        const PreOpdPkg::InfRef &pre_opd_pkg,
+        const std::shared_ptr<const ReferenceSphere> &ref_sphere);
+
     static double wave_abr_full_calc_finite_pup(
         const parax::FirstOrderData &fod, specs::Field &fld, double wvl, double foc,
         const std::shared_ptr<const RayPkg> &ray_pkg,

@@ -131,8 +131,8 @@ TEST(contrast_evaluates_weighted_wavefront_differences_for_every_field_and_wavel
             CHECK_CLOSE(weightSum, 1.0, 1.0e-14);
             for (std::size_t i = 0; i < wavelength.samples.size(); i++) {
                 const auto &sample = wavelength.samples[i];
-                CHECK(std::isfinite(sample.sagittalDifference));
-                CHECK(std::isfinite(sample.tangentialDifference));
+                CHECK(std::isfinite(sample.sagittalOpdDifference));
+                CHECK(std::isfinite(sample.tangentialOpdDifference));
                 CHECK(std::isfinite(sample.sagittalResidual()));
                 CHECK(std::isfinite(sample.tangentialResidual()));
             }

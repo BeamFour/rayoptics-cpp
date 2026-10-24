@@ -275,8 +275,8 @@ TEST(analysis_contrast_matches_jvm) {
             for (std::size_t si = 0; si < w.samples.size(); si++) {
                 const auto &s = w.samples[si];
                 sb += "   [" + std::to_string(si) + "] pupil=" + d(s.pupil.x) + "," +
-                      d(s.pupil.y) + " sag=" + d(s.sagittalDifference) +
-                      " tan=" + d(s.tangentialDifference) + " w=" + d(s.weight) +
+                      d(s.pupil.y) + " sag=" + d(s.sagittalOpdDifference) +
+                      " tan=" + d(s.tangentialOpdDifference) + " w=" + d(s.weight) +
                       " valid=" + b(s.valid) + " fail=" +
                       (!s.failure.has_value()
                            ? std::string("null")

@@ -59,6 +59,7 @@ add_library(rayoptics
     src/mathlib/MinPack.cpp
     src/mathlib/fftpack/ComplexDoubleFFT_Mixed.cpp
     src/mathlib/fftpack/ComplexDoubleFFT.cpp
+    src/mathlib/FFTUtil.cpp
     src/rayoptics/elem/profiles/Profiles.cpp
     src/rayoptics/seq/Seq.cpp
     src/rayoptics/seq/Glass.cpp
@@ -83,6 +84,8 @@ add_library(rayoptics
     src/rayoptics/raytr/Trace.cpp
     src/rayoptics/raytr/Wideangle.cpp
     src/rayoptics/raytr/VigCalc.cpp
+    src/rayoptics/raytr/Analyses.cpp
+    src/rayoptics/raytr/RayGrid.cpp
     src/util/Args.cpp
     src/tools/LensTool2.cpp
     src/tools/GlassFinder.cpp
@@ -119,6 +122,12 @@ add_library(rayoptics
     src/analysis/PupilMapAnalysis.cpp
     src/rayoptics/analysis/RayAberrations.cpp
     src/analysis/ContrastAnalysis.cpp
+    src/analysis/ContrastReport.cpp
+    src/analysis/MonochromaticMTFReport.cpp
+    src/analysis/ContrastPupilMap.cpp
+    src/plotter/ContrastPupilMapPlot.cpp
+    src/analysis/DiffractionMTF.cpp
+    src/analysis/PolyDiffractionMTF.cpp
 )
 target_include_directories(rayoptics PUBLIC include)
 target_link_libraries(rayoptics PRIVATE ryu)
@@ -139,9 +148,11 @@ add_executable(mathlib_tests
     tests/MinPackHybrdBatteryTest.cpp
     tests/MinPackLmderBatteryTest.cpp
     tests/FftTest.cpp
+    tests/FFTUtilTest.cpp
     tests/TrigProbeTest.cpp
     tests/SeqTest.cpp
     tests/RaytrTest.cpp
+    tests/AnalysesTest.cpp
     tests/AnalysisTest.cpp
     tests/DataTest.cpp
     tests/DecimalFormatTest.cpp
@@ -151,6 +162,7 @@ add_executable(mathlib_tests
     tests/LayoutPlotterTest.cpp
     tests/ZemaxExporterTest.cpp
     tests/ZemaxRadialExportTest.cpp
+    tests/ZemaxVignettingExportTest.cpp
     tests/OpticalBenchAsphereTest.cpp
     tests/AsphericOptimizationTest.cpp
     tests/FormatFTest.cpp
@@ -171,6 +183,10 @@ add_executable(mathlib_tests
     tests/OrientationTest.cpp
     tests/WeightedSpotAnalysisTest.cpp
     tests/ContrastAnalysisTest.cpp
+    tests/ContrastReportTest.cpp
+    tests/ContrastPupilMapTest.cpp
+    tests/DiffractionMTFTest.cpp
+    tests/PolyDiffractionMTFTest.cpp
     tests/ContrastResidualCenteringTest.cpp
     tests/Trace2dSolverTest.cpp
     tests/WaveAbrFinitePupilTest.cpp

@@ -106,6 +106,33 @@ public:
      * redukti::analysis::PupilMapAnalysis.
      */
     bool output_pupil_maps = false;
+    /**
+     * Write the contrast OPD differences beside the other reports, at each --mtf
+     * frequency. See redukti::analysis::ContrastReport.
+     */
+    bool output_contrast_report = false;
+    /**
+     * Draw where in the pupil each contrast frequency loses contrast. See
+     * redukti::analysis::ContrastPupilMap.
+     */
+    bool output_contrast_pupil_maps = false;
+    /**
+     * Write the monochromatic geometric MTF as a table, in the layout of the contrast
+     * report. See redukti::analysis::MonochromaticMTFReport.
+     */
+    bool output_wavelength_mtf_report = false;
+    /**
+     * Write the polychromatic diffraction MTF by field, for both wavelength sets. See
+     * redukti::analysis::PolyDiffractionMTF.
+     */
+    bool output_diffraction_mtf = false;
+    /** Rays across the diffraction pupil; the FFT size is twice this value. */
+    int diffraction_pupil_rays = 64;
+    /**
+     * Write the analysis vignetting factors into the generated prescription, as its
+     * [vignetting] section.
+     */
+    bool export_vignetting = false;
     /** Log the optimizer's progress to the console, one line per iteration. */
     bool verbose = false;
     /** Log everything, including the ray-optics info messages and debug traces. */

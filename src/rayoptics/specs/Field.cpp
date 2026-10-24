@@ -11,8 +11,11 @@
 #include "redukti/Text.h"
 #include "redukti/rayoptics/raytr/RayTypes.h"
 #include "redukti/rayoptics/specs/FieldSpec.h"
+#include "redukti/rayoptics/specs/PupilSpec.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <limits>
 
 namespace redukti::rayoptics::specs {
 
@@ -25,6 +28,40 @@ void Field::update() {
     z_enp = std::nullopt;
     chief_ray = nullptr;
     ref_sphere = nullptr;
+}
+
+namespace {
+
+/** Port of upstream gui.util.bbox_from_poly, for a list of 2d points. */
+std::array<std::array<double, 2>, 2> bbox_from_poly(const std::vector<std::vector<double>> &poly) {
+    double minx = std::numeric_limits<double>::infinity(),
+           miny = std::numeric_limits<double>::infinity();
+    double maxx = -std::numeric_limits<double>::infinity(),
+           maxy = -std::numeric_limits<double>::infinity();
+    for (const auto &p : poly) {
+        minx = std::min(minx, p[0]);
+        miny = std::min(miny, p[1]);
+        maxx = std::max(maxx, p[0]);
+        maxy = std::max(maxy, p[1]);
+    }
+    return {{{minx, miny}, {maxx, maxy}}};
+}
+
+} // namespace
+
+std::array<std::array<double, 2>, 2> Field::vignetting_bbox(const PupilSpec &pupil_spec,
+                                                            double oversize) const {
+    std::vector<std::vector<double>> poly(pupil_spec.pupil_rays.size());
+    for (std::size_t i = 0; i < poly.size(); i++) {
+        auto vig_pup_ray = apply_vignetting(pupil_spec.pupil_rays[i]);
+        poly[i] = vig_pup_ray;
+    }
+    auto vig_bbox = bbox_from_poly(poly);
+    for (auto &corner : vig_bbox) {
+        corner[0] *= oversize;
+        corner[1] *= oversize;
+    }
+    return vig_bbox;
 }
 
 bool Field::is_relative() const {

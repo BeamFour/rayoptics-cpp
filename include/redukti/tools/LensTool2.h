@@ -15,6 +15,8 @@
 #include "redukti/optim/OptimizationBuilder.h"
 #include "redukti/optim/OptimizationPipeline.h"
 #include "redukti/optim/OptimizationTrial.h"
+#include "redukti/analysis/ContrastAnalysis.h"
+#include "redukti/analysis/PolyDiffractionMTF.h"
 #include "redukti/analysis/SpotAnalysis.h"
 #include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/parax/ParaxTypes.h"
@@ -133,6 +135,14 @@ public:
     /** Today's date as Java LocalDate.now() renders it, i.e. ISO yyyy-MM-dd. */
     static std::string today();
 
+    /**
+     * A warning when the geometric spot of the field does not fit the PSF window at some
+     * wavelength, naming the worst wavelength; empty when it fits at every wavelength.
+     * Package-private in the Java; public here so the test can reach it.
+     */
+    static std::optional<std::string> diffractionWindowWarning(
+        const redukti::analysis::PolyDiffractionMTF &mtf, double field);
+
 private:
     /**
      * Reads the prescription text, optionally running the glass type matcher over it
@@ -158,12 +168,57 @@ private:
         rayoptics::optical::OpticalModel *opm, const util::Args &arguments,
         bool standardSize, const std::string &filename_suffix);
 
+    /**
+     * @param wavelengthReport also write <outname>-wavelength-report<suffix>.txt, the
+     *                         monochromatic MTF tabulated like the contrast report
+     */
     static void generateMTFs(rayoptics::optical::OpticalModel *opm,
                              const util::Args &arguments,
                              const std::vector<double> &fields,
                              const std::vector<std::pair<double, double>> &wv_wts,
                              const std::string &outname,
-                             const std::string &filename_suffix);
+                             const std::string &filename_suffix,
+                             bool wavelengthReport);
+
+    /**
+     * Writes the contrast OPD differences at each --mtf frequency, with the optimizer's
+     * default sampling. Exit-pupil aiming is on: too slow for every optimizer evaluation,
+     * but affordable once per report, and it realises the requested frequency at every
+     * sample rather than per field.
+     */
+    static void generateContrastReport(rayoptics::optical::OpticalModel *opm,
+                                       const util::Args &arguments,
+                                       const std::string &outname,
+                                       const std::string &filename_suffix);
+
+    static redukti::analysis::ContrastOptions contrastReportOptions();
+
+    /**
+     * Writes the contrast pupil maps at the reference wavelength, for the same three fields
+     * as the spot diagrams, sampled as the contrast report is. A frequency the analysis
+     * cannot sample is left out of the maps and reported on the console.
+     */
+    static void generateContrastPupilMaps(rayoptics::optical::OpticalModel *opm,
+                                          const util::Args &arguments,
+                                          const std::string &filename_suffix);
+
+    /**
+     * Writes the polychromatic diffraction MTF by field as <outname><suffix>.svg and
+     * .csv, weighting the wavelengths of the model by wv_wts. Not linked to the README.
+     *
+     * Leaves each field's chief ray and reference sphere set up by the last wavelength's
+     * wavefront trace.
+     */
+    static void generateDiffractionMTFs(rayoptics::optical::OpticalModel *opm,
+                                        const util::Args &arguments,
+                                        const std::vector<double> &fields,
+                                        const std::vector<std::pair<double, double>> &wv_wts,
+                                        const std::string &outname,
+                                        const std::string &filename_suffix);
+
+    // The optimizer's default contrast sampling, see OptimizationConfiguration
+    static constexpr int CONTRAST_NUM_RINGS = 6;
+    static constexpr int CONTRAST_NUM_SPOKES = 12;
 
     static void generateRayAberrationPlots(rayoptics::optical::OpticalModel *opm,
                                            const util::Args &arguments,

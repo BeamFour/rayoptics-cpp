@@ -61,3 +61,20 @@ TEST(jvm_vs_libm_trig_at_fft_wavetable_arguments) {
     std::printf("    trig: %d/%d cos and %d/%d sin values differ from the JVM\n",
                 cosdiff, n, sindiff, n);
 }
+
+// The 45 degree angle, 2*pi*1/8: the n = 8 wavetable's and the gaussian quadrature
+// pattern's eighth spoke. The JVM's sin is one ulp below its cos here, which is the
+// correctly rounded answer since the argument lies just below pi/4; MSVC's sin
+// returns the cos value. This is why FFTUtilTest's 8x8 transform and the on-axis
+// field of ContrastPupilMapTest need a tolerance.
+TEST(jvm_vs_libm_trig_at_quarter_pi) {
+    const double arg = 2.0 * 3.141592653589793 * 1 / 8;
+    const double jcos = 0.7071067811865476, jsin = 0.7071067811865475;
+    const double ONE_ULP_AT_1 = 2.220446049250313e-16;
+    CHECK_EQ(arg, 0.7853981633974483);
+    CHECK(std::abs(std::cos(arg) - jcos) <= ONE_ULP_AT_1);
+    CHECK(std::abs(std::sin(arg) - jsin) <= ONE_ULP_AT_1);
+    std::printf("    trig: at pi/4 cos %s and sin %s the JVM\n",
+                std::cos(arg) == jcos ? "matches" : "differs from",
+                std::sin(arg) == jsin ? "matches" : "differs from");
+}

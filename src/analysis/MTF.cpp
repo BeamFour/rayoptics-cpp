@@ -7,7 +7,9 @@
 #include "redukti/analysis/MTF.h"
 
 #include "redukti/Exceptions.h"
+#include "redukti/analysis/PolyDiffractionMTF.h"
 #include "redukti/mathlib/fftpack/ComplexDoubleFFT.h"
+#include "redukti/rayoptics/optical/OpticalModel.h"
 #include "redukti/rayoptics/util/Orientation.h"
 
 #include <cmath>
@@ -168,6 +170,24 @@ MTFResultByFreq::MTFResultByFreq(const std::vector<PolyMTF> &mtfs_by_field, int 
         sag_mtf_by_field[fi] = interpolate(mtf.freq, mtf.mag_x, freq);
         tan_mtf_by_field[fi] = interpolate(mtf.freq, mtf.mag_y, freq);
     }
+}
+
+MTFResultByFreq::MTFResultByFreq(int freq_, int num_fields) : freq(freq_) {
+    sag_mtf_by_field.assign(static_cast<std::size_t>(num_fields), 0.0);
+    tan_mtf_by_field.assign(static_cast<std::size_t>(num_fields), 0.0);
+}
+
+MTFResultByFreq MTFResultByFreq::from_diffraction(
+    rayoptics::optical::OpticalModel *opm, const std::vector<PolyDiffractionMTF> &mtfs_by_field,
+    int freq) {
+    MTFResultByFreq result(freq, static_cast<int>(mtfs_by_field.size()));
+    double nu = freq / opm->nm_to_sys_units(1.0e6);
+    for (std::size_t fi = 0; fi < mtfs_by_field.size(); fi++) {
+        const auto &mtf = mtfs_by_field[fi];
+        result.sag_mtf_by_field[fi] = mtf.sagittal(nu);
+        result.tan_mtf_by_field[fi] = mtf.tangential(nu);
+    }
+    return result;
 }
 
 double MTFResultByFreq::interpolate(const std::vector<double> &freq,

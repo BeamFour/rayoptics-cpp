@@ -18,6 +18,7 @@
 #include "redukti/rayoptics/specs/OpticalSpecs.h"
 
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -80,6 +81,9 @@ public:
 
     explicit ContrastOptions(double spatialFrequency_);
 
+    /** These options at another spatial frequency. */
+    ContrastOptions with_frequency(double spatialFrequency) const;
+
     ContrastOptions &num_rings(int value);
     ContrastOptions &num_spokes(std::optional<int> value);
     ContrastOptions &trace_options(const rayoptics::raytr::TraceOptions &value);
@@ -103,23 +107,48 @@ public:
               surface(surface_) {}
     };
 
+    /**
+     * One pupil point of a contrast analysis: the wavefront difference the frequency's
+     * pupil shear produces there, in each orientation.
+     *
+     * @param pupil                   the reference ray's pupil coordinate
+     * @param sagittalOpdDifference   OPD of the sagittally shifted ray less the reference
+     *                                ray's OPD, in waves
+     * @param tangentialOpdDifference OPD of the tangentially shifted ray less the
+     *                                reference ray's OPD, in waves
+     * @param weight                  the reference ray's gaussian-quadrature weight times the
+     *                                vignetting factor, normalized so that the sum of weights
+     *                                for all samples in a wavelength and field adds up to 1.
+     *                                The sum over valid samples may be less than 1.
+     *                                See ContrastAnalysis#generate_quadrature.
+     * @param referenceOpd            the reference ray's OPD in waves, so that the shifted
+     *                                rays' OPDs are this plus the differences; NaN when not
+     *                                recorded
+     */
     /** Java record Sample(...). */
     class Sample {
     public:
         mathlib::Vector2 pupil;
-        double sagittalDifference;
-        double tangentialDifference;
+        double sagittalOpdDifference;
+        double tangentialOpdDifference;
         double weight;
         bool valid;
         /** Null when the sample is good. */
         std::optional<Failure> failure;
+        double referenceOpd;
 
-        Sample(const mathlib::Vector2 &pupil_, double sagittalDifference_,
-               double tangentialDifference_, double weight_, bool valid_,
+        Sample(const mathlib::Vector2 &pupil_, double sagittalOpdDifference_,
+               double tangentialOpdDifference_, double weight_, bool valid_,
+               std::optional<Failure> failure_, double referenceOpd_)
+            : pupil(pupil_), sagittalOpdDifference(sagittalOpdDifference_),
+              tangentialOpdDifference(tangentialOpdDifference_), weight(weight_),
+              valid(valid_), failure(std::move(failure_)), referenceOpd(referenceOpd_) {}
+
+        Sample(const mathlib::Vector2 &pupil_, double sagittalOpdDifference_,
+               double tangentialOpdDifference_, double weight_, bool valid_,
                std::optional<Failure> failure_)
-            : pupil(pupil_), sagittalDifference(sagittalDifference_),
-              tangentialDifference(tangentialDifference_), weight(weight_),
-              valid(valid_), failure(std::move(failure_)) {}
+            : Sample(pupil_, sagittalOpdDifference_, tangentialOpdDifference_, weight_, valid_,
+                     std::move(failure_), std::numeric_limits<double>::quiet_NaN()) {}
 
         double sagittalResidual() const;
         double tangentialResidual() const;

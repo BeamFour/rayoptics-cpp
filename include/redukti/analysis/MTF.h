@@ -15,7 +15,13 @@
 #include <memory>
 #include <vector>
 
+namespace redukti::rayoptics::optical {
+class OpticalModel;
+}
+
 namespace redukti::analysis {
+
+class PolyDiffractionMTF;
 
 /** Frequency axis, complex spectra and normalized magnitudes for both meridians. */
 class BaseMTF {
@@ -147,6 +153,14 @@ public:
     MTFResultByFreq(const std::vector<PolyMTF> &mtfs_by_field, int freq_);
 
     /**
+     * Diffraction MTF at freq cycles/mm across fields. The MTFs are in cycles per
+     * system length unit, converted here with the model's units.
+     */
+    static MTFResultByFreq from_diffraction(rayoptics::optical::OpticalModel *opm,
+                                            const std::vector<PolyDiffractionMTF> &mtfs_by_field,
+                                            int freq);
+
+    /**
      * Linearly interpolate an MTF magnitude at the requested spatial frequency.
      * The frequency axis is monotonically increasing and uniformly spaced at
      * 1/(fft_size*pixel_size), so the requested frequency almost never lands
@@ -156,6 +170,9 @@ public:
      */
     static double interpolate(const std::vector<double> &freq,
                               const std::vector<double> &mag, double f);
+
+private:
+    MTFResultByFreq(int freq_, int num_fields);
 };
 
 } // namespace redukti::analysis

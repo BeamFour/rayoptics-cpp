@@ -11,6 +11,10 @@
 #include "redukti/mathlib/M.h"
 #include "redukti/plotter/Plotter.h"
 #include "redukti/analysis/MTF.h"
+#include "redukti/analysis/ContrastReport.h"
+#include "redukti/analysis/MonochromaticMTFReport.h"
+#include "redukti/plotter/ContrastPupilMapPlot.h"
+#include "redukti/rayoptics/util/Orientation.h"
 #include "redukti/rayoptics/analysis/RayAberrations.h"
 #include "redukti/layout/Layout2D.h"
 #include "redukti/rayoptics/raytr/RayTrace.h"
@@ -33,6 +37,7 @@ namespace redukti::tools {
 namespace fs = std::filesystem;
 
 using importers::OpticalBenchDataImporter;
+using plotter::ContrastPupilMapPlot;
 using plotter::GeoMTFByFieldPlot;
 using plotter::GeoMTFPlot;
 using plotter::PupilMapPlot;
@@ -383,13 +388,18 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
                              const std::vector<double> &fields,
                              const std::vector<std::pair<double, double>> &wv_wts,
                              const std::string &outname,
-                             const std::string &filename_suffix) {
+                             const std::string &filename_suffix,
+                             bool wavelengthReport) {
     auto spotAnalysis = redukti::analysis::SpotAnalysis::eval(opm, spotOptions(arguments));
     std::vector<redukti::analysis::PolyMTF> mtfs;
+    std::vector<std::vector<redukti::analysis::MonochromaticGeometricMTF>> monoMtfs;
+    std::vector<double> monoFields(spotAnalysis.spot_results.size());
     for (std::size_t i = 0; i < spotAnalysis.spot_results.size(); i++) {
         const auto &spotFld = spotAnalysis.spot_results[i];
         auto cfg = spotFld.mtfHistogramConfig();
         std::optional<redukti::analysis::PolyMTF> polyMtfForField;
+        auto &monoForField = monoMtfs.emplace_back();
+        monoFields[i] = spotFld.fld->y;
         for (const auto &intercepts : spotFld.intercepts) {
             std::string filename =
                 suffixed_name("mtf-fld" + std::to_string(i) + "-" +
@@ -413,6 +423,9 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
             if (arguments.do_mono_chrome_mtfs)
                 Helper::createOutputFile(output_file,
                                          GeoMTFPlot(*spotFld.fld, mtf).plot());
+            // Kept only for the report: a field's MTFs otherwise go out of scope here.
+            if (wavelengthReport)
+                monoForField.push_back(std::move(mtf));
         }
         if (polyMtfForField.has_value()) {
             polyMtfForField->compute();
@@ -432,6 +445,136 @@ void LensTool2::generateMTFs(optical::OpticalModel *opm, const Args &arguments,
         *arguments.specfile, suffixed_name(outname, filename_suffix, ".csv"),
         arguments.outdir);
     Helper::createOutputFile(mtfdata, plot.toString());
+    if (wavelengthReport)
+        Helper::createOutputFile(
+            Helper::getOutputFileWithPath(
+                *arguments.specfile,
+                suffixed_name(outname + "-wavelength-report", filename_suffix, ".txt"),
+                arguments.outdir),
+            redukti::analysis::MonochromaticMTFReport::report(monoFields, monoMtfs, freqs));
+}
+
+void LensTool2::generateDiffractionMTFs(optical::OpticalModel *opm, const Args &arguments,
+                                        const std::vector<double> &fields,
+                                        const std::vector<std::pair<double, double>> &wv_wts,
+                                        const std::string &outname,
+                                        const std::string &filename_suffix) {
+    const auto &wvls = opm->optical_spec->wvls->wavelengths;
+    std::vector<double> weights(wvls.size());
+    for (std::size_t i = 0; i < wvls.size(); i++) {
+        // Java: wv_wts.getOrDefault(wvls[i], 0.0) -- exact key match.
+        weights[i] = 0.0;
+        for (const auto &kv : wv_wts) {
+            if (kv.first == wvls[i]) {
+                weights[i] = kv.second;
+                break;
+            }
+        }
+    }
+    std::vector<redukti::analysis::PolyDiffractionMTF> mtfs;
+    for (const auto &fld : opm->optical_spec->fov->fields)
+        mtfs.emplace_back(opm, *fld, wvls, weights, 0.0, arguments.diffraction_pupil_rays,
+                          2 * arguments.diffraction_pupil_rays);
+    for (std::size_t fi = 0; fi < mtfs.size(); fi++) {
+        auto warning = diffractionWindowWarning(mtfs[fi], fields[fi]);
+        if (warning.has_value())
+            std::cerr << outname << filename_suffix << ": " << *warning << std::endl;
+    }
+    std::vector<redukti::analysis::MTFResultByFreq> mtfResults;
+    for (int freq : arguments.mtf_freqs)
+        mtfResults.push_back(redukti::analysis::MTFResultByFreq::from_diffraction(opm, mtfs, freq));
+    GeoMTFByFieldPlot plot(mtfResults, fields);
+    Helper::createOutputFile(
+        Helper::getOutputFileWithPath(*arguments.specfile,
+                                      suffixed_name(outname, filename_suffix, ".svg"),
+                                      arguments.outdir),
+        plot.plot());
+    Helper::createOutputFile(
+        Helper::getOutputFileWithPath(*arguments.specfile,
+                                      suffixed_name(outname, filename_suffix, ".csv"),
+                                      arguments.outdir),
+        plot.toString());
+}
+
+std::optional<std::string> LensTool2::diffractionWindowWarning(
+    const redukti::analysis::PolyDiffractionMTF &mtf, double field) {
+    const redukti::analysis::DiffractionMTF *worst = nullptr;
+    for (const auto &mono : mtf.mono)
+        if (worst == nullptr || mono.spot_to_window_ > worst->spot_to_window_)
+            worst = &mono;
+    if (worst == nullptr || worst->spot_to_window_ <= 1.0)
+        return std::nullopt;
+    return "diffraction MTF at field " + formatF(field, 2) + " may be wrong: the spot at " +
+           formatF(worst->wvl, 1) + " nm is " + formatF(worst->spot_to_window_, 2) +
+           " times the PSF window; try --diffraction-pupil-rays " +
+           std::to_string(worst->suggested_n_pupil());
+}
+
+void LensTool2::generateContrastReport(optical::OpticalModel *opm, const Args &arguments,
+                                       const std::string &outname,
+                                       const std::string &filename_suffix) {
+    Helper::createOutputFile(
+        Helper::getOutputFileWithPath(*arguments.specfile,
+                                      suffixed_name(outname, filename_suffix, ".txt"),
+                                      arguments.outdir),
+        redukti::analysis::ContrastReport::report(opm, arguments.mtf_freqs,
+                                                  contrastReportOptions()));
+}
+
+redukti::analysis::ContrastOptions LensTool2::contrastReportOptions() {
+    return redukti::analysis::ContrastOptions(0.0)
+        .num_rings(CONTRAST_NUM_RINGS)
+        .num_spokes(CONTRAST_NUM_SPOKES)
+        .aim_exit_pupil(true);
+}
+
+void LensTool2::generateContrastPupilMaps(optical::OpticalModel *opm, const Args &arguments,
+                                          const std::string &filename_suffix) {
+    using redukti::analysis::ContrastPupilMap;
+    namespace Orientation = redukti::rayoptics::util::Orientation;
+    const std::vector<int> &freqs = arguments.mtf_freqs;
+    // Empty where the Java array holds null.
+    std::vector<std::optional<redukti::analysis::ContrastAnalysisResult>> results(freqs.size());
+    for (std::size_t k = 0; k < freqs.size(); k++) {
+        try {
+            results[k].emplace(redukti::analysis::ContrastAnalysis::eval(
+                opm, contrastReportOptions().with_frequency(freqs[k])));
+        } catch (const IllegalArgumentException &e) {
+            std::cerr << "No contrast pupil map at " << freqs[k] << " cycles/mm: " << e.what()
+                      << std::endl;
+        }
+    }
+    auto wi = static_cast<std::size_t>(opm->optical_spec->wvls->reference_wvl);
+    const auto &fields = opm->optical_spec->fov->fields;
+    for (std::size_t fi = 0; fi < fields.size(); fi++) {
+        std::string name;
+        if (fields[fi]->y == 0.0)
+            name = "contrast-pupil";
+        else if (fields[fi]->y == 0.7)
+            name = "contrast-pupil-semi-skew";
+        else if (fields[fi]->y == 1.0)
+            name = "contrast-pupil-skew";
+        else
+            continue;
+        std::vector<ContrastPupilMapPlot::Row> maps(freqs.size());
+        std::shared_ptr<const specs::FieldSnapshot> snapshot;
+        for (std::size_t k = 0; k < freqs.size(); k++) {
+            if (!results[k].has_value())
+                continue;
+            const auto &field = results[k]->fields[fi];
+            snapshot = field.field;
+            const auto &block = field.wavelengths[wi];
+            maps[k][0].emplace(block, Orientation::SAGITTAL);
+            maps[k][1].emplace(block, Orientation::TANGENTIAL);
+        }
+        if (snapshot == nullptr)
+            continue;
+        Helper::createOutputFile(
+            Helper::getOutputFileWithPath(*arguments.specfile,
+                                          suffixed_name(name, filename_suffix, ".svg"),
+                                          arguments.outdir),
+            ContrastPupilMapPlot(snapshot, freqs, std::move(maps)).plot());
+    }
 }
 
 void LensTool2::generateRayAberrationPlots(optical::OpticalModel *opm,
@@ -733,6 +876,8 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
     }
     auto outputPrescription =
         prescriptionWithAnalysisApertures(prescription, analysisModels, analysisVigType);
+    if (arguments.export_vignetting)
+        outputPrescription.set_vignetting_from(analysisModels);
     std::string prescription_output =
         prescriptionOutput(outputPrescription, *arguments.specfile);
     Helper::createOutputFile(Helper::getOutputFileWithPath(*arguments.specfile,
@@ -806,17 +951,37 @@ void LensTool2::run(Args arguments, const std::string &generated_on) {
         spotAnalysis.spot_results.clear();
         addMTFsToREADME(SB, scenario_filesuffix, arguments.mtf_freqs);
         generateMTFs(opm, arguments, fields, prescription.get_wvl_wts(), "mtf",
-                     scenario_filesuffix);
+                     scenario_filesuffix, false);
         if (arguments.do_ray_aberrations)
             generateRayAberrationPlots(opm, arguments, scenario_filesuffix);
+        // Last on this model: it leaves the fields set up for its last wavelength.
+        if (arguments.output_diffraction_mtf)
+            generateDiffractionMTFs(opm, arguments, fields, prescription.get_wvl_wts(),
+                                    "mtf-diffraction", scenario_filesuffix);
         // Generate MTF with weighted average across wavelengths. The Java reassigns
         // its own opm here; this model is a separate owner because the analysis
         // models above are kept for the whole run.
         auto weighted = createSystem(prescriptionForWeightedMTF, true, analysisVigType,
                                      realRayAiming, fields, config);
+        // The wavelength report from the weighted model only, whose wavelengths include
+        // the unweighted ones, matching the contrast report.
         generateMTFs(weighted.get(), arguments, fields,
                      prescriptionForWeightedMTF.get_wvl_wts(), "mtf-w",
-                     scenario_filesuffix);
+                     scenario_filesuffix, arguments.output_wavelength_mtf_report);
+        // From the weighted model only: its wavelengths include the unweighted ones,
+        // and the values are per wavelength, so they agree where the two overlap.
+        // Last on this model: the contrast trace leaves each field's chief ray and
+        // reference sphere set up for its last wavelength.
+        if (arguments.output_contrast_report)
+            generateContrastReport(weighted.get(), arguments, "contrast-report-w",
+                                   scenario_filesuffix);
+        if (arguments.output_contrast_pupil_maps)
+            generateContrastPupilMaps(weighted.get(), arguments, scenario_filesuffix);
+        // After the contrast outputs, which expect the fields as the contrast trace left them.
+        if (arguments.output_diffraction_mtf)
+            generateDiffractionMTFs(weighted.get(), arguments, fields,
+                                    prescriptionForWeightedMTF.get_wvl_wts(),
+                                    "mtf-diffraction-w", scenario_filesuffix);
     }
     createREADME(SB, *arguments.specfile, outputPrescription,
                  Helper::getOutputFileWithPath(*arguments.specfile, "README.md",

@@ -13,6 +13,7 @@
 
 #include "redukti/mathlib/Vector2.h"
 
+#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -28,6 +29,7 @@ class RayPkg;
 namespace redukti::rayoptics::specs {
 
 class FieldSpec;
+class PupilSpec;
 
 /**
  * a single field point, chief ray pkg and pupil limits
@@ -147,6 +149,18 @@ public:
     double vignetting_scale_x(double x_) const { return vignetting_scale(x_, vlx, vux); }
     /** Factor by which apply_vignetting scales a y pupil coordinate. */
     double vignetting_scale_y(double y_) const { return vignetting_scale(y_, vly, vuy); }
+
+    /**
+     * returns a bbox of the vignetted pupil ray extents.
+     *
+     * @return {{minx, miny}, {maxx, maxy}}
+     */
+    std::array<std::array<double, 2>, 2> vignetting_bbox(const PupilSpec &pupil_spec,
+                                                         double oversize) const;
+
+    std::array<std::array<double, 2>, 2> vignetting_bbox(const PupilSpec &pupil_spec) const {
+        return vignetting_bbox(pupil_spec, 1.);
+    }
 
     /**
      * Resets vignetting values to 0.
